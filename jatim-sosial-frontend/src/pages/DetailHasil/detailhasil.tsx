@@ -165,15 +165,15 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
           <div className="detail-main-col">
             
             {/* Summary Cards */}
-            <div className="summary-cards-container">
+            <div className="summary-cards-container w-full">
               <SummaryCard 
                 label="DESIL KESEJAHTERAAN" 
                 icon={<BarChart2 size={16} className="text-blue" />} 
-                value={desil.toString()} 
+                value={"2"} 
                 maxValue="/ 10" 
-                desc={`Skor Kesejahteraan: ${skorKesejahteraan}`}
+                // desc={`Skor Kesejahteraan: ${skorKesejahteraan}`}
               />
-              <SummaryCard 
+              {/* <SummaryCard 
                 label="TINGKAT KERENTANAN" 
                 icon={<AlertTriangle size={16} className="text-orange" />} 
                 value="85%" 
@@ -186,7 +186,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                 value="92%" 
                 progress={{ value: 92, colorClass: "green" }}
                 desc="Akurasi klasifikasi berdasarkan konsistensi data"
-              />
+              /> */}
             </div>
 
             {/* AI Reasoning Section */}
