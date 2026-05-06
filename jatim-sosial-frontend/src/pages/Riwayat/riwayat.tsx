@@ -140,7 +140,7 @@ const Riwayat: React.FC<RiwayatProps> = ({ onLogout }) => {
               <Download size={16} /> Ekspor Laporan
             </button>
             <button className="btn-primary" onClick={() => navigate('/analisis-baru')}>
-              <Plus size={16} /> Analisis Baru
+              <Plus size={16} /> Import Data
             </button>
           </div>
         </div>
@@ -223,7 +223,7 @@ const Riwayat: React.FC<RiwayatProps> = ({ onLogout }) => {
                       <td>
                         <a href="#" className="link-no-analisis" onClick={(e) => {
                           e.preventDefault();
-                          navigate('/detail-hasil');
+                          navigate('/detail-hasil/1');
                         }}>
                           {row.no}
                         </a>
@@ -256,7 +256,7 @@ const Riwayat: React.FC<RiwayatProps> = ({ onLogout }) => {
                           <button 
                             className="btn-icon" 
                             title="Lihat Detail"
-                            onClick={() => navigate('/detail-hasil')}
+                            onClick={() => navigate('/detail-hasil/1')}
                           >
                             <Eye size={18} />
                           </button>

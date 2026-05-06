@@ -207,7 +207,7 @@ const StatusBantuan: React.FC<StatusBantuanProps> = ({ onLogout }) => {
                       </td>
                       <td>
                         <div className="sb-action-flex">
-                          <button className="sb-btn-icon" title="Lihat Detail" onClick={() => navigate('/detail-hasil')}>
+                          <button className="sb-btn-icon" title="Lihat Detail" onClick={() => navigate('/detail-hasil/1')}>
                             <Eye size={18} />
                           </button>
                           <button className="sb-btn-timeline" onClick={() => setSelectedTimeline(row.timeline)}>

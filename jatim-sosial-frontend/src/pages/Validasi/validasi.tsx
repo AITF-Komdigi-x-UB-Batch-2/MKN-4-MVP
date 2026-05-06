@@ -239,7 +239,7 @@ const Validasi: React.FC<ValidasiProps> = ({ onLogout }) => {
                       <td>
                         <a href="#" className="link-id-kasus" onClick={(e) => {
                             e.preventDefault();
-                            navigate('/detail-hasil');
+                            navigate('/detail-hasil/1');
                         }}>
                           {row.idKasus}
                         </a>
@@ -261,7 +261,7 @@ const Validasi: React.FC<ValidasiProps> = ({ onLogout }) => {
                           <button 
                             className="btn-icon-view" 
                             title="Lihat Detail"
-                            onClick={() => navigate('/detail-hasil')}
+                            onClick={() => navigate('/detail-hasil/1')}
                           >
                             <Eye size={18} />
                           </button>

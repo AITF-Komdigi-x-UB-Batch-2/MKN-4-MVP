@@ -4,78 +4,54 @@ import AdminLayout from '../../components/layout/AdminLayout';
 import {
   Search,
   Download,
-  Plus,
-  Eye,
   Clock,
   ChevronLeft,
   ChevronRight,
   ArrowRight,
   FileBarChart,
+  CheckCircle,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
+  Loader2,
+  ShieldCheck,
+  BrainCircuit,
 } from 'lucide-react';
 import TimelineModal, { type TimelineEvent } from '../../components/ui/TimelineModal';
 import LoadingState from '../../components/ui/LoadingState';
 import EmptyState from '../../components/ui/EmptyState';
+import { type Tahap, type AnalisisOutput, timelineAktif, mockData } from '../../data/mockData';
+import { rawKeluargaData } from '../../data/dataKeluarga';
 import './ManajemenBantuan.css';
 
 /* ─── Types ──────────────────────────────── */
 
-interface ManajemenBantuanProps {
-  onLogout?: () => void;
-}
-
-type Tahap = 'analisis' | 'validasi' | 'aktif' | 'evaluasi';
-type TabKey = 'semua' | Tahap;
-
-interface DataRow {
-  id: string;
-  idLabel: string;
-  tanggal: string;
+export interface DataRow extends AnalisisOutput {
   nama: string;
   nik: string;
   wilayah: string;
   kecamatan: string;
   desil: number;
-  tahap: Tahap;
-  bantuan?: string;
-  desilSebelum?: number;
-  desilSesudah?: number;
-  timeline?: TimelineEvent[];
 }
 
-/* ─── Mock Data ──────────────────────────── */
+const joinedData: DataRow[] = mockData.map((output) => {
+  const keluarga = rawKeluargaData.find(k => k.id_keluarga === output.id_keluarga);
+  return {
+    ...output,
+    nama: keluarga ? keluarga.nama_kepala_keluarga : 'Data Tidak Ditemukan',
+    nik: keluarga ? keluarga.nik_kepala_keluarga : '-',
+    wilayah: keluarga ? keluarga.nama_kabupaten_kota : '-',
+    kecamatan: keluarga ? keluarga.nama_kecamatan : '-',
+    desil: keluarga ? keluarga.desil_kesejahteraan : 0,
+  };
+});
 
-const timelineAktif: TimelineEvent[] = [
-  { status: 'Disetujui', timestamp: '10 Feb 2024, 08:30', isComplete: true },
-  { status: 'Diproses', timestamp: '18 Feb 2024, 11:20', isComplete: true, notes: 'Sedang diverifikasi oleh dinas terkait.' },
-  { status: 'Disalurkan', timestamp: '', isComplete: false },
-  { status: 'Selesai', timestamp: '', isComplete: false },
-];
+interface ManajemenBantuanProps {
+  onLogout?: () => void;
+}
 
-const timelineSelesai: TimelineEvent[] = [
-  { status: 'Disetujui', timestamp: '01 Nov 2023, 09:00', isComplete: true },
-  { status: 'Diproses', timestamp: '05 Nov 2023, 14:30', isComplete: true },
-  { status: 'Disalurkan', timestamp: '12 Nov 2023, 10:15', isComplete: true },
-  { status: 'Selesai', timestamp: '15 Nov 2023, 16:00', isComplete: true },
-];
-
-const mockData: DataRow[] = [
-  // Analisis
-  { id: '1', idLabel: '#AN-20231001', tanggal: '12 Okt 2023', nama: 'Budi Santoso', nik: '3578012300094001', wilayah: 'Surabaya', kecamatan: 'Genteng', desil: 1, tahap: 'analisis' },
-  { id: '2', idLabel: '#AN-20231002', tanggal: '14 Okt 2023', nama: 'Siti Aminah', nik: '3578012300094005', wilayah: 'Sidoarjo', kecamatan: 'Gedangan', desil: 4, tahap: 'analisis' },
-  { id: '3', idLabel: '#AN-20231003', tanggal: '15 Okt 2023', nama: 'Agus Riyadi', nik: '3578012300094009', wilayah: 'Surabaya', kecamatan: 'Wonokromo', desil: 9, tahap: 'analisis' },
-  // Validasi
-  { id: '4', idLabel: '#KS-09412', tanggal: '12 Okt 2023', nama: 'Dewi Lestari', nik: '3578056001000012', wilayah: 'Surabaya', kecamatan: 'Sawahan', desil: 1, tahap: 'validasi', bantuan: 'PKH' },
-  { id: '5', idLabel: '#KS-09413', tanggal: '13 Okt 2023', nama: 'Agus Setiawan', nik: '3515041101900015', wilayah: 'Gresik', kecamatan: 'Kebomas', desil: 2, tahap: 'validasi', bantuan: 'BPNT' },
-  { id: '6', idLabel: '#KS-09415', tanggal: '14 Okt 2023', nama: 'Rina Wulandari', nik: '3578022201890018', wilayah: 'Sidoarjo', kecamatan: 'Waru', desil: 3, tahap: 'validasi', bantuan: 'BST' },
-  // Bantuan Aktif
-  { id: '7', idLabel: '#BTN-PKH-8821', tanggal: '10 Feb 2024', nama: 'M. Nurul Huda', nik: '3578034502780020', wilayah: 'Gresik', kecamatan: 'Kebomas', desil: 1, tahap: 'aktif', bantuan: 'PKH', timeline: timelineAktif },
-  { id: '8', idLabel: '#BTN-BPT-8822', tanggal: '15 Jan 2024', nama: 'Lilik Handayani', nik: '3578045603670023', wilayah: 'Malang', kecamatan: 'Lowokwaru', desil: 2, tahap: 'aktif', bantuan: 'BPNT', timeline: timelineSelesai },
-  { id: '9', idLabel: '#BTN-BLT-8823', tanggal: '20 Feb 2024', nama: 'Wahyu Pratama', nik: '3578015504550026', wilayah: 'Surabaya', kecamatan: 'Tambaksari', desil: 3, tahap: 'aktif', bantuan: 'BLT BBM', timeline: timelineAktif },
-  // Evaluasi
-  { id: '10', idLabel: '#EV-40101', tanggal: '01 Mar 2024', nama: 'Sri Mulyani', nik: '3578027708430030', wilayah: 'Surabaya', kecamatan: 'Genteng', desil: 2, tahap: 'evaluasi', bantuan: 'PKH', desilSebelum: 1, desilSesudah: 3 },
-  { id: '11', idLabel: '#EV-40102', tanggal: '05 Mar 2024', nama: 'Joko Widodo', nik: '3578038809320033', wilayah: 'Sidoarjo', kecamatan: 'Gedangan', desil: 4, tahap: 'evaluasi', bantuan: 'BPNT', desilSebelum: 2, desilSesudah: 5 },
-  { id: '12', idLabel: '#EV-40103', tanggal: '10 Mar 2024', nama: 'Endang Susilowati', nik: '3578049910210036', wilayah: 'Malang', kecamatan: 'Klojen', desil: 3, tahap: 'evaluasi', bantuan: 'BST', desilSebelum: 3, desilSesudah: 3 },
-];
+type TabKey = 'semua' | Tahap;
+type SortKey = 'id' | 'nama' | 'wilayah' | 'desil' | 'tahap' | 'bantuan' | 'perubahanDesil';
 
 /* ─── Helpers ────────────────────────────── */
 
@@ -85,6 +61,7 @@ const TABS: { key: TabKey; label: string; dotColor: string }[] = [
   { key: 'validasi', label: 'Perlu Validasi', dotColor: '#f97316' },
   { key: 'aktif', label: 'Bantuan Aktif', dotColor: '#14b8a6' },
   { key: 'evaluasi', label: 'Evaluasi', dotColor: '#22c55e' },
+  { key: 'selesai', label: 'Selesai', dotColor: '#a855f7' },
 ];
 
 const getDesilColor = (desil: number) => {
@@ -99,6 +76,7 @@ const getStageBadgeClass = (tahap: Tahap) => {
     case 'validasi': return 'mb-badge-validasi';
     case 'aktif': return 'mb-badge-aktif';
     case 'evaluasi': return 'mb-badge-evaluasi';
+    case 'selesai': return 'mb-badge-selesai';
   }
 };
 
@@ -108,6 +86,7 @@ const getStageBadgeLabel = (tahap: Tahap) => {
     case 'validasi': return 'Validasi';
     case 'aktif': return 'Aktif';
     case 'evaluasi': return 'Evaluasi';
+    case 'selesai': return 'Selesai';
   }
 };
 
@@ -118,6 +97,7 @@ const getEmptyMessage = (tab: TabKey) => {
     case 'validasi': return 'Tidak ada permohonan yang menunggu validasi.';
     case 'aktif': return 'Tidak ada bantuan aktif saat ini.';
     case 'evaluasi': return 'Belum ada data evaluasi tersedia.';
+    case 'selesai': return 'Tidak ada riwayat program bantuan yang telah selesai.';
   }
 };
 
@@ -132,11 +112,13 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [filterWilayah, setFilterWilayah] = useState('Semua');
   const [filterBantuan, setFilterBantuan] = useState('Semua');
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [data, setData] = useState<DataRow[]>(mockData);
+  const [data, setData] = useState<DataRow[]>(joinedData);
 
   // Timeline modal
   const [selectedTimeline, setSelectedTimeline] = useState<TimelineEvent[] | null>(null);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
 
   // Simulate loading on filter/tab change
   useEffect(() => {
@@ -152,6 +134,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     validasi: data.filter(d => d.tahap === 'validasi').length,
     aktif: data.filter(d => d.tahap === 'aktif').length,
     evaluasi: data.filter(d => d.tahap === 'evaluasi').length,
+    selesai: data.filter(d => d.tahap === 'selesai').length,
   }), [data]);
 
   // Filtered data
@@ -180,6 +163,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
         'Validasi': 'validasi',
         'Aktif': 'aktif',
         'Evaluasi': 'evaluasi',
+        'Selesai': 'selesai',
       };
       if (mapping[filterStatus]) {
         result = result.filter(d => d.tahap === mapping[filterStatus]);
@@ -193,19 +177,70 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
     // Bantuan filter
     if (filterBantuan !== 'Semua') {
-      result = result.filter(d => d.bantuan === filterBantuan);
+      result = result.filter(d => d.bantuan && d.bantuan.includes(filterBantuan));
+    }
+
+    // Sort ascending by skorKesejahteraan to show lowest welfare first
+    result.sort((a, b) => a.skorKesejahteraan - b.skorKesejahteraan);
+
+    // Generic Sort
+    if (sortConfig) {
+      result.sort((a, b) => {
+        let valA: any = a[sortConfig.key as keyof DataRow];
+        let valB: any = b[sortConfig.key as keyof DataRow];
+
+        const tahapOrder: Record<string, number> = {
+          'analisis': 1,
+          'validasi': 2,
+          'aktif': 3,
+          'evaluasi': 4,
+          'selesai': 5
+        };
+
+        if (sortConfig.key === 'id') {
+          valA = a.idLabel;
+          valB = b.idLabel;
+        } else if (sortConfig.key === 'bantuan') {
+          valA = a.bantuan ? a.bantuan.join(', ') : '';
+          valB = b.bantuan ? b.bantuan.join(', ') : '';
+        } else if (sortConfig.key === 'perubahanDesil') {
+          valA = (a.desilSesudah ?? 0) - (a.desilSebelum ?? 0);
+          valB = (b.desilSesudah ?? 0) - (b.desilSebelum ?? 0);
+        } else if (sortConfig.key === 'tahap') {
+          valA = tahapOrder[a.tahap] || 99;
+          valB = tahapOrder[b.tahap] || 99;
+        }
+
+        if (typeof valA === 'string' && typeof valB === 'string') {
+          return sortConfig.direction === 'asc' 
+            ? valA.localeCompare(valB) 
+            : valB.localeCompare(valA);
+        } else {
+          return sortConfig.direction === 'asc' 
+            ? (valA > valB ? 1 : valA < valB ? -1 : 0)
+            : (valB > valA ? 1 : valB < valA ? -1 : 0);
+        }
+      });
     }
 
     return result;
-  }, [data, activeTab, searchTerm, filterStatus, filterWilayah, filterBantuan]);
+  }, [data, activeTab, searchTerm, filterStatus, filterWilayah, filterBantuan, sortConfig]);
 
   // Actions
+  const handleAnalisis = (id: string) => {
+    setAnalyzingId(id);
+    setTimeout(() => {
+      setData(prev => prev.map(d => d.id_keluarga === id ? { ...d, tahap: 'validasi' as Tahap } : d));
+      setAnalyzingId(null);
+    }, 2000);
+  };
+
   const handleApprove = (id: string) => {
-    setData(prev => prev.map(d => d.id === id ? { ...d, tahap: 'aktif' as Tahap, bantuan: d.bantuan || 'PKH', timeline: timelineAktif } : d));
+    setData(prev => prev.map(d => d.id_keluarga === id ? { ...d, tahap: 'aktif' as Tahap, bantuan: d.bantuan || ['PKH'], timeline: timelineAktif } : d));
   };
 
   const handleReject = (id: string) => {
-    setData(prev => prev.filter(d => d.id !== id));
+    setData(prev => prev.map(d => d.id_keluarga === id ? { ...d, tahap: 'analisis' as Tahap } : d));
   };
 
   const resetFilters = () => {
@@ -213,12 +248,45 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     setFilterStatus('Semua');
     setFilterWilayah('Semua');
     setFilterBantuan('Semua');
+    setSortConfig(null);
+  };
+
+  const handleSort = (key: SortKey) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key) {
+      direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const renderSortHeader = (label: string, sortKey: SortKey) => {
+    const isActive = sortConfig?.key === sortKey;
+    return (
+      <th 
+        className="mb-th-sortable" 
+        onClick={() => handleSort(sortKey)}
+        title={`Klik untuk mengurutkan berdasarkan ${label.toLowerCase()}`}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {label}
+          <span className={`mb-sort-icon ${isActive ? 'active' : ''}`}>
+            {isActive && sortConfig.direction === 'asc' ? (
+              <ChevronUp size={14} />
+            ) : isActive && sortConfig.direction === 'desc' ? (
+              <ChevronDown size={14} />
+            ) : (
+              <ChevronsUpDown size={14} />
+            )}
+          </span>
+        </div>
+      </th>
+    );
   };
 
   // Determine what columns to show
   const showDesil = activeTab !== 'aktif';
   const showBantuan = activeTab !== 'analisis';
-  const showStageBadge = activeTab === 'semua';
+  const showStageBadge = true;
   const showDesilChange = activeTab === 'evaluasi';
 
   const colCount = 4
@@ -241,9 +309,6 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
           <div className="mb-actions">
             <button className="mb-btn-secondary">
               <Download size={16} /> Ekspor Data
-            </button>
-            <button className="mb-btn-primary" onClick={() => navigate('/analisis-baru')}>
-              <Plus size={16} /> Analisis Baru
             </button>
           </div>
         </div>
@@ -285,6 +350,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
               <option value="Validasi">Validasi</option>
               <option value="Aktif">Aktif</option>
               <option value="Evaluasi">Evaluasi</option>
+              <option value="Selesai">Selesai</option>
             </select>
           </div>
 
@@ -292,9 +358,6 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
             <label>WILAYAH</label>
             <select value={filterWilayah} onChange={e => setFilterWilayah(e.target.value)} disabled={isLoading}>
               <option value="Semua">Semua Wilayah</option>
-              <option value="Surabaya">Surabaya</option>
-              <option value="Sidoarjo">Sidoarjo</option>
-              <option value="Gresik">Gresik</option>
               <option value="Malang">Malang</option>
             </select>
           </div>
@@ -321,14 +384,14 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
             <table className="mb-table">
               <thead>
                 <tr>
-                  <th>ID / TANGGAL</th>
-                  <th>NAMA PENERIMA</th>
-                  <th>WILAYAH</th>
-                  {showDesil && <th>DESIL</th>}
-                  {showStageBadge && <th>STATUS TAHAP</th>}
-                  {showBantuan && <th>BANTUAN</th>}
-                  {showDesilChange && <th>PERUBAHAN DESIL</th>}
-                  <th>AKSI</th>
+                  {renderSortHeader('ID / TANGGAL', 'id')}
+                  {renderSortHeader('NAMA PENERIMA', 'nama')}
+                  {renderSortHeader('WILAYAH', 'wilayah')}
+                  {showDesil && renderSortHeader('DESIL', 'desil')}
+                  {showStageBadge && renderSortHeader('STATUS TAHAP', 'tahap')}
+                  {showBantuan && renderSortHeader('BANTUAN', 'bantuan')}
+                  {showDesilChange && renderSortHeader('PERUBAHAN DESIL', 'perubahanDesil')}
+                  <th style={{ textAlign: 'center' }}>AKSI</th>
                 </tr>
               </thead>
               <tbody>
@@ -350,16 +413,16 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                   </tr>
                 ) : (
                   filteredData.map(row => (
-                    <tr key={row.id}>
+                    <tr 
+                      key={row.id_keluarga}
+                      onClick={() => navigate(`/detail-hasil/${row.id_keluarga}`, { state: row })}
+                      className="mb-clickable-row"
+                    >
                       {/* ID / Tanggal */}
                       <td>
-                        <a
-                          href="#"
-                          className="mb-cell-link"
-                          onClick={e => { e.preventDefault(); navigate('/detail-hasil'); }}
-                        >
+                        <div className="mb-cell-link" style={{ display: 'inline-block' }}>
                           {row.idLabel}
-                        </a>
+                        </div>
                         <div className="mb-cell-secondary">{row.tanggal}</div>
                       </td>
 
@@ -378,17 +441,9 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                       {/* Desil */}
                       {showDesil && (
                         <td>
-                          <div className="mb-desil-info">
-                            <span className={`mb-desil-label ${getDesilColor(row.desil)}`}>
-                              DESIL {row.desil}
-                            </span>
-                            <div className="mb-progress-bar">
-                              <div
-                                className={`mb-progress-fill ${getDesilColor(row.desil)}`}
-                                style={{ width: `${row.desil * 10}%` }}
-                              />
-                            </div>
-                          </div>
+                          <span className={`mb-desil-label ${getDesilColor(row.desil)}`}>
+                            DESIL {row.desil}
+                          </span>
                         </td>
                       )}
 
@@ -405,7 +460,23 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                       {/* Bantuan */}
                       {showBantuan && (
                         <td style={{ fontWeight: 500 }}>
-                          {row.bantuan || '—'}
+                          {row.bantuan && row.bantuan.length > 0 ? (
+                            <div className="mb-bantuan-container">
+                              {row.bantuan.slice(0, 2).join(', ')}
+                              {row.bantuan.length > 2 && (
+                                <span className="mb-bantuan-more">
+                                  +{row.bantuan.length - 2} lainnya
+                                </span>
+                              )}
+                              {row.bantuan.length > 2 && (
+                                <div className="mb-bantuan-tooltip">
+                                  {row.bantuan.join(', ')}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            '—'
+                          )}
                         </td>
                       )}
 
@@ -430,39 +501,48 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                       )}
 
                       {/* Actions */}
-                      <td>
-                        <div className="mb-action-cell">
-                          <button
-                            className="mb-btn-icon"
-                            title="Lihat Detail"
-                            onClick={() => navigate('/detail-hasil')}
-                          >
-                            <Eye size={18} />
-                          </button>
+                      <td style={{ textAlign: 'center' }}>
+                        <div className="mb-action-cell" style={{ justifyContent: 'center', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          {/* Analisis-specific */}
+                          {row.tahap === 'analisis' && (
+                            <button
+                              className="mb-btn-analisis"
+                              disabled={analyzingId === row.id_keluarga}
+                              onClick={(e) => { e.stopPropagation(); handleAnalisis(row.id_keluarga); }}
+                            >
+                              {analyzingId === row.id_keluarga ? (
+                                <><Loader2 size={14} className="mb-spin" /> Menganalisis...</>
+                              ) : (
+                                <><BrainCircuit size={14} /> Analisis</>
+                              )}
+                            </button>
+                          )}
 
                           {/* Validasi-specific */}
                           {row.tahap === 'validasi' && (
-                            <>
-                              <button className="mb-btn-approve" onClick={() => handleApprove(row.id)}>
-                                Setujui
-                              </button>
-                              <button className="mb-btn-reject" onClick={() => handleReject(row.id)}>
-                                Tolak
-                              </button>
-                            </>
+                            <button className="mb-btn-validasi" onClick={(e) => { e.stopPropagation(); navigate(`/detail-hasil/${row.id_keluarga}`, { state: row }); }}>
+                              <ShieldCheck size={14} /> Validasi
+                            </button>
                           )}
 
                           {/* Aktif-specific */}
                           {row.tahap === 'aktif' && row.timeline && (
-                            <button className="mb-btn-timeline" onClick={() => setSelectedTimeline(row.timeline!)}>
+                            <button className="mb-btn-timeline" onClick={(e) => { e.stopPropagation(); setSelectedTimeline(row.timeline!); }}>
                               <Clock size={14} /> Timeline
                             </button>
                           )}
 
                           {/* Evaluasi-specific */}
                           {row.tahap === 'evaluasi' && (
-                            <button className="mb-btn-review" onClick={() => navigate('/detail-hasil')}>
+                            <button className="mb-btn-review" onClick={(e) => { e.stopPropagation(); navigate(`/detail-hasil/${row.id_keluarga}`, { state: row }); }}>
                               <FileBarChart size={14} /> Review
+                            </button>
+                          )}
+
+                          {/* Selesai-specific */}
+                          {row.tahap === 'selesai' && (
+                            <button className="mb-btn-history" onClick={(e) => { e.stopPropagation(); navigate(`/detail-hasil/${row.id_keluarga}`, { state: row }); }}>
+                              <CheckCircle size={14} /> Riwayat
                             </button>
                           )}
                         </div>

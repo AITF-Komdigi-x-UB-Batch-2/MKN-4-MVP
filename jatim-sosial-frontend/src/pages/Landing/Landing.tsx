@@ -48,7 +48,7 @@ const Landing: React.FC = () => {
               <Activity size={14} /> Sistem Beroperasi Aktif
             </span>
             <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 mb-8 leading-tight">
-              Mewujudkan Jawa Timur Sejahtera dengan <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Presisi Data AI</span>
+              Mewujudkan Jawa Timur Sejahtera dengan <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-600 to-indigo-600">Presisi Data AI</span>
             </h2>
             <p className="mt-4 max-w-2xl text-lg sm:text-xl text-slate-600 mx-auto mb-10 leading-relaxed">
               Platform terpadu untuk percepatan validasi dan pemetaan prioritas bantuan sosial berbasis Artificial Intelligence (AI) di seluruh wilayah Provinsi Jawa Timur.
