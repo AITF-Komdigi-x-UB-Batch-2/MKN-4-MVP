@@ -169,7 +169,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
               <SummaryCard 
                 label="DESIL KESEJAHTERAAN" 
                 icon={<BarChart2 size={16} className="text-blue" />} 
-                value={"2"} 
+                value={desil} 
                 maxValue="/ 10" 
                 // desc={`Skor Kesejahteraan: ${skorKesejahteraan}`}
               />

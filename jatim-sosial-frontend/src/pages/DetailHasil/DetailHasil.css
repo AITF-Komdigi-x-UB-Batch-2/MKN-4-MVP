@@ -166,6 +166,7 @@
 }
 .progress-bar.orange { background-color: #F97316; }
 .progress-bar.green { background-color: #10B981; }
+.progress-bar.red { background-color: #EF4444; }
 
 .percent-val {
   font-size: 1.25rem;

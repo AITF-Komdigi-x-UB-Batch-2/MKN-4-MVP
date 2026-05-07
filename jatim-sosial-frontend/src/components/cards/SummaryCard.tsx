@@ -42,7 +42,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
   const numericValue = parseNumericValue(value);
   const hasNumericValue = numericValue !== null && numericValue !== undefined;
   const showBar = hasNumericValue || progress;
-  const barPercentage = (value / 10) * 100;
+  const barPercentage = numericValue !== null ? (numericValue / 10) * 100 : 0;
   const colorClass = progress?.colorClass ?? (hasNumericValue ? getColorIndicator(numericValue) : 'gray');
 
   return (
@@ -60,7 +60,10 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
                 style={{ width: `${Math.min(barPercentage, 100)}%` }}
               ></div>
             </div>
-            <span className="percent-val">{value}</span>
+            <span className="percent-val">
+              {value}
+              {maxValue && <span className="max-num" style={{ marginLeft: '4px', fontSize: '0.75em' }}>{maxValue}</span>}
+            </span>
           </>
         ) : (
           <>
