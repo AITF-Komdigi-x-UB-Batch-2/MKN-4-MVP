@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Landing from './pages/Landing/Landing';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import AnalisisBaru from './pages/AnalisisBaru';
-import ManajemenBantuan from './pages/ManajemenBantuan';
-import BasisPengetahuan from './pages/BasisPengetahuan';
-import Pengaturan from './pages/Pengaturan';
-import DetailHasil from './pages/DetailHasil';
+import Login from './pages/Login/login';
+import Dashboard from './pages/Dashboard/dashboard';
+import AnalisisBaru from './pages/AnalisisBaru/analisisbaru';
+import ManajemenBantuan from './pages/ManajemenBantuan/manajemenbantuan';
+import BasisPengetahuan from './pages/BasisPengetahuan/basispengetahuan';
+import Pengaturan from './pages/Pengaturan/pengaturan';
+import DetailHasil from './pages/DetailHasil/detailhasil';
+import DetailKeluarga from './pages/DetailKeluarga/detailkeluarga';
 import './App.css'; 
 
 interface ProtectedRouteProps {
@@ -47,7 +48,8 @@ function App() {
           <Route path="/manajemen-bantuan" element={protectedPage(<ManajemenBantuan onLogout={logout} />)} />
           <Route path="/basis-pengetahuan" element={protectedPage(<BasisPengetahuan onLogout={logout} />)} />
           <Route path="/pengaturan" element={protectedPage(<Pengaturan onLogout={logout} />)} />
-          <Route path="/detail-hasil" element={protectedPage(<DetailHasil onLogout={logout} />)} />
+          <Route path="/detail-hasil/:id" element={protectedPage(<DetailHasil onLogout={logout} />)} />
+          <Route path="/detail-keluarga/:id" element={protectedPage(<DetailKeluarga onLogout={logout} />)} />
           
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />

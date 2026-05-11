@@ -40,7 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
             <LayoutDashboard size={20} /> <span>Dashboard</span>
           </li>
           <li className={activePath === '/analisis-baru' ? 'active' : ''} onClick={() => navigate('/analisis-baru')}>
-            <PlusCircle size={20} /> <span>Analisis Baru</span>
+            <PlusCircle size={20} /> <span>Import Data</span>
           </li>
           <li className={activePath === '/manajemen-bantuan' ? 'active' : ''} onClick={() => navigate('/manajemen-bantuan')}>
             <ClipboardList size={20} /> <span>Manajemen Bantuan</span>
