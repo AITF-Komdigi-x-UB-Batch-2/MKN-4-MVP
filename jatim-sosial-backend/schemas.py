@@ -65,12 +65,11 @@ class KeluargaResponse(BaseModel):
 class PerhitunganResponse(BaseModel):
     id: UUID
     keluarga_id: UUID
-    desil_kemiskinan: str
-    skor_prioritas: Optional[int] = None
-    rekomendasi_bantuan: Optional[List[str]] = [] 
+    rekomendasi_bantuan: Optional[str] = None
+    keterangan_tambahan: Optional[str] = None
     kondisi_rumah: Optional[str] = None
     foto_url: Optional[str] = None
-    status_validasi: str
+    status_validasi: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -78,3 +77,8 @@ class PerhitunganResponse(BaseModel):
 # Schema request
 class TriggerAsesmenRequest(BaseModel):
     keluarga_id: UUID
+
+class UserCreate(BaseModel):
+    email: str = Field(..., example="admin@dinsos.go.id")
+    username: str = Field(..., example="admin_jatim")
+    password: str = Field(..., example="admin123")

@@ -17,14 +17,15 @@ import schemas
 from database import engine, get_db
 import csv
 import io
+import uvicorn
 
 # BAGIAN 1: SETUP AWAL
 load_dotenv()
 models.Base.metadata.create_all(bind=engine)
 
 # BAGIAN 2: KONFIGURASI MINIO
-MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "127.0.0.1:9000")
-MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "admin_minio")
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 MINIO_BUCKET = "foto-rumah-warga"
 
@@ -104,19 +105,45 @@ async def get_current_user(
     return user
 
 # BAGIAN 6: ENDPOINT AUTENTIKASI
-@app.post("/auth/buat-admin", tags=["Auth"], summary="Buat akun admin default (sekali pakai)")
-def buat_admin(db: Session = Depends(get_db)):
-
-    if db.query(models.User).filter(models.User.username == "admin_jatim").first():
-        return {"pesan": "Akun admin sudah ada, tidak perlu dibuat ulang."}
+@app.post("/auth/register", tags=["Auth"], summary="Registrasi user baru atau login jika sudah ada")
+def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
     
-    db.add(models.User(
-        username="admin_jatim",
-        email="admin@dinsos.go.id",
-        password_hash=get_password_hash("ADMIN_PASSWORD")
-    ))
+    # Cek apakah username sudah ada
+    user_exist = db.query(models.User).filter(models.User.username == payload.username).first()
+    
+    if user_exist:
+        return {
+            "status": "Info",
+            "pesan": f"Username '{payload.username}' sudah terdaftar. Silakan login ke akun Anda.",
+            "action": "login"
+        }
+    
+    # Cek apakah email sudah ada
+    email_exist = db.query(models.User).filter(models.User.email == payload.email).first()
+    if email_exist:
+        return {
+            "status": "Info",
+            "pesan": f"Email '{payload.email}' sudah terdaftar. Silakan login ke akun Anda.",
+            "action": "login"
+        }
+    
+    # Buat user baru
+    new_user = models.User(
+        username=payload.username,
+        email=payload.email,
+        password_hash=get_password_hash(payload.password)
+    )
+    db.add(new_user)
     db.commit()
-    return {"pesan": "Akun admin berhasil dibuat."}
+    db.refresh(new_user)
+    
+    return {
+        "status": "Sukses",
+        "pesan": "Akun berhasil dibuat. Silakan login.",
+        "username": new_user.username,
+        "email": new_user.email,
+        "action": "login"
+    }
 
 
 @app.post("/auth/login", tags=["Auth"], summary="Login dan dapatkan token JWT")
@@ -124,13 +151,18 @@ async def login(
     form: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-
+    """Login dengan username dan password, dapatkan JWT token"""
+    
     user = db.query(models.User).filter(models.User.username == form.username).first()
     if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Username atau password salah.")
     
     token = create_access_token(data={"sub": user.username})
-    return {"access_token": token, "token_type": "bearer"}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "username": user.username
+    }
 
 # BAGIAN 7: IMPORT CSV (MASTER DATA)
 @app.post(
@@ -141,6 +173,7 @@ async def login(
 async def import_csv(
     file: UploadFile = File(...),
     current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
 
     contents = await file.read()
@@ -218,14 +251,13 @@ async def import_csv(
 @app.post(
     "/api/v1/asesmen/sosial",
     tags=["2. Asesmen Tim 1 & 3"],
-    summary="Jalankan analisis LLM + RAG untuk satu keluarga"
+    summary="Analisis Tim 1 yang diteruskan ke Tim 3"
 )
 async def asesmen_sosial(
     payload: schemas.TriggerAsesmenRequest,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-
     # Step 1: Ambil data keluarga
     keluarga = db.query(models.Keluarga).filter(
         models.Keluarga.id == payload.keluarga_id
@@ -239,75 +271,51 @@ async def asesmen_sosial(
             c.name: getattr(keluarga, c.name)
             for c in models.Keluarga.__table__.columns
         }
-        data_untuk_ai.pop("id", None)  # ID internal tidak perlu dikirim ke AI
+        data_untuk_ai.pop("id", None)
 
         async with httpx.AsyncClient() as client:
-
-            # Step 3a: Panggil Tim 1 — LLM Klasifikasi Desil
+            # Step 3: Panggil Tim AI
             try:
-                res_tim1 = await client.post(
-                    f"{AI_BASE_URL}/api/ai/tim1-klasifikasi",
+                response = await client.post(
+                    f"{AI_BASE_URL}/api/ai/jalur-sosial",
                     json=data_untuk_ai,
-                    timeout=15.0
+                    timeout=30.0
                 )
-                res_tim1.raise_for_status()
-                hasil_tim1 = res_tim1.json()
-            except httpx.RequestError as e:
-                raise HTTPException(status_code=503, detail=f"Tim 1 tidak dapat dihubungi: {e}")
-            except httpx.HTTPStatusError as e:
-                raise HTTPException(status_code=502, detail=f"Tim 1 mengembalikan error: {e}")
+                response.raise_for_status()
+                hasil_final = response.json()
+            except Exception as e:
+                raise HTTPException(status_code=502, detail=f"Gagal mendapatkan analisis dari jalur AI: {e}")
 
-            desil_baru = str(hasil_tim1.get("desil", 0))
-            skor_baru = int(hasil_tim1.get("skor_prioritas", 0))
+        # Mengambil hasil yang sudah diolah tim 3
+        rekomendasi_baru = hasil_final.get("rekomendasi_bantuan", [])
+        analisis_rag = hasil_final.get("justifikasi_dokumen", "")
 
-            # Step 3b: Panggil Tim 3 — RAG Rekomendasi Bantuan
-            data_untuk_ai["desil"] = desil_baru
-            try:
-                res_tim3 = await client.post(
-                    f"{AI_BASE_URL}/api/ai/tim3-rekomendasi",
-                    json=data_untuk_ai,
-                    timeout=15.0
-                )
-                res_tim3.raise_for_status()
-                hasil_tim3 = res_tim3.json()
-            except httpx.RequestError as e:
-                raise HTTPException(status_code=503, detail=f"Tim 3 tidak dapat dihubungi: {e}")
-            except httpx.HTTPStatusError as e:
-                raise HTTPException(status_code=502, detail=f"Tim 3 mengembalikan error: {e}")
-
-            rekomendasi_baru = hasil_tim3.get("rekomendasi_bantuan", [])
-
-        # Step 4: Ambil atau buat record Perhitungan
+        # Step 4: Ambil record Perhitungan untuk mengecek Histori LAMA
         hitung = db.query(models.Perhitungan).filter(
             models.Perhitungan.keluarga_id == keluarga.id
         ).first()
 
-        desil_lama = None
         bantuan_lama = None
 
         if not hitung:
-            # Pertama kali diasesmen → buat record baru
             hitung = models.Perhitungan(
                 keluarga_id=keluarga.id,
-                user_id=current_user.id,
+                user_id=current_user.id
             )
             db.add(hitung)
         else:
-            # Sudah pernah diasesmen → simpan nilai lama untuk log
-            desil_lama = hitung.desil_kemiskinan
             bantuan_lama = hitung.rekomendasi_bantuan
 
-        # Step 5: Update tabel Perhitungan dengan hasil baru
-        hitung.desil_kemiskinan = desil_baru
-        hitung.skor_prioritas = skor_baru
+        # Step 5: Update tabel Perhitungan dengan hasil BARU
         hitung.rekomendasi_bantuan = rekomendasi_baru
-
+        hitung.reasoning_tim3 = analisis_rag
+        
         # Step 6: Tulis audit trail ke LogHistori
         log = models.LogHistori(
             keluarga_id=keluarga.id,
             user_id=current_user.id,
-            desil_lama=desil_lama,
-            desil_baru=desil_baru,
+            desil_lama=None,
+            desil_baru=None,
             bantuan_lama=bantuan_lama,
             bantuan_baru=rekomendasi_baru
         )
@@ -317,11 +325,8 @@ async def asesmen_sosial(
         return {
             "status": "Sukses",
             "nomor_kk": keluarga.nomor_kartu_keluarga,
-            "hasil_ai": {
-                "desil": desil_baru,
-                "skor_prioritas": skor_baru,
-                "rekomendasi_bantuan": rekomendasi_baru
-            }
+            "hasil_rekomendasi_final": rekomendasi_baru,
+            "justifikasi_dokumen": analisis_rag
         }
 
     except HTTPException:
@@ -335,7 +340,7 @@ async def asesmen_sosial(
 @app.post(
     "/api/v1/asesmen/visual/{id_keluarga}",
     tags=["3. Asesmen Tim 2"],
-    summary="Upload foto rumah dan jalankan analisis visual AI"
+    summary="Upload foto untuk divalidasi"
 )
 async def asesmen_visual(
     id_keluarga: UUID,
@@ -343,14 +348,11 @@ async def asesmen_visual(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-
-    # Step 1: Validasi keluarga ada
-    keluarga = db.query(models.Keluarga).filter(
-        models.Keluarga.id == id_keluarga
-    ).first()
+    keluarga = db.query(models.Keluarga).filter(models.Keluarga.id == id_keluarga).first()
+    
     if not keluarga:
         raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
-
+    
     try:
         # Step 2: Baca isi file dan upload ke MinIO
         content = await file.read()
@@ -365,27 +367,31 @@ async def asesmen_visual(
 
         # Step 3: Reset pointer file lalu kirim ke Tim 2
         await file.seek(0)
-        try:
-            async with httpx.AsyncClient() as client:
-                files_payload = {"file": (file.filename, file.file, file.content_type)}
-                res_ai = await client.post(
-                    f"{AI_BASE_URL}/api/ai/tim2-visual",
-                    files=files_payload,
-                    timeout=30.0  # visual model butuh lebih lama
-                )
-                res_ai.raise_for_status()
-                hasil_ai = res_ai.json()
-        except httpx.RequestError as e:
-            raise HTTPException(status_code=503, detail=f"Tim 2 tidak dapat dihubungi: {e}")
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=502, detail=f"Tim 2 mengembalikan error: {e}")
+        async with httpx.AsyncClient() as client:
+            res_ai = await client.post(
+                f"{AI_BASE_URL}/api/ai/visual-validator",
+                json={
+                    "image_url": url_foto,
+                    "konteks_rumah": {
+                        "jenis_lantai_terluas": keluarga.jenis_lantai_terluas,
+                        "jenis_dinding_terluas": keluarga.jenis_dinding_terluas,
+                        "jenis_atap_terluas": keluarga.jenis_atap_terluas,
+                    }
+                },
+                timeout=30.0
+            )
+            res_ai.raise_for_status() 
 
-        kondisi_teks = hasil_ai.get("reasoning_visual") or str(hasil_ai)
+            hasil_validator = res_ai.json() 
+        
+        # Step 4: Update database
+        is_match = hasil_validator.get("is_match", False)
+        alasan = hasil_validator.get("reasoning", "")
 
-        # Step 4: Simpan ke tabel Perhitungan
         hitung = db.query(models.Perhitungan).filter(
             models.Perhitungan.keluarga_id == keluarga.id
         ).first()
+        
         if not hitung:
             hitung = models.Perhitungan(
                 keluarga_id=keluarga.id,
@@ -393,14 +399,17 @@ async def asesmen_visual(
             )
             db.add(hitung)
 
-        hitung.kondisi_rumah = kondisi_teks
-        hitung.foto_url = url_foto
+        hitung.ada_ketidaksesuaian_visual = not is_match
+        hitung.reasoning_tim2 = alasan
         db.commit()
 
         return {
             "status": "Sukses",
+            "validation": {
+                "is_match": is_match,
+                "reasoning": alasan
+            },
             "url_foto": url_foto,
-            "analisis_ai": hasil_ai
         }
 
     except HTTPException:
@@ -409,6 +418,9 @@ async def asesmen_visual(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Kesalahan internal: {str(e)}")
+    except httpx.RequestError as e:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=f"Gagal menghubungi Tim 2: {str(e)}")
 
 # BAGIAN 10: ENDPOINT READ DATA (GET)
 @app.get(
@@ -484,3 +496,6 @@ async def get_histori(
         ]
     }
 
+if __name__ == "__main__":
+    print("Menjalankan Main Server di Port 8000...")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

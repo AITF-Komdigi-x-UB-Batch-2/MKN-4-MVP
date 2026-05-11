@@ -1,119 +1,125 @@
+import os
 import uvicorn
-import schemas
-from fastapi import FastAPI, UploadFile, File, Body
+import asyncio
+import random
+from fastapi import FastAPI, Body
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional
 
-app = FastAPI(title="Pusat Mock API Tim AI (1, 2, 3)", version="1.0")
+# PYDANTIC RESPONSE SCHEMAS
+class JalurSosialResponse(BaseModel):
+    """Response dari endpoint jalur-sosial (Tim 1 & Tim 3)"""
+    status: str
+    rekomendasi_bantuan: List[str]
+    justifikasi_dokumen: str
 
-# 1. MOCK API TIM 1 (KLASIFIKASI DESIL)
-@app.post("/api/ai/tim1-klasifikasi", tags=["Tim 1 - LLM"])
-async def klasifikasi_tim1(data: schemas.KeluargaResponse):
 
-    id = data.id
-    kode_provinsi = data.kode_provinsi
-    provinsi = data.provinsi
-    kode_kabupaten_kota = data.kode_kabupaten_kota
-    kabupaten_kota = data.kabupaten_kota
-    kode_kecamatan = data.kode_kecamatan
-    kecamatan = data.kecamatan
-    kode_kelurahan_desa = data.kode_kelurahan_desa
-    kelurahan_desa = data.kelurahan_desa
-    alamat = data.alamat
-    nomor_kartu_keluarga = data.nomor_kartu_keluarga
-    jumlah_anggota_keluarga = data.jumlah_anggota_keluarga
-    nama_anggota_keluarga = data.nama_anggota_keluarga
-    pbi_nas = data.pbi_nas
-    pbi_pemda = data.pbi_pemda
-    id_pelanggan_pln = data.id_pelanggan_pln
-    status_kepemilikan_rumah = data.status_kepemilikan_rumah
-    jenis_lantai_terluas = data.jenis_lantai_terluas
-    luas_lantai = data.luas_lantai
-    jenis_dinding_terluas = data.jenis_dinding_terluas
-    jenis_atap_terluas = data.jenis_atap_terluas
-    sumber_air_minum_utama = data.sumber_air_minum_utama
-    sumber_penerangan_utama = data.sumber_penerangan_utama
-    daya_terpasang = data.daya_terpasang
-    bahan_bakar_utama_memasak = data.bahan_bakar_utama_memasak
-    fasilitas_bab = data.fasilitas_bab
-    jenis_kloset = data.jenis_kloset
-    pembuangan_akhir_tinja = data.pembuangan_akhir_tinja
-    kepemilikan_aset = data.kepemilikan_aset
-    aset_bergerak_tabung_gas = data.aset_bergerak_tabung_gas
-    aset_bergerak_lemari_es = data.aset_bergerak_lemari_es
-    aset_bergerak_ac = data.aset_bergerak_ac
-    aset_bergerak_pemanas_air = data.aset_bergerak_pemanas_air
-    aset_bergerak_telepon_rumah = data.aset_bergerak_telepon_rumah
-    aset_bergerak_tv_datar = data.aset_bergerak_tv_datar
-    aset_bergerak_emas_perhiasan = data.aset_bergerak_emas_perhiasan
-    aset_bergerak_komputer_laptop_tablet = data.aset_bergerak_komputer_laptop_tablet
-    aset_bergerak_sepeda_motor = data.aset_bergerak_sepeda_motor
-    aset_bergerak_sepeda = data.aset_bergerak_sepeda
-    aset_bergerak_mobil = data.aset_bergerak_mobil
-    aset_bergerak_perahu = data.aset_bergerak_perahu
-    aset_bergerak_kapal_perahu_motor = data.aset_bergerak_kapal_perahu_motor
-    aset_bergerak_smartphone = data.aset_bergerak_smartphone
-    aset_tidak_bergerak_lahan_lainnya = data.aset_tidak_bergerak_lahan_lainnya
-    aset_tidak_bergerak_rumah_lainnya = data.aset_tidak_bergerak_rumah_lainnya
-    jumlah_ternak_sapi = data.jumlah_ternak_sapi
-    jumlah_ternak_kerbau = data.jumlah_ternak_kerbau
-    jumlah_ternak_kuda = data.jumlah_ternak_kuda
-    jumlah_ternak_babi = data.jumlah_ternak_babi
-    jumlah_ternak_kambing_domba = data.jumlah_ternak_kambing_domba
-    skor = data.skor
-    desil_nasional = data.desil_nasional
+class VisualValidatorResponse(BaseModel):
+    """Response dari endpoint visual-validator (Tim 2)"""
+    is_match: bool
+    reasoning: str
+
+# INISIALISASI FASTAPI
+app = FastAPI(
+    title="Mock AI Server",
+    version="2.0",
+    description="Mock server untuk menggantikan Tim 1, 2, dan 3"
+)
+
+# ENDPOINT TIM 1 & 3: JALUR SOSIAL (ANALISIS + RAG)
+@app.post(
+    "/api/ai/jalur-sosial",
+    tags=["Tim 1 & 3 - Jalur Sosial"],
+    summary="Analisis sosial ekonomi + RAG rekomendasi bantuan",
+    response_model=JalurSosialResponse
+)
+async def mock_jalur_sosial(data_warga: dict = Body(...)):
+
+    await asyncio.sleep(1.5)
     
-    if not aset_bergerak_sepeda_motor and not aset_bergerak_lemari_es:
-        desil = 1
-        kategori = "Sangat Miskin (Desil 1)"
-    else:
-        desil = 4
-        kategori = "Rentan Miskin (Desil 4)"
+    luas_lantai = data_warga.get("luas_lantai", 0)
+    punya_motor = data_warga.get("aset_bergerak_sepeda_motor", False)
+    punya_kulkas = data_warga.get("aset_bergerak_lemari_es", False)
+    punya_tv = data_warga.get("aset_bergerak_tv_datar", False)
+    nomor_kk = data_warga.get("nomor_kartu_keluarga", "UNKNOWN")
+
+    rekomendasi = []
+    justifikasi = []
+    
+    # Aturan 1: Sangat miskin (tidak ada aset utama)
+    if not punya_motor and not punya_kulkas and not punya_tv:
+        rekomendasi.append("Program Keluarga Harapan (PKH)")
+        justifikasi.append("Keluarga terdeteksi sangat miskin - tidak memiliki aset motor, kulkas, atau TV")
+    
+    # Aturan 2: Rumah dengan luas lantai kecil
+    if luas_lantai > 0 and luas_lantai < 20:
+        rekomendasi.append("Bantuan Rutilahu (Rumah Tidak Layak Huni)")
+        justifikasi.append(f"Luas lantai hanya {luas_lantai} m² (< 20 m²) - tidak memenuhi standar")
+    
+    # Aturan 3: Rentan miskin (punya beberapa aset tapi terbatas)
+    if (punya_motor or punya_kulkas) and not punya_tv:
+        rekomendasi.append("Bantuan Pangan Non Tunai (BPNT)")
+        justifikasi.append("Keluarga tergolong rentan miskin - diberikan dukungan pangan")
+    
+    if not rekomendasi:
+        rekomendasi = ["Monitoring dan Advokasi Sosial"]
+        justifikasi.append("Keluarga tergolong mampu - diberikan monitoring berkala")
+
+    alasan_lengkap = " | ".join(justifikasi) if justifikasi else "Analisis sosial ekonomi selesai"
 
     return {
         "status": "success",
-        "desil": desil,
-        "kategori_kesejahteraan": kategori,
-        "id_keluarga": str(id),
-        "reasoning": f"Analisis Mock Model: Berdasarkan input ketiadaan aset motor={aset_bergerak_sepeda_motor} dan kulkas={aset_bergerak_lemari_es}, diputuskan masuk ke Desil {desil}."
+        "rekomendasi_bantuan": rekomendasi,
+        "justifikasi_dokumen": f"KK: {nomor_kk} → {alasan_lengkap}"
     }
 
-# 2. MOCK API TIM 2 (ANALISIS VISUAL RUMAH)
-@app.post("/api/ai/tim2-visual", tags=["Tim 2 - VisualLM"])
-async def visual_tim2(file: UploadFile = File(...)):
+# ENDPOINT TIM 2: VISUAL VALIDATOR (VALIDASI FOTO)
+@app.post(
+    "/api/ai/visual-validator",
+    tags=["Tim 2 - Visual Validator"],
+    summary="Validasi kesesuaian foto rumah dengan data sosial ekonomi",
+    response_model=VisualValidatorResponse
+)
+async def mock_visual_validator(payload: dict = Body(...)):
 
-    nama_file = file.filename
+    await asyncio.sleep(2)
+
+    is_match = random.choice([True, True, True, False])
+    
+    image_url = payload.get("image_url", "")
+    konteks = payload.get("konteks_rumah", {})
+    
+    jenis_lantai = konteks.get("jenis_lantai_terluas", "unknown")
+    jenis_dinding = konteks.get("jenis_dinding_terluas", "unknown")
+    jenis_atap = konteks.get("jenis_atap_terluas", "unknown")
+
+    if is_match:
+        alasan = (
+            f"Foto SESUAI dengan data profil. "
+            f"Kondisi visual rumah konsisten: lantai={jenis_lantai}, "
+            f"dinding={jenis_dinding}, atap={jenis_atap}. "
+            f"Status: TERVERIFIKASI"
+        )
+    else:
+        alasan = (
+            f"⚠️ Foto TIDAK SESUAI dengan data profil. "
+            f"Terdapat inkonsistensi antara foto dan data sosial ekonomi yang tercatat. "
+            f"Rekomendasi: Perlu verifikasi ulang lapangan."
+        )
+    
+    confidence = round(random.uniform(0.85, 0.99), 2) if is_match else round(random.uniform(0.60, 0.79), 2)
     
     return {
-        "status": "success",
-        "nama_file_dianalisis": nama_file,
-        "prediksi_material": {
-            "jenis_atap": 3,      
-            "jenis_dinding": 4,   
-            "jenis_lantai": 5    
-        },
-        "layak_huni": False,
-        "reasoning_visual": "Model mendeteksi tekstur kayu lapuk pada dinding (91% confidence) dan lantai tanpa semen (88% confidence)."
+        "is_match": is_match,
+        "reasoning": alasan
     }
 
-# 3. MOCK API TIM 3 (REKOMENDASI BANTUAN)
-@app.post("/api/ai/tim3-rekomendasi", tags=["Tim 3 - RAG"])
-async def rekomendasi_tim3(data: dict = Body(...)):
+# HEALTH CHECK
+@app.get("/health", tags=["Health"])
+async def health_check():
 
-    reasoning = data.get("reasoning", None)
-    
-    if reasoning:
-        bantuan = ["Bantuan Renovasi Rumah", "Bantuan Perbaikan Sanitasi"]
-        alasan = "Rekomendasi berdasarkan hasil klasifikasi desil 1 dan analisis visual yang menunjukkan kondisi rumah tidak layak huni."
-        return {
-            "status": "success",
-            "rekomendasi_bantuan": bantuan,
-            "reasoning_rekomendasi": alasan
-        }
-    else:
-        return {
-            "status": "error",
-            "message": "Reasoning dari model klasifikasi dan visual diperlukan untuk memberikan rekomendasi yang tepat."
-        }
+    return {"status": "Mock AI Server is running..."}
 
 if __name__ == "__main__":
     print("Menjalankan Mock Server AI di Port 8001...")
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

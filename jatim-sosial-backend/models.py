@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, SmallInteger, JSON, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import relationship
 from database import Base
 
 
@@ -13,11 +14,10 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     password_hash = Column(String)
 
-# --- TABEL 2: KELUARGA (DATA ASESMEN SOSIAL) ---
+# --- TABEL 2: KELUARGA (MASTER DATA) ---
 class Keluarga(Base):
     __tablename__ = "keluarga"
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    keluarga_id = Column(UUID(as_uuid=True), ForeignKey("keluarga.id"), nullable=False, index=True)
     nomor_kartu_keluarga = Column(String(16), nullable=False, index=True)
     periode              = Column(String(10), nullable=True, index=True)
     kode_provinsi           = Column(String(10))
@@ -152,9 +152,7 @@ class Perhitungan(Base):
 class Foto(Base):
     __tablename__ = "foto"
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    keluarga_id = Column(
-        UUID(as_uuid=True), ForeignKey("keluarga.id"), nullable=False, index=True
-    )
+    keluarga_id = Column(UUID(as_uuid=True), ForeignKey("keluarga.id"), nullable=False, index=True)
     url_foto       = Column(String(500), nullable=False)
     periode        = Column(String(10), nullable=True, index=True)
     sumber         = Column(String(20), default="dtsen", nullable=False)
