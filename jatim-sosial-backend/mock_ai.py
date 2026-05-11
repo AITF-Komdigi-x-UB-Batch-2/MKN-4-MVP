@@ -8,14 +8,12 @@ from typing import List, Dict, Any, Optional
 
 # PYDANTIC RESPONSE SCHEMAS
 class JalurSosialResponse(BaseModel):
-    """Response dari endpoint jalur-sosial (Tim 1 & Tim 3)"""
     status: str
     rekomendasi_bantuan: List[str]
     justifikasi_dokumen: str
 
 
 class VisualValidatorResponse(BaseModel):
-    """Response dari endpoint visual-validator (Tim 2)"""
     is_match: bool
     reasoning: str
 
@@ -102,7 +100,7 @@ async def mock_visual_validator(payload: dict = Body(...)):
         )
     else:
         alasan = (
-            f"⚠️ Foto TIDAK SESUAI dengan data profil. "
+            f"Foto TIDAK SESUAI dengan data profil. "
             f"Terdapat inkonsistensi antara foto dan data sosial ekonomi yang tercatat. "
             f"Rekomendasi: Perlu verifikasi ulang lapangan."
         )

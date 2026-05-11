@@ -107,8 +107,7 @@ async def get_current_user(
 # BAGIAN 6: ENDPOINT AUTENTIKASI
 @app.post("/auth/register", tags=["Auth"], summary="Registrasi user baru atau login jika sudah ada")
 def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
-    
-    # Cek apakah username sudah ada
+
     user_exist = db.query(models.User).filter(models.User.username == payload.username).first()
     
     if user_exist:
@@ -117,8 +116,7 @@ def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
             "pesan": f"Username '{payload.username}' sudah terdaftar. Silakan login ke akun Anda.",
             "action": "login"
         }
-    
-    # Cek apakah email sudah ada
+
     email_exist = db.query(models.User).filter(models.User.email == payload.email).first()
     if email_exist:
         return {
@@ -126,8 +124,7 @@ def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
             "pesan": f"Email '{payload.email}' sudah terdaftar. Silakan login ke akun Anda.",
             "action": "login"
         }
-    
-    # Buat user baru
+
     new_user = models.User(
         username=payload.username,
         email=payload.email,
@@ -145,13 +142,11 @@ def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
         "action": "login"
     }
 
-
 @app.post("/auth/login", tags=["Auth"], summary="Login dan dapatkan token JWT")
 async def login(
     form: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    """Login dengan username dan password, dapatkan JWT token"""
     
     user = db.query(models.User).filter(models.User.username == form.username).first()
     if not user or not verify_password(form.password, user.password_hash):
@@ -190,7 +185,6 @@ async def import_csv(
         try:
             no_kk_row = row.get("nomor_kartu_keluarga")
 
-            # Skip baris tanpa nomor KK atau yang sudah ada di database
             if not no_kk_row or no_kk_row in kk_existing:
                 di_skip += 1
                 continue
@@ -258,7 +252,6 @@ async def asesmen_sosial(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Step 1: Ambil data keluarga
     keluarga = db.query(models.Keluarga).filter(
         models.Keluarga.id == payload.keluarga_id
     ).first()
@@ -266,7 +259,6 @@ async def asesmen_sosial(
         raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
 
     try:
-        # Step 2: Siapkan data sebagai dictionary untuk dikirim ke AI
         data_untuk_ai = {
             c.name: getattr(keluarga, c.name)
             for c in models.Keluarga.__table__.columns
@@ -274,7 +266,6 @@ async def asesmen_sosial(
         data_untuk_ai.pop("id", None)
 
         async with httpx.AsyncClient() as client:
-            # Step 3: Panggil Tim AI
             try:
                 response = await client.post(
                     f"{AI_BASE_URL}/api/ai/jalur-sosial",
@@ -286,11 +277,9 @@ async def asesmen_sosial(
             except Exception as e:
                 raise HTTPException(status_code=502, detail=f"Gagal mendapatkan analisis dari jalur AI: {e}")
 
-        # Mengambil hasil yang sudah diolah tim 3
         rekomendasi_baru = hasil_final.get("rekomendasi_bantuan", [])
         analisis_rag = hasil_final.get("justifikasi_dokumen", "")
 
-        # Step 4: Ambil record Perhitungan untuk mengecek Histori LAMA
         hitung = db.query(models.Perhitungan).filter(
             models.Perhitungan.keluarga_id == keluarga.id
         ).first()
@@ -306,11 +295,9 @@ async def asesmen_sosial(
         else:
             bantuan_lama = hitung.rekomendasi_bantuan
 
-        # Step 5: Update tabel Perhitungan dengan hasil BARU
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
-        
-        # Step 6: Tulis audit trail ke LogHistori
+
         log = models.LogHistori(
             keluarga_id=keluarga.id,
             user_id=current_user.id,
@@ -354,7 +341,6 @@ async def asesmen_visual(
         raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
     
     try:
-        # Step 2: Baca isi file dan upload ke MinIO
         content = await file.read()
         nama_unik = f"{id_keluarga}_{file.filename}"
         s3_client.put_object(
@@ -365,7 +351,6 @@ async def asesmen_visual(
         )
         url_foto = f"http://{MINIO_ENDPOINT}/{MINIO_BUCKET}/{nama_unik}"
 
-        # Step 3: Reset pointer file lalu kirim ke Tim 2
         await file.seek(0)
         async with httpx.AsyncClient() as client:
             res_ai = await client.post(
@@ -383,8 +368,7 @@ async def asesmen_visual(
             res_ai.raise_for_status() 
 
             hasil_validator = res_ai.json() 
-        
-        # Step 4: Update database
+
         is_match = hasil_validator.get("is_match", False)
         alasan = hasil_validator.get("reasoning", "")
 
@@ -454,7 +438,6 @@ async def get_keluarga(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Mengembalikan detail lengkap data keluarga beserta hasil asesmen AI jika sudah ada."""
     keluarga = db.query(models.Keluarga).filter(
         models.Keluarga.id == keluarga_id
     ).first()
