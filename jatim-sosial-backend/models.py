@@ -158,3 +158,17 @@ class Foto(Base):
     sumber         = Column(String(20), default="dtsen", nullable=False)
     nama_file_asli = Column(String(200), nullable=True)
     diunggah_pada  = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+# --- TABEL 6: LOG HISTORI (AUDIT TRAIL BANTUAN) ---
+class LogHistori(Base):
+    __tablename__ = "log_histori"
+    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    keluarga_id = Column(UUID(as_uuid=True), ForeignKey("keluarga.id"), nullable=False, index=True)
+    user_id     = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=True)
+    timestamp   = Column(DateTime, default=datetime.utcnow)
+    
+    desil_lama   = Column(String(5), nullable=True)
+    desil_baru   = Column(String(5), nullable=True)
+    bantuan_lama = Column(JSONB, nullable=True)
+    bantuan_baru = Column(JSONB, nullable=True)
+    keterangan   = Column(String(500), nullable=True)
