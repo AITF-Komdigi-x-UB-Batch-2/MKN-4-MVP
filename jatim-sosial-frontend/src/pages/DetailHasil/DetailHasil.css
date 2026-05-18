@@ -166,6 +166,7 @@
 }
 .progress-bar.orange { background-color: #F97316; }
 .progress-bar.green { background-color: #10B981; }
+.progress-bar.red { background-color: #EF4444; }
 
 .percent-val {
   font-size: 1.25rem;
@@ -308,13 +309,97 @@
   font-weight: 500;
 }
 
-.match-badge {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #059669;
-  background: #D1FAE5;
-  padding: 0.25rem 0.5rem;
+.condition-status {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
   border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.condition-status.good {
+  background-color: #dcfce7;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.condition-status.bad {
+  background-color: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+/* Computer Vision Tooltip */
+.comvis-tooltip-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #3b82f6;
+  font-size: 0.8rem;
+  font-weight: 500;
+  margin-top: 1rem;
+  cursor: pointer;
+  position: relative;
+  padding: 6px 12px;
+  background: #eff6ff;
+  border-radius: 6px;
+  width: max-content;
+  transition: all 0.2s;
+}
+
+.comvis-tooltip-container:hover, .comvis-tooltip-container:active {
+  background: #dbeafe;
+}
+
+.comvis-tooltip-popup {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  transform: translateY(-8px);
+  width: 260px;
+  background: #1e293b;
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  z-index: 10;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+.comvis-tooltip-container:hover .comvis-tooltip-popup,
+.comvis-tooltip-container:active .comvis-tooltip-popup {
+  visibility: visible;
+  opacity: 1;
+}
+
+.comvis-tooltip-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #94a3b8;
+}
+
+.condition-status {
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: 0.5rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.condition-status.good { 
+  color: #065F46; 
+  background-color: #D1FAE5; 
+  border: 1px solid #A7F3D0;
+}
+.condition-status.bad { 
+  color: #991B1B; 
+  background-color: #FEE2E2; 
+  border: 1px solid #FECACA;
 }
 
 /* History Tags */
@@ -644,11 +729,20 @@
   border: none;
 }
 
+.btn-action:disabled,
+.btn-action.approve:disabled,
+.btn-action.reject:disabled {
+  background-color: #F1F5F9 !important;
+  color: #94A3B8 !important;
+  cursor: not-allowed !important;
+  border: 1px solid #E2E8F0 !important;
+}
+
 .btn-action.approve {
   background: #2563EB;
   color: white;
 }
-.btn-action.approve:hover { background: #1D4ED8; }
+.btn-action.approve:hover:not(:disabled) { background: #1D4ED8; }
 
 .btn-action.reanalyze {
   background: white;

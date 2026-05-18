@@ -4,10 +4,9 @@ import { ShieldCheck, Home, Briefcase, AlertTriangle, Check } from 'lucide-react
 export interface RecommendationData {
   id: string;
   title: string;
-  priority: 'HIGH' | 'MEDIUM' | 'LOW';
   match: number;
   desc: string;
-  estimate: string;
+  reason: string;
   isReceived: boolean;
 }
 
@@ -34,25 +33,17 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
 
   return (
     <div 
-      className={`rec-card ${isSelected ? 'selected' : ''} ${data.isReceived ? 'disabled' : ''} ${isLocked ? 'locked' : ''}`}
+      className={`rec-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''}`}
       onClick={() => onToggle && onToggle(data.id, data.isReceived)}
     >
       {/* Checkbox Area */}
-      {!data.isReceived && (
-        <div className="rec-checkbox">
-          {isSelected ? <Check size={16} className="text-white" /> : null}
-        </div>
-      )}
+      <div className="rec-checkbox">
+        {isSelected ? <Check size={16} className="text-white" /> : null}
+      </div>
       
       <div className="rec-card-header flex-between">
         <div className="rec-icon">
           {getIcon(data.id)}
-        </div>
-        <div className="rec-priority-col">
-          <span className={`priority-badge ${data.priority.toLowerCase()}`}>
-            PRIORITY: {data.priority}
-          </span>
-          <span className="match-text">{data.match}% Match</span>
         </div>
       </div>
       
@@ -68,7 +59,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
       <p className="rec-desc">{data.desc}</p>
       
       <div className="rec-estimate">
-        Estimasi: {data.estimate}
+        Alasan : {data.reason}
       </div>
     </div>
   );
