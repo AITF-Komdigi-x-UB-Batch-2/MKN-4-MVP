@@ -18,6 +18,7 @@ from database import engine, get_db
 import csv
 import io
 import uvicorn
+import json
 
 # BAGIAN 1: SETUP AWAL
 load_dotenv()
@@ -42,6 +43,23 @@ def ensure_bucket_exists():
     except ClientError:
         s3_client.create_bucket(Bucket=MINIO_BUCKET)
         print(f"[MinIO] Bucket '{MINIO_BUCKET}' berhasil dibuat.")
+
+    policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": ["s3:GetObject"],
+                "Resource": [f"arn:aws:s3:::{MINIO_BUCKET}/*"]
+            }
+        ]
+    }
+    s3_client.put_bucket_policy(
+        Bucket=MINIO_BUCKET,
+        Policy=json.dumps(policy)
+    )
+    print(f"[MinIO] Policy PUBLIC Read-Only berhasil diterapkan pada bucket '{MINIO_BUCKET}'.")
 
 try:
     ensure_bucket_exists()
@@ -159,11 +177,11 @@ async def login(
         "username": user.username
     }
 
-# BAGIAN 7: IMPORT CSV (MASTER DATA)
+# BAGIAN 7: IMPORT CSV (MASTER DATA & FOTO) - VERSI POP & LOG
 @app.post(
     "/api/v1/import-csv",
     tags=["1. Import Master Data"],
-    summary="Sinkronisasi data warga dari file CSV"
+    summary="Sinkronisasi data warga dan foto dari file CSV"
 )
 async def import_csv(
     file: UploadFile = File(...),
@@ -404,6 +422,7 @@ async def asesmen_visual(
                         "jenis_atap_terluas": keluarga.jenis_atap_terluas,
                     }
                 },
+                files={"file": ("foto_otomatis.jpg", (await client.get(foto_terbaru.url_foto)).content, "image/jpeg")},
                 timeout=30.0
             )
             res_ai.raise_for_status() 
@@ -425,6 +444,7 @@ async def asesmen_visual(
 
         hitung.ada_ketidaksesuaian_visual = not is_match
         hitung.reasoning_tim2 = alasan
+        hitung.foto_id_digunakan = foto_terbaru.id
         db.commit()
 
         return {
@@ -521,4 +541,4 @@ async def get_histori(
 
 if __name__ == "__main__":
     print("Menjalankan Main Server di Port 8000...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
