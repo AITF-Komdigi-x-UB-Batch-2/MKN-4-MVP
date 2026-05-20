@@ -33,10 +33,8 @@ and social welfare analysts to:
 |--------------|-------------------------------------|
 | Frontend     | React 18 + Vite + Tailwind CSS      |
 | Backend      | FastAPI (Python)                    |
-| Database     | Supabase (PostgreSQL)               |
+| Database     | PostgreSQL                          |
 | Vector DB    | ChromaDB                            |
-| Auth         | Supabase Auth (JWT + RLS)           |
-| File Storage | Supabase Storage                    |
 | Scheduler    | APScheduler (dalam FastAPI)         |
 | CI/CD        | GitHub Actions + Docker             |
 | Deployment   | Docker Compose (containerized)      |
