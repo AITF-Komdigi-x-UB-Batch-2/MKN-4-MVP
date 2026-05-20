@@ -177,11 +177,10 @@ async def login(
         "username": user.username
     }
 
-# BAGIAN 7: IMPORT CSV (MASTER DATA & FOTO) - VERSI POP & LOG
 @app.post(
     "/api/v1/import-csv",
     tags=["1. Import Master Data"],
-    summary="Sinkronisasi data warga dan foto dari file CSV"
+    summary="Sinkronisasi data warga dan foto dari file CSV atau Excel (XLSX)"
 )
 async def import_csv(
     file: UploadFile = File(...),
@@ -189,7 +188,37 @@ async def import_csv(
     db: Session = Depends(get_db)
 ):
     contents = await file.read()
-    reader = csv.DictReader(io.StringIO(contents.decode("utf-8")))
+    filename_lower = file.filename.lower()
+
+    reader = []
+    if filename_lower.endswith(('.xlsx', '.xls')):
+        from openpyxl import load_workbook
+        wb = load_workbook(filename=io.BytesIO(contents), data_only=True)
+        sheet = wb.active
+
+        # Ambil header kolom (baris pertama)
+        headers = [cell.value for cell in sheet[1]]
+        # Ambil data dari baris kedua hingga akhir
+        for r in range(2, sheet.max_row + 1):
+            row_dict = {}
+            row_has_data = False
+            for col_idx, header in enumerate(headers):
+                if header:
+                    val = sheet.cell(row=r, column=col_idx + 1).value
+                    if val is not None:
+                        # Jika berupa float bernilai bulat (misal KK ending .0), bersihkan ke int
+                        if isinstance(val, float) and val.is_integer():
+                            val = int(val)
+                        row_dict[str(header)] = str(val).strip()
+                        row_has_data = True
+                    else:
+                        row_dict[str(header)] = ""
+            if row_has_data:
+                reader.append(row_dict)
+    else:
+        # Jalankan parser CSV default
+        csv_reader = csv.DictReader(io.StringIO(contents.decode("utf-8")))
+        reader = list(csv_reader)
 
     kolom_sah = [c.name for c in models.Keluarga.__table__.columns]
     sukses = 0
