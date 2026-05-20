@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import AdminLayout from '../../components/layout/AdminLayout';
 import { 
   UserPlus, 
-  Filter, 
-  Download,
   Users,
   Network,
   ChevronRight,
@@ -95,16 +93,11 @@ const Pengaturan: React.FC<PengaturanProps> = ({ onLogout }) => {
           </button>
         </div>
 
-        {/* User Management Details */}
         <div className="settings-card">
           <div className="settings-card-header flex-between">
             <div className="flex-center gap-2">
               <Users size={18} className="text-blue-600" />
               <h4 className="font-semibold text-gray-800 m-0">Daftar Pengguna Aktif</h4>
-            </div>
-            <div className="flex-center gap-3 text-gray-500">
-              <Filter size={16} className="cursor-pointer hover:text-gray-800 transition" />
-              <Download size={16} className="cursor-pointer hover:text-gray-800 transition" />
             </div>
           </div>
           
