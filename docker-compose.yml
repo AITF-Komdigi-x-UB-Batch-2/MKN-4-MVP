@@ -71,10 +71,14 @@ services:
     build:
       context: ./jatim-sosial-frontend
       dockerfile: Dockerfile
+      target: dev
     container_name: mkn_frontend
     restart: always
     ports:
-      - "80:80"
+      - "80:5173"
+    volumes:
+      - ./jatim-sosial-frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
 
