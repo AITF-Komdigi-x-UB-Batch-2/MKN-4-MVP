@@ -65,6 +65,16 @@ services:
       - db
       - minio
       - mock_ai
+    develop:
+      watch:
+        - path: ./jatim-sosial-backend
+          action: sync+restart
+          target: /app
+          ignore:
+            - ./jatim-sosial-backend/__pycache__
+            - ./jatim-sosial-backend/requirements.txt
+        - path: ./jatim-sosial-backend/requirements.txt
+          action: rebuild
 
   # --- 5. FRONTEND WEB CLIENT ---
   frontend:
@@ -81,6 +91,19 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+    develop:
+      watch:
+        - path: ./jatim-sosial-frontend/src
+          action: sync
+          target: /app/src
+        - path: ./jatim-sosial-frontend/index.html
+          action: sync
+          target: /app/index.html
+        - path: ./jatim-sosial-frontend/vite.config.ts
+          action: sync
+          target: /app/vite.config.ts
+        - path: ./jatim-sosial-frontend/package.json
+          action: rebuild
 
 volumes:
   pgdata:
