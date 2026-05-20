@@ -34,7 +34,8 @@ interface DataRow {
   nik: string;
   wilayah: string;
   kecamatan: string;
-  desil: number;
+  skorASPD: number;
+  skorPKHT: number;
   tahap: Tahap;
   bantuan?: string;
   desilSebelum?: number;
@@ -60,21 +61,21 @@ const timelineSelesai: TimelineEvent[] = [
 
 const mockData: DataRow[] = [
   // Analisis
-  { id: '1', idLabel: '#AN-20231001', tanggal: '12 Okt 2023', nama: 'Budi Santoso', nik: '3578012300094001', wilayah: 'Surabaya', kecamatan: 'Genteng', desil: 1, tahap: 'analisis' },
-  { id: '2', idLabel: '#AN-20231002', tanggal: '14 Okt 2023', nama: 'Siti Aminah', nik: '3578012300094005', wilayah: 'Sidoarjo', kecamatan: 'Gedangan', desil: 4, tahap: 'analisis' },
-  { id: '3', idLabel: '#AN-20231003', tanggal: '15 Okt 2023', nama: 'Agus Riyadi', nik: '3578012300094009', wilayah: 'Surabaya', kecamatan: 'Wonokromo', desil: 9, tahap: 'analisis' },
+  { id: '1', idLabel: '#AN-20231001', tanggal: '12 Okt 2023', nama: 'Budi Santoso', nik: '3578012300094001', wilayah: 'Surabaya', kecamatan: 'Genteng', skorASPD: 85.4, skorPKHT: 92.1, tahap: 'analisis' },
+  { id: '2', idLabel: '#AN-20231002', tanggal: '14 Okt 2023', nama: 'Siti Aminah', nik: '3578012300094005', wilayah: 'Sidoarjo', kecamatan: 'Gedangan', skorASPD: 72.1, skorPKHT: 68.5, tahap: 'analisis' },
+  { id: '3', idLabel: '#AN-20231003', tanggal: '15 Okt 2023', nama: 'Agus Riyadi', nik: '3578012300094009', wilayah: 'Surabaya', kecamatan: 'Wonokromo', skorASPD: 40.5, skorPKHT: 35.2, tahap: 'analisis' },
   // Validasi
-  { id: '4', idLabel: '#KS-09412', tanggal: '12 Okt 2023', nama: 'Dewi Lestari', nik: '3578056001000012', wilayah: 'Surabaya', kecamatan: 'Sawahan', desil: 1, tahap: 'validasi', bantuan: 'PKH' },
-  { id: '5', idLabel: '#KS-09413', tanggal: '13 Okt 2023', nama: 'Agus Setiawan', nik: '3515041101900015', wilayah: 'Gresik', kecamatan: 'Kebomas', desil: 2, tahap: 'validasi', bantuan: 'BPNT' },
-  { id: '6', idLabel: '#KS-09415', tanggal: '14 Okt 2023', nama: 'Rina Wulandari', nik: '3578022201890018', wilayah: 'Sidoarjo', kecamatan: 'Waru', desil: 3, tahap: 'validasi', bantuan: 'BST' },
+  { id: '4', idLabel: '#KS-09412', tanggal: '12 Okt 2023', nama: 'Dewi Lestari', nik: '3578056001000012', wilayah: 'Surabaya', kecamatan: 'Sawahan', skorASPD: 95.2, skorPKHT: 91.0, tahap: 'validasi', bantuan: 'PKHT' },
+  { id: '5', idLabel: '#KS-09413', tanggal: '13 Okt 2023', nama: 'Agus Setiawan', nik: '3515041101900015', wilayah: 'Gresik', kecamatan: 'Kebomas', skorASPD: 88.0, skorPKHT: 84.5, tahap: 'validasi', bantuan: 'ASPD' },
+  { id: '6', idLabel: '#KS-09415', tanggal: '14 Okt 2023', nama: 'Rina Wulandari', nik: '3578022201890018', wilayah: 'Sidoarjo', kecamatan: 'Waru', skorASPD: 76.4, skorPKHT: 82.1, tahap: 'validasi', bantuan: 'PKHT' },
   // Bantuan Aktif
-  { id: '7', idLabel: '#BTN-PKH-8821', tanggal: '10 Feb 2024', nama: 'M. Nurul Huda', nik: '3578034502780020', wilayah: 'Gresik', kecamatan: 'Kebomas', desil: 1, tahap: 'aktif', bantuan: 'PKH', timeline: timelineAktif },
-  { id: '8', idLabel: '#BTN-BPT-8822', tanggal: '15 Jan 2024', nama: 'Lilik Handayani', nik: '3578045603670023', wilayah: 'Malang', kecamatan: 'Lowokwaru', desil: 2, tahap: 'aktif', bantuan: 'BPNT', timeline: timelineSelesai },
-  { id: '9', idLabel: '#BTN-BLT-8823', tanggal: '20 Feb 2024', nama: 'Wahyu Pratama', nik: '3578015504550026', wilayah: 'Surabaya', kecamatan: 'Tambaksari', desil: 3, tahap: 'aktif', bantuan: 'BLT BBM', timeline: timelineAktif },
+  { id: '7', idLabel: '#BTN-PKH-8821', tanggal: '10 Feb 2024', nama: 'M. Nurul Huda', nik: '3578034502780020', wilayah: 'Gresik', kecamatan: 'Kebomas', skorASPD: 98.5, skorPKHT: 94.2, tahap: 'aktif', bantuan: 'ASPD', timeline: timelineAktif },
+  { id: '8', idLabel: '#BTN-BPT-8822', tanggal: '15 Jan 2024', nama: 'Lilik Handayani', nik: '3578045603670023', wilayah: 'Malang', kecamatan: 'Lowokwaru', skorASPD: 82.3, skorPKHT: 89.4, tahap: 'aktif', bantuan: 'PKHT', timeline: timelineSelesai },
+  { id: '9', idLabel: '#BTN-BLT-8823', tanggal: '20 Feb 2024', nama: 'Wahyu Pratama', nik: '3578015504550026', wilayah: 'Surabaya', kecamatan: 'Tambaksari', skorASPD: 79.1, skorPKHT: 75.0, tahap: 'aktif', bantuan: 'ASPD', timeline: timelineAktif },
   // Evaluasi
-  { id: '10', idLabel: '#EV-40101', tanggal: '01 Mar 2024', nama: 'Sri Mulyani', nik: '3578027708430030', wilayah: 'Surabaya', kecamatan: 'Genteng', desil: 2, tahap: 'evaluasi', bantuan: 'PKH', desilSebelum: 1, desilSesudah: 3 },
-  { id: '11', idLabel: '#EV-40102', tanggal: '05 Mar 2024', nama: 'Joko Widodo', nik: '3578038809320033', wilayah: 'Sidoarjo', kecamatan: 'Gedangan', desil: 4, tahap: 'evaluasi', bantuan: 'BPNT', desilSebelum: 2, desilSesudah: 5 },
-  { id: '12', idLabel: '#EV-40103', tanggal: '10 Mar 2024', nama: 'Endang Susilowati', nik: '3578049910210036', wilayah: 'Malang', kecamatan: 'Klojen', desil: 3, tahap: 'evaluasi', bantuan: 'BST', desilSebelum: 3, desilSesudah: 3 },
+  { id: '10', idLabel: '#EV-40101', tanggal: '01 Mar 2024', nama: 'Sri Mulyani', nik: '3578027708430030', wilayah: 'Surabaya', kecamatan: 'Genteng', skorASPD: 84.0, skorPKHT: 81.5, tahap: 'evaluasi', bantuan: 'KE', desilSebelum: 1, desilSesudah: 3 },
+  { id: '11', idLabel: '#EV-40102', tanggal: '05 Mar 2024', nama: 'Joko Widodo', nik: '3578038809320033', wilayah: 'Sidoarjo', kecamatan: 'Gedangan', skorASPD: 65.5, skorPKHT: 70.2, tahap: 'evaluasi', bantuan: 'PKHT', desilSebelum: 2, desilSesudah: 5 },
+  { id: '12', idLabel: '#EV-40103', tanggal: '10 Mar 2024', nama: 'Endang Susilowati', nik: '3578049910210036', wilayah: 'Malang', kecamatan: 'Klojen', skorASPD: 73.0, skorPKHT: 71.5, tahap: 'evaluasi', bantuan: 'ASPD', desilSebelum: 3, desilSesudah: 3 },
 ];
 
 /* ─── Helpers ────────────────────────────── */
@@ -87,11 +88,7 @@ const TABS: { key: TabKey; label: string; dotColor: string }[] = [
   { key: 'evaluasi', label: 'Evaluasi', dotColor: '#22c55e' },
 ];
 
-const getDesilColor = (desil: number) => {
-  if (desil <= 3) return 'red';
-  if (desil <= 6) return 'orange';
-  return 'green';
-};
+
 
 const getStageBadgeClass = (tahap: Tahap) => {
   switch (tahap) {
@@ -132,6 +129,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [filterWilayah, setFilterWilayah] = useState('Semua');
   const [filterBantuan, setFilterBantuan] = useState('Semua');
+  const [sortBy, setSortBy] = useState('default');
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<DataRow[]>(mockData);
 
@@ -143,7 +141,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     setIsLoading(true);
     const timer = setTimeout(() => setIsLoading(false), 600);
     return () => clearTimeout(timer);
-  }, [activeTab, searchTerm, filterStatus, filterWilayah, filterBantuan]);
+  }, [activeTab, searchTerm, filterStatus, filterWilayah, filterBantuan, sortBy]);
 
   // Counts per tab (before search/filter)
   const tabCounts = useMemo(() => ({
@@ -196,12 +194,36 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
       result = result.filter(d => d.bantuan === filterBantuan);
     }
 
-    return result;
-  }, [data, activeTab, searchTerm, filterStatus, filterWilayah, filterBantuan]);
+    // Sort logic
+    let sortedResult = [...result];
+    if (sortBy === 'aspd-desc') {
+      sortedResult.sort((a, b) => b.skorASPD - a.skorASPD);
+    } else if (sortBy === 'pkht-desc') {
+      sortedResult.sort((a, b) => b.skorPKHT - a.skorPKHT);
+    } else if (sortBy === 'nama-asc') {
+      sortedResult.sort((a, b) => a.nama.localeCompare(b.nama));
+    } else if (sortBy === 'tanggal-desc') {
+      const parseIndoDate = (dateStr: string) => {
+        const parts = dateStr.split(' ');
+        if (parts.length !== 3) return 0;
+        const day = parseInt(parts[0]);
+        const year = parseInt(parts[2]);
+        const months: Record<string, number> = {
+          'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'Mei': 4, 'Jun': 5,
+          'Jul': 6, 'Agt': 7, 'Okt': 9, 'Nov': 10, 'Des': 11
+        };
+        const month = months[parts[1]] !== undefined ? months[parts[1]] : 0;
+        return new Date(year, month, day).getTime();
+      };
+      sortedResult.sort((a, b) => parseIndoDate(b.tanggal) - parseIndoDate(a.tanggal));
+    }
+
+    return sortedResult;
+  }, [data, activeTab, searchTerm, filterStatus, filterWilayah, filterBantuan, sortBy]);
 
   // Actions
   const handleApprove = (id: string) => {
-    setData(prev => prev.map(d => d.id === id ? { ...d, tahap: 'aktif' as Tahap, bantuan: d.bantuan || 'PKH', timeline: timelineAktif } : d));
+    setData(prev => prev.map(d => d.id === id ? { ...d, tahap: 'aktif' as Tahap, bantuan: d.bantuan || 'PKHT', timeline: timelineAktif } : d));
   };
 
   const handleReject = (id: string) => {
@@ -213,16 +235,16 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     setFilterStatus('Semua');
     setFilterWilayah('Semua');
     setFilterBantuan('Semua');
+    setSortBy('default');
   };
 
   // Determine what columns to show
-  const showDesil = activeTab !== 'aktif';
   const showBantuan = activeTab !== 'analisis';
   const showStageBadge = activeTab === 'semua';
   const showDesilChange = activeTab === 'evaluasi';
 
   const colCount = 4
-    + (showDesil ? 1 : 0)
+    + 2 // ASPD and PKHT columns
     + (showStageBadge ? 1 : 0)
     + (showBantuan ? 1 : 0)
     + (showDesilChange ? 1 : 0)
@@ -303,10 +325,23 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
             <label>JENIS BANTUAN</label>
             <select value={filterBantuan} onChange={e => setFilterBantuan(e.target.value)} disabled={isLoading}>
               <option value="Semua">Semua Jenis</option>
-              <option value="PKH">PKH</option>
-              <option value="BPNT">BPNT</option>
-              <option value="BST">BST</option>
-              <option value="BLT BBM">BLT BBM</option>
+              <option value="ASPD">ASPD</option>
+              <option value="PKHT">PKHT</option>
+              <option value="KE">KE</option>
+              <option value="JAWARA">Jawara</option>
+              <option value="JAWARA P">Jawara P</option>
+              <option value="PPU">PPU</option>
+            </select>
+          </div>
+
+          <div className="mb-filter-group">
+            <label>URUTKAN</label>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} disabled={isLoading}>
+              <option value="default">Default</option>
+              <option value="aspd-desc">Skor ASPD Tertinggi</option>
+              <option value="pkht-desc">Skor PKHT Tertinggi</option>
+              <option value="nama-asc">Nama (A - Z)</option>
+              <option value="tanggal-desc">Tanggal Terbaru</option>
             </select>
           </div>
 
@@ -324,7 +359,8 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                   <th>ID / TANGGAL</th>
                   <th>NAMA PENERIMA</th>
                   <th>WILAYAH</th>
-                  {showDesil && <th>DESIL</th>}
+                  <th>ASPD</th>
+                  <th>PKHT</th>
                   {showStageBadge && <th>STATUS TAHAP</th>}
                   {showBantuan && <th>BANTUAN</th>}
                   {showDesilChange && <th>PERUBAHAN DESIL</th>}
@@ -375,22 +411,25 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                         <div className="mb-cell-secondary">{row.kecamatan}</div>
                       </td>
 
-                      {/* Desil */}
-                      {showDesil && (
-                        <td>
-                          <div className="mb-desil-info">
-                            <span className={`mb-desil-label ${getDesilColor(row.desil)}`}>
-                              DESIL {row.desil}
-                            </span>
-                            <div className="mb-progress-bar">
-                              <div
-                                className={`mb-progress-fill ${getDesilColor(row.desil)}`}
-                                style={{ width: `${row.desil * 10}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                      )}
+                      {/* Skor ASPD */}
+                      <td>
+                        <div className="mb-cell-primary font-semibold text-blue-600">
+                          {row.tahap === 'analisis'
+                            ? (row.id === '1' || row.id === '2' ? `${row.skorASPD.toFixed(1)}` : '—')
+                            : (row.bantuan === 'ASPD' ? `${row.skorASPD.toFixed(1)}` : '—')
+                          }
+                        </div>
+                      </td>
+
+                      {/* Skor PKHT */}
+                      <td>
+                        <div className="mb-cell-primary font-semibold text-purple-600">
+                          {row.tahap === 'analisis'
+                            ? (row.id === '1' ? `${row.skorPKHT.toFixed(1)}` : '—')
+                            : (row.bantuan === 'PKHT' ? `${row.skorPKHT.toFixed(1)}` : '—')
+                          }
+                        </div>
+                      </td>
 
                       {/* Stage Badge (only on Semua tab) */}
                       {showStageBadge && (

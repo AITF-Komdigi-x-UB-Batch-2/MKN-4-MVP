@@ -35,7 +35,7 @@ const mockDocuments: PolicyDocument[] = [
   {
     id: '1',
     title: 'SK Gubernur No. 45/2023',
-    description: 'Penetapan Penerima Bantuan Sosial PKH Tahap IV',
+    description: 'Penetapan Penerima Bantuan Sosial ASPD Tahap IV',
     kategori: 'SK GUBERNUR',
     kategoriColorClass: 'kategori-sk',
     tanggal: '12 Okt 2023',
@@ -43,7 +43,7 @@ const mockDocuments: PolicyDocument[] = [
     masaBerlaku: 'S/D Dicabut',
     unit: 'Dinas Sosial',
     size: '1.2 MB',
-    aiSummary: 'Dokumen ini menetapkan daftar resmi penerima bantuan sosial Program Keluarga Harapan (PKH) untuk tahap IV tahun 2023 sesuai kriteria kelayakan yang telah divaildasi.',
+    aiSummary: 'Dokumen ini menetapkan daftar resmi penerima bantuan sosial Asistensi Sosial Penyandang Disabilitas (ASPD) untuk tahap IV tahun 2023 sesuai kriteria kelayakan yang telah divalidasi.',
   },
   {
     id: '2',
@@ -86,7 +86,7 @@ const mockDocuments: PolicyDocument[] = [
   }
 ];
 
-const jenisProgramFilters = ['Semua', 'PKH', 'BPNT', 'BLT BBM', 'Disabilitas'];
+const jenisProgramFilters = ['Semua', 'ASPD', 'PKHT', 'KE', 'JAWARA', 'JAWARA P', 'PPU', 'Disabilitas'];
 const jenisRegulasiFilters = ['Peraturan Gubernur', 'SK Gubernur', 'Instruksi Gubernur', 'Surat Edaran'];
 
 const BasisPengetahuan: React.FC<BasisPengetahuanProps> = ({ onLogout }) => {

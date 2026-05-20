@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import AdminLayout from '../../components/layout/AdminLayout';
 import { 
   UserPlus, 
+  Filter, 
+  Download,
   Users,
   Network,
   ChevronRight,
@@ -13,12 +15,13 @@ interface PengaturanProps {
   onLogout?: () => void;
 }
 
-type Role = 'ANALYST' | 'PETUGAS' | 'ADMIN';
+type Role = 'ANALIS' | 'ADMIN';
 type Status = 'Aktif' | 'Nonaktif';
 
 interface User {
   id: string;
   name: string;
+  username: string;
   initials: string;
   role: Role;
   email: string;
@@ -26,10 +29,10 @@ interface User {
 }
 
 const initialUsers: User[] = [
-  { id: 'u1', name: 'Budi Santoso', initials: 'BS', role: 'ANALYST', email: 'budi@jatimprov.go.id', status: 'Aktif' },
-  { id: 'u2', name: 'Siti Aminah', initials: 'SA', role: 'PETUGAS', email: 'siti@jatimprov.go.id', status: 'Aktif' },
-  { id: 'u3', name: 'Dewi Lestari', initials: 'DL', role: 'PETUGAS', email: 'dewi@jatimprov.go.id', status: 'Aktif' },
-  { id: 'u4', name: 'Rahmat Hidayat', initials: 'RH', role: 'ADMIN', email: 'admin@jatimprov.go.id', status: 'Aktif' },
+  { id: 'u1', name: 'Budi Santoso', username: 'budi.santoso', initials: 'BS', role: 'ANALIS', email: 'budi@jatimprov.go.id', status: 'Aktif' },
+  { id: 'u2', name: 'Siti Aminah', username: 'siti.aminah', initials: 'SA', role: 'ANALIS', email: 'siti@jatimprov.go.id', status: 'Aktif' },
+  { id: 'u3', name: 'Dewi Lestari', username: 'dewi.lestari', initials: 'DL', role: 'ANALIS', email: 'dewi@jatimprov.go.id', status: 'Aktif' },
+  { id: 'u4', name: 'Rahmat Hidayat', username: 'admin.rahmat', initials: 'RH', role: 'ADMIN', email: 'admin@jatimprov.go.id', status: 'Aktif' },
 ];
 
 interface Department {
@@ -71,10 +74,17 @@ const Pengaturan: React.FC<PengaturanProps> = ({ onLogout }) => {
 
   const getRoleBadgeClass = (role: Role) => {
     switch(role) {
-      case 'ANALYST': return 'badge-role-analyst';
-      case 'PETUGAS': return 'badge-role-petugas';
+      case 'ANALIS': return 'badge-role-analis';
       case 'ADMIN': return 'badge-role-admin';
       default: return '';
+    }
+  };
+
+  const getRoleLabel = (role: Role) => {
+    switch(role) {
+      case 'ANALIS': return 'Analis';
+      case 'ADMIN': return 'Admin';
+      default: return role;
     }
   };
 
@@ -93,11 +103,16 @@ const Pengaturan: React.FC<PengaturanProps> = ({ onLogout }) => {
           </button>
         </div>
 
+        {/* User Management Details */}
         <div className="settings-card">
           <div className="settings-card-header flex-between">
             <div className="flex-center gap-2">
               <Users size={18} className="text-blue-600" />
               <h4 className="font-semibold text-gray-800 m-0">Daftar Pengguna Aktif</h4>
+            </div>
+            <div className="flex-center gap-3 text-gray-500">
+              <Filter size={16} className="cursor-pointer hover:text-gray-800 transition" />
+              <Download size={16} className="cursor-pointer hover:text-gray-800 transition" />
             </div>
           </div>
           
@@ -122,7 +137,7 @@ const Pengaturan: React.FC<PengaturanProps> = ({ onLogout }) => {
                       </div>
                     </td>
                     <td>
-                      <span className={`role-badge ${getRoleBadgeClass(user.role)}`}>{user.role}</span>
+                      <span className={`role-badge ${getRoleBadgeClass(user.role)}`}>{getRoleLabel(user.role)}</span>
                     </td>
                     <td className="text-gray-500">{user.email}</td>
                     <td>
@@ -204,15 +219,18 @@ const Pengaturan: React.FC<PengaturanProps> = ({ onLogout }) => {
                 <input type="text" className="config-input w-full" defaultValue={editingUser?.name || ''} placeholder="Masukkan nama..." />
               </div>
               <div className="form-group mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Username</label>
+                <input type="text" className="config-input w-full" defaultValue={editingUser?.username || ''} placeholder="username.akun" />
+              </div>
+              <div className="form-group mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
                 <input type="email" className="config-input w-full" defaultValue={editingUser?.email || ''} placeholder="email@jatimprov.go.id" />
               </div>
               <div className="form-group mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
-                <select className="config-input w-full" defaultValue={editingUser?.role || 'PETUGAS'}>
-                  <option value="ANALYST">ANALYST</option>
-                  <option value="PETUGAS">PETUGAS</option>
-                  <option value="ADMIN">ADMIN</option>
+                <select className="config-input w-full" defaultValue={editingUser?.role || 'ANALIS'}>
+                  <option value="ANALIS">Analis</option>
+                  <option value="ADMIN">Admin</option>
                 </select>
               </div>
               {editingUser && (

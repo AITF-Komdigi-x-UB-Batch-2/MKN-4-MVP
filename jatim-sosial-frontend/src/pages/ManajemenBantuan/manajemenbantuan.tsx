@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/layout/AdminLayout';
 import {
   Search,
-  Download,
-  Clock,
   ChevronLeft,
   ChevronRight,
   ArrowRight,
@@ -16,8 +14,10 @@ import {
   Loader2,
   ShieldCheck,
   BrainCircuit,
+  CheckSquare,
+  Square,
+  XCircle,
 } from 'lucide-react';
-import TimelineModal, { type TimelineEvent } from '../../components/ui/TimelineModal';
 import LoadingState from '../../components/ui/LoadingState';
 import EmptyState from '../../components/ui/EmptyState';
 import { type Tahap, type AnalisisOutput, mockData } from '../../data/mockData';
@@ -32,10 +32,30 @@ export interface DataRow extends AnalisisOutput {
   wilayah: string;
   kecamatan: string;
   desil: number;
+  skorASPD: number;
+  skorPKHT: number;
 }
 
 const joinedData: DataRow[] = mockData.map((output) => {
   const keluarga = rawKeluargaData.find(k => k.id_keluarga === output.id_keluarga);
+  
+  // Assign realistic priority scores
+  let skorASPD = 50.0;
+  let skorPKHT = 50.0;
+  if (output.id_keluarga === 'FAM-001') { skorASPD = 85.4; skorPKHT = 92.1; }
+  else if (output.id_keluarga === 'FAM-002') { skorASPD = 82.1; skorPKHT = 35.0; }
+  else if (output.id_keluarga === 'FAM-003') { skorASPD = 40.5; skorPKHT = 35.2; }
+  else if (output.id_keluarga === 'FAM-004') { skorASPD = 95.2; skorPKHT = 91.0; }
+  else if (output.id_keluarga === 'FAM-005') { skorASPD = 38.0; skorPKHT = 88.0; }
+  else if (output.id_keluarga === 'FAM-006') { skorASPD = 86.4; skorPKHT = 82.1; }
+  else if (output.id_keluarga === 'FAM-007') { skorASPD = 98.5; skorPKHT = 94.2; }
+  else if (output.id_keluarga === 'FAM-008') { skorASPD = 32.3; skorPKHT = 89.4; }
+  else if (output.id_keluarga === 'FAM-009') { skorASPD = 89.1; skorPKHT = 35.0; }
+  else if (output.id_keluarga === 'FAM-010') { skorASPD = 34.0; skorPKHT = 31.5; }
+  else if (output.id_keluarga === 'FAM-011') { skorASPD = 35.5; skorPKHT = 80.2; }
+  else if (output.id_keluarga === 'FAM-012') { skorASPD = 83.0; skorPKHT = 31.5; }
+  else if (output.id_keluarga === 'FAM-013') { skorASPD = 38.0; skorPKHT = 82.5; }
+
   return {
     ...output,
     nama: keluarga ? keluarga.nama_kepala_keluarga : 'Data Tidak Ditemukan',
@@ -43,6 +63,8 @@ const joinedData: DataRow[] = mockData.map((output) => {
     wilayah: keluarga ? keluarga.nama_kabupaten_kota : '-',
     kecamatan: keluarga ? keluarga.nama_kecamatan : '-',
     desil: keluarga ? keluarga.desil_kesejahteraan : 0,
+    skorASPD,
+    skorPKHT,
   };
 });
 
@@ -51,7 +73,7 @@ interface ManajemenBantuanProps {
 }
 
 type TabKey = 'semua' | Tahap;
-type SortKey = 'id' | 'nama' | 'wilayah' | 'desil' | 'tahap' | 'bantuan' | 'perubahanDesil';
+type SortKey = 'id' | 'nama' | 'wilayah' | 'desil' | 'tahap' | 'bantuan' | 'perubahanDesil' | 'skorASPD' | 'skorPKHT';
 
 /* ─── Helpers ────────────────────────────── */
 
@@ -59,9 +81,8 @@ const TABS: { key: TabKey; label: string; dotColor: string }[] = [
   { key: 'semua', label: 'Semua', dotColor: '#6b7280' },
   { key: 'analisis', label: 'Analisis', dotColor: '#3b82f6' },
   { key: 'validasi', label: 'Perlu Validasi', dotColor: '#f97316' },
-  { key: 'aktif', label: 'Bantuan Aktif', dotColor: '#14b8a6' },
-  { key: 'evaluasi', label: 'Evaluasi', dotColor: '#22c55e' },
-  { key: 'selesai', label: 'Selesai', dotColor: '#a855f7' },
+  { key: 'diterima', label: 'Diterima', dotColor: '#10b981' },
+  { key: 'ditolak', label: 'Ditolak', dotColor: '#ef4444' },
 ];
 
 const getDesilColor = (desil: number) => {
@@ -74,9 +95,8 @@ const getStageBadgeClass = (tahap: Tahap) => {
   switch (tahap) {
     case 'analisis': return 'mb-badge-analisis';
     case 'validasi': return 'mb-badge-validasi';
-    case 'aktif': return 'mb-badge-aktif';
-    case 'evaluasi': return 'mb-badge-evaluasi';
-    case 'selesai': return 'mb-badge-selesai';
+    case 'diterima': return 'mb-badge-aktif';
+    case 'ditolak': return 'mb-badge-selesai';
   }
 };
 
@@ -84,9 +104,8 @@ const getStageBadgeLabel = (tahap: Tahap) => {
   switch (tahap) {
     case 'analisis': return 'Analisis';
     case 'validasi': return 'Validasi';
-    case 'aktif': return 'Aktif';
-    case 'evaluasi': return 'Evaluasi';
-    case 'selesai': return 'Selesai';
+    case 'diterima': return 'Diterima';
+    case 'ditolak': return 'Ditolak';
   }
 };
 
@@ -95,9 +114,8 @@ const getEmptyMessage = (tab: TabKey) => {
     case 'semua': return 'Belum ada data bantuan untuk ditampilkan.';
     case 'analisis': return 'Tidak ada riwayat analisis pada periode ini.';
     case 'validasi': return 'Tidak ada permohonan yang menunggu validasi.';
-    case 'aktif': return 'Tidak ada bantuan aktif saat ini.';
-    case 'evaluasi': return 'Belum ada data evaluasi tersedia.';
-    case 'selesai': return 'Tidak ada riwayat program bantuan yang telah selesai.';
+    case 'diterima': return 'Tidak ada bantuan yang disetujui saat ini.';
+    case 'ditolak': return 'Tidak ada pengajuan bantuan yang ditolak.';
   }
 };
 
@@ -115,14 +133,18 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<DataRow[]>(joinedData);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
-  // Timeline modal
-  const [selectedTimeline, setSelectedTimeline] = useState<TimelineEvent[] | null>(null);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(0);
 
-  // Simulate loading on filter/tab change
+  // Simulate loading on filter/tab change & reset page
   useEffect(() => {
     setIsLoading(true);
+    setCurrentPage(1);
     const timer = setTimeout(() => setIsLoading(false), 600);
     return () => clearTimeout(timer);
   }, [activeTab, searchTerm, filterStatus, filterWilayah, filterBantuan]);
@@ -132,9 +154,8 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     semua: data.length,
     analisis: data.filter(d => d.tahap === 'analisis').length,
     validasi: data.filter(d => d.tahap === 'validasi').length,
-    aktif: data.filter(d => d.tahap === 'aktif').length,
-    evaluasi: data.filter(d => d.tahap === 'evaluasi').length,
-    selesai: data.filter(d => d.tahap === 'selesai').length,
+    diterima: data.filter(d => d.tahap === 'diterima').length,
+    ditolak: data.filter(d => d.tahap === 'ditolak').length,
   }), [data]);
 
   // Filtered data
@@ -161,9 +182,8 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
       const mapping: Record<string, Tahap> = {
         'Analisis': 'analisis',
         'Validasi': 'validasi',
-        'Aktif': 'aktif',
-        'Evaluasi': 'evaluasi',
-        'Selesai': 'selesai',
+        'Diterima': 'diterima',
+        'Ditolak': 'ditolak',
       };
       if (mapping[filterStatus]) {
         result = result.filter(d => d.tahap === mapping[filterStatus]);
@@ -192,9 +212,8 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
         const tahapOrder: Record<string, number> = {
           'analisis': 1,
           'validasi': 2,
-          'aktif': 3,
-          'evaluasi': 4,
-          'selesai': 5
+          'diterima': 3,
+          'ditolak': 4,
         };
 
         if (sortConfig.key === 'id') {
@@ -209,6 +228,12 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
         } else if (sortConfig.key === 'tahap') {
           valA = tahapOrder[a.tahap] || 99;
           valB = tahapOrder[b.tahap] || 99;
+        } else if (sortConfig.key === 'skorASPD') {
+          valA = a.skorASPD;
+          valB = b.skorASPD;
+        } else if (sortConfig.key === 'skorPKHT') {
+          valA = a.skorPKHT;
+          valB = b.skorPKHT;
         }
 
         if (typeof valA === 'string' && typeof valB === 'string') {
@@ -226,16 +251,127 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     return result;
   }, [data, activeTab, searchTerm, filterStatus, filterWilayah, filterBantuan, sortConfig]);
 
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / ITEMS_PER_PAGE));
+  const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  const getPageNumbers = () => {
+    const pages: (number | '...')[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
   // Actions
   const handleAnalisis = (id: string) => {
     setAnalyzingId(id);
     setTimeout(() => {
-      setData(prev => prev.map(d => d.id_keluarga === id ? { ...d, tahap: 'validasi' as Tahap } : d));
+      setData(prev => prev.map(d => d.id_keluarga === id 
+        ? { ...d, tahap: 'validasi' as Tahap, bantuan: d.rekomendasiBantuan || [] } 
+        : d
+      ));
       setAnalyzingId(null);
     }, 2000);
   };
 
+  // Batch selection helpers
+  const analisisRows = paginatedData.filter(r => r.tahap === 'analisis');
+  const allAnalisisSelected = analisisRows.length > 0 && analisisRows.every(r => selectedRows.has(r.id_keluarga));
 
+  const toggleRowSelection = (id: string) => {
+    setSelectedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllAnalisis = () => {
+    if (allAnalisisSelected) {
+      setSelectedRows(prev => {
+        const next = new Set(prev);
+        analisisRows.forEach(r => next.delete(r.id_keluarga));
+        return next;
+      });
+    } else {
+      setSelectedRows(prev => {
+        const next = new Set(prev);
+        analisisRows.forEach(r => next.add(r.id_keluarga));
+        return next;
+      });
+    }
+  };
+
+  const handleBatchAnalisis = () => {
+    if (selectedRows.size === 0 || isBatchAnalyzing) return;
+    setIsBatchAnalyzing(true);
+    setBatchProgress(0);
+    const ids = Array.from(selectedRows);
+    const total = ids.length;
+    let processed = 0;
+
+    const processNext = () => {
+      if (processed >= total) {
+        setIsBatchAnalyzing(false);
+        setSelectedRows(new Set());
+        setBatchProgress(0);
+        return;
+      }
+      const id = ids[processed];
+      setData(prev => prev.map(d => d.id_keluarga === id 
+        ? { ...d, tahap: 'validasi' as Tahap, bantuan: d.rekomendasiBantuan || [] } 
+        : d
+      ));
+      processed++;
+      setBatchProgress(Math.round((processed / total) * 100));
+      setTimeout(processNext, 400);
+    };
+
+    setTimeout(processNext, 300);
+  };
+
+
+  const handleAnalisisAll = () => {
+    const allAnalisis = data.filter(d => d.tahap === 'analisis');
+    if (allAnalisis.length === 0 || isBatchAnalyzing) return;
+    const allIds = new Set(allAnalisis.map(d => d.id_keluarga));
+    setSelectedRows(allIds);
+    // Trigger batch with small delay to let state update
+    setIsBatchAnalyzing(true);
+    setBatchProgress(0);
+    const ids = Array.from(allIds);
+    const total = ids.length;
+    let processed = 0;
+
+    const processNext = () => {
+      if (processed >= total) {
+        setIsBatchAnalyzing(false);
+        setSelectedRows(new Set());
+        setBatchProgress(0);
+        return;
+      }
+      const id = ids[processed];
+      setData(prev => prev.map(d => d.id_keluarga === id 
+        ? { ...d, tahap: 'validasi' as Tahap, bantuan: d.rekomendasiBantuan || [] } 
+        : d
+      ));
+      processed++;
+      setBatchProgress(Math.round((processed / total) * 100));
+      setTimeout(processNext, 400);
+    };
+
+    setTimeout(processNext, 300);
+  };
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -278,13 +414,13 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   };
 
   // Determine what columns to show
-  const showDesil = activeTab !== 'aktif';
   const showBantuan = activeTab !== 'analisis';
   const showStageBadge = true;
-  const showDesilChange = activeTab === 'evaluasi';
+  const showDesilChange = false; // Evaluasi kaku telah dihilangkan
 
-  const colCount = 4
-    + (showDesil ? 1 : 0)
+  const colCount = 1 // checkbox
+    + 4
+    + 2 // ASPD and PKHT columns
     + (showStageBadge ? 1 : 0)
     + (showBantuan ? 1 : 0)
     + (showDesilChange ? 1 : 0)
@@ -298,11 +434,16 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
         <div className="mb-header">
           <div className="mb-title-area">
             <h3>Manajemen Bantuan</h3>
-            <p>Kelola seluruh siklus bantuan mulai dari analisis hingga evaluasi dalam satu halaman terpusat.</p>
+            <p>Kelola seluruh rekomendasi bantuan sosial mulai dari tahap analisis, validasi, hingga penetapan diterima/ditolak.</p>
           </div>
           <div className="mb-actions">
-            <button className="mb-btn-secondary">
-              <Download size={16} /> Ekspor Data
+            <button 
+              className="mb-btn-primary"
+              onClick={handleAnalisisAll}
+              disabled={isBatchAnalyzing || data.filter(d => d.tahap === 'analisis').length === 0}
+              style={{ opacity: data.filter(d => d.tahap === 'analisis').length === 0 ? 0.5 : 1 }}
+            >
+              <BrainCircuit size={16} /> Analisis Semua ({data.filter(d => d.tahap === 'analisis').length})
             </button>
           </div>
         </div>
@@ -342,9 +483,8 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
               <option value="Semua">Semua Status</option>
               <option value="Analisis">Analisis</option>
               <option value="Validasi">Validasi</option>
-              <option value="Aktif">Aktif</option>
-              <option value="Evaluasi">Evaluasi</option>
-              <option value="Selesai">Selesai</option>
+              <option value="Diterima">Diterima</option>
+              <option value="Ditolak">Ditolak</option>
             </select>
           </div>
 
@@ -360,10 +500,33 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
             <label>JENIS BANTUAN</label>
             <select value={filterBantuan} onChange={e => setFilterBantuan(e.target.value)} disabled={isLoading}>
               <option value="Semua">Semua Jenis</option>
-              <option value="PKH">PKH</option>
-              <option value="BPNT">BPNT</option>
-              <option value="BST">BST</option>
-              <option value="BLT BBM">BLT BBM</option>
+              <option value="ASPD">ASPD</option>
+              <option value="PKHT">PKHT</option>
+              <option value="KE">KE</option>
+              <option value="JAWARA">Jawara</option>
+              <option value="JAWARA P">Jawara P</option>
+              <option value="PPU">PPU</option>
+            </select>
+          </div>
+
+          <div className="mb-filter-group">
+            <label>URUTKAN</label>
+            <select 
+              value={sortConfig ? `${sortConfig.key}-${sortConfig.direction}` : 'default'} 
+              onChange={e => {
+                if (e.target.value === 'default') {
+                  setSortConfig(null);
+                } else {
+                  const [key, direction] = e.target.value.split('-');
+                  setSortConfig({ key: key as SortKey, direction: direction as 'asc' | 'desc' });
+                }
+              }} 
+              disabled={isLoading}
+            >
+              <option value="default">Default</option>
+              <option value="skorASPD-desc">Skor ASPD Tertinggi</option>
+              <option value="skorPKHT-desc">Skor PKHT Tertinggi</option>
+              <option value="nama-asc">Nama (A - Z)</option>
             </select>
           </div>
 
@@ -378,10 +541,20 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
             <table className="mb-table">
               <thead>
                 <tr>
+                  <th style={{ width: '44px', textAlign: 'center', padding: '14px 8px' }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleSelectAllAnalisis(); }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}
+                      title={allAnalisisSelected ? 'Batal pilih semua' : 'Pilih semua analisis'}
+                    >
+                      {allAnalisisSelected ? <CheckSquare size={16} style={{ color: '#2563eb' }} /> : <Square size={16} style={{ color: '#9ca3af' }} />}
+                    </button>
+                  </th>
                   {renderSortHeader('ID / TANGGAL', 'id')}
                   {renderSortHeader('NAMA PENERIMA', 'nama')}
                   {renderSortHeader('WILAYAH', 'wilayah')}
-                  {showDesil && renderSortHeader('DESIL', 'desil')}
+                  {renderSortHeader('ASPD', 'skorASPD')}
+                  {renderSortHeader('PKHT', 'skorPKHT')}
                   {showStageBadge && renderSortHeader('STATUS TAHAP', 'tahap')}
                   {showBantuan && renderSortHeader('BANTUAN', 'bantuan')}
                   {showDesilChange && renderSortHeader('PERUBAHAN DESIL', 'perubahanDesil')}
@@ -406,12 +579,25 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                     </td>
                   </tr>
                 ) : (
-                  filteredData.map(row => (
+                  paginatedData.map(row => (
                     <tr 
                       key={row.id_keluarga}
                       onClick={() => navigate(`/detail-hasil/${row.id_keluarga}`, { state: row })}
-                      className="mb-clickable-row"
+                      className={`mb-clickable-row ${selectedRows.has(row.id_keluarga) ? 'mb-row-selected' : ''}`}
                     >
+                      {/* Checkbox */}
+                      <td style={{ width: '44px', textAlign: 'center', padding: '14px 8px' }} onClick={(e) => e.stopPropagation()}>
+                        {row.tahap === 'analisis' ? (
+                          <button
+                            onClick={() => toggleRowSelection(row.id_keluarga)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}
+                          >
+                            {selectedRows.has(row.id_keluarga) ? <CheckSquare size={16} style={{ color: '#2563eb' }} /> : <Square size={16} style={{ color: '#cbd5e1' }} />}
+                          </button>
+                        ) : (
+                          <span style={{ display: 'inline-block', width: 16, height: 16 }} />
+                        )}
+                      </td>
                       {/* ID / Tanggal */}
                       <td>
                         <div className="mb-cell-link" style={{ display: 'inline-block' }}>
@@ -432,17 +618,25 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                         <div className="mb-cell-secondary">{row.kecamatan}</div>
                       </td>
 
-                      {/* Desil */}
-                      {showDesil && (
-                        <td>
-                          <span className={`mb-desil-label ${getDesilColor(row.desil)}`}>
-                            DESIL {row.desil}
-                          </span>
-                          <div className="mb-cell-secondary" style={{ marginTop: '4px', fontSize: '11px', fontWeight: 500 }}>
-                            Skor: {row.skorKesejahteraan.toFixed(3)}
-                          </div>
-                        </td>
-                      )}
+                      {/* ASPD Column */}
+                      <td>
+                        <div className="mb-cell-primary font-semibold text-blue-600">
+                          {row.tahap === 'analisis'
+                            ? (row.rekomendasiBantuan && row.rekomendasiBantuan.includes('ASPD') ? `${row.skorASPD.toFixed(1)}` : '—')
+                            : (row.bantuan && row.bantuan.includes('ASPD') ? `${row.skorASPD.toFixed(1)}` : '—')
+                          }
+                        </div>
+                      </td>
+
+                      {/* PKHT Column */}
+                      <td>
+                        <div className="mb-cell-primary font-semibold text-purple-600">
+                          {row.tahap === 'analisis'
+                            ? (row.rekomendasiBantuan && row.rekomendasiBantuan.includes('PKHT') ? `${row.skorPKHT.toFixed(1)}` : '—')
+                            : (row.bantuan && row.bantuan.includes('PKHT') ? `${row.skorPKHT.toFixed(1)}` : '—')
+                          }
+                        </div>
+                      </td>
 
                       {/* Stage Badge (only on Semua tab) */}
                       {showStageBadge && (
@@ -504,6 +698,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                           {row.tahap === 'analisis' && (
                             <button
                               className="mb-btn-analisis"
+                              style={{ width: '140px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                               disabled={analyzingId === row.id_keluarga}
                               onClick={(e) => { e.stopPropagation(); handleAnalisis(row.id_keluarga); }}
                             >
@@ -517,29 +712,34 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
                           {/* Validasi-specific */}
                           {row.tahap === 'validasi' && (
-                            <button className="mb-btn-validasi" onClick={(e) => { e.stopPropagation(); navigate(`/detail-hasil/${row.id_keluarga}`, { state: row }); }}>
+                            <button 
+                              className="mb-btn-validasi" 
+                              style={{ width: '140px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                              onClick={(e) => { e.stopPropagation(); navigate(`/detail-hasil/${row.id_keluarga}`, { state: row }); }}
+                            >
                               <ShieldCheck size={14} /> Validasi
                             </button>
                           )}
 
-                          {/* Aktif-specific */}
-                          {row.tahap === 'aktif' && row.timeline && (
-                            <button className="mb-btn-timeline" onClick={(e) => { e.stopPropagation(); setSelectedTimeline(row.timeline!); }}>
-                              <Clock size={14} /> Timeline
+                          {/* Diterima-specific */}
+                          {row.tahap === 'diterima' && (
+                            <button 
+                              className="mb-btn-review" 
+                              style={{ width: '140px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: '#ecfdf5', color: '#10b981', borderColor: '#a7f3d0' }} 
+                              onClick={(e) => { e.stopPropagation(); navigate(`/detail-hasil/${row.id_keluarga}`, { state: row }); }}
+                            >
+                              <CheckCircle size={14} /> Review Bantuan
                             </button>
                           )}
 
-                          {/* Evaluasi-specific */}
-                          {row.tahap === 'evaluasi' && (
-                            <button className="mb-btn-review" onClick={(e) => { e.stopPropagation(); navigate(`/detail-hasil/${row.id_keluarga}`, { state: row }); }}>
-                              <FileBarChart size={14} /> Review
-                            </button>
-                          )}
-
-                          {/* Selesai-specific */}
-                          {row.tahap === 'selesai' && (
-                            <button className="mb-btn-history" onClick={(e) => { e.stopPropagation(); navigate(`/detail-hasil/${row.id_keluarga}`, { state: row }); }}>
-                              <CheckCircle size={14} /> Riwayat
+                          {/* Ditolak-specific */}
+                          {row.tahap === 'ditolak' && (
+                            <button 
+                              className="mb-btn-history" 
+                              style={{ width: '140px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: '#fef2f2', color: '#ef4444', borderColor: '#fecaca' }} 
+                              onClick={(e) => { e.stopPropagation(); navigate(`/detail-hasil/${row.id_keluarga}`, { state: row }); }}
+                            >
+                              <FileBarChart size={14} /> Lihat Detail
                             </button>
                           )}
                         </div>
@@ -551,16 +751,67 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
             </table>
           </div>
 
+          {/* Batch Action Bar */}
+          {selectedRows.size > 0 && (
+            <div className="mb-batch-bar">
+              <div className="mb-batch-info">
+                <CheckSquare size={18} style={{ color: '#2563eb' }} />
+                <span><strong>{selectedRows.size}</strong> data terpilih</span>
+                <button
+                  className="mb-batch-clear"
+                  onClick={() => setSelectedRows(new Set())}
+                >
+                  <XCircle size={14} /> Batal Pilih
+                </button>
+              </div>
+              <button
+                className="mb-batch-btn"
+                onClick={handleBatchAnalisis}
+                disabled={isBatchAnalyzing}
+              >
+                {isBatchAnalyzing ? (
+                  <><Loader2 size={16} className="mb-spin" /> Menganalisis... {batchProgress}%</>
+                ) : (
+                  <><BrainCircuit size={16} /> Analisis Batch ({selectedRows.size})</>
+                )}
+              </button>
+            </div>
+          )}
+
           {/* Pagination */}
           {!isLoading && filteredData.length > 0 && (
             <div className="mb-pagination">
               <div className="mb-pagination-info">
-                Menampilkan <strong>1–{filteredData.length}</strong> dari <strong>{filteredData.length}</strong> data
+                Menampilkan <strong>{(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}</strong> dari <strong>{filteredData.length}</strong> data
               </div>
               <div className="mb-pagination-controls">
-                <button className="mb-page-btn"><ChevronLeft size={16} /></button>
-                <button className="mb-page-btn active">1</button>
-                <button className="mb-page-btn"><ChevronRight size={16} /></button>
+                <button 
+                  className="mb-page-btn" 
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                {getPageNumbers().map((page, idx) => 
+                  page === '...' ? (
+                    <span key={`ellipsis-${idx}`} style={{ padding: '0 6px', color: '#94a3b8', fontSize: '13px', userSelect: 'none' }}>…</span>
+                  ) : (
+                    <button 
+                      key={page} 
+                      className={`mb-page-btn ${currentPage === page ? 'active' : ''}`}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+                <button 
+                  className="mb-page-btn" 
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                >
+                  <ChevronRight size={16} />
+                </button>
               </div>
             </div>
           )}
@@ -568,12 +819,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
       </div>
 
-      {/* Timeline Modal (reused from StatusBantuan) */}
-      <TimelineModal
-        isOpen={!!selectedTimeline}
-        timelineData={selectedTimeline || []}
-        onClose={() => setSelectedTimeline(null)}
-      />
+
 
     </AdminLayout>
   );

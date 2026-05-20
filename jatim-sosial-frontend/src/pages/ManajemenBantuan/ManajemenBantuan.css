@@ -787,6 +787,99 @@
   transform: translateX(-50%) translateY(0);
 }
 
+/* ── Batch Action Bar ──────────────────── */
+.mb-batch-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #93c5fd;
+  border-radius: 10px;
+  margin-top: -8px;
+  animation: mb-batch-slide-in 0.25s ease-out;
+}
+
+@keyframes mb-batch-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mb-batch-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #1e40af;
+}
+
+.mb-batch-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid #93c5fd;
+  color: #3b82f6;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mb-batch-clear:hover {
+  background-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.mb-batch-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.mb-batch-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+  transform: translateY(-1px);
+}
+
+.mb-batch-btn:disabled {
+  opacity: 0.8;
+  cursor: wait;
+}
+
+/* Selected Row Highlight */
+.mb-row-selected {
+  background-color: #eff6ff !important;
+}
+
+.mb-row-selected:hover {
+  background-color: #dbeafe !important;
+}
+
+.mb-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ── Responsive ─────────────────────────── */
 @media (max-width: 768px) {
   .mb-header {
@@ -812,5 +905,11 @@
   .mb-tab-item {
     padding: 10px 12px;
     font-size: 13px;
+  }
+
+  .mb-batch-bar {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
   }
 }

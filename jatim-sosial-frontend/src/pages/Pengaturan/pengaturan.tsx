@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import AdminLayout from '../../components/layout/AdminLayout';
-import { 
-  UserPlus, 
-  Filter, 
+import {
+  UserPlus,
+  Filter,
   Download,
   Users,
   Network,
@@ -15,7 +15,7 @@ interface PengaturanProps {
   onLogout?: () => void;
 }
 
-type Role = 'ANALYST' | 'PETUGAS' | 'ADMIN';
+type Role = 'ANALIS' | 'ADMIN';
 type Status = 'Aktif' | 'Nonaktif';
 
 interface User {
@@ -28,9 +28,9 @@ interface User {
 }
 
 const initialUsers: User[] = [
-  { id: 'u1', name: 'Budi Santoso', initials: 'BS', role: 'ANALYST', email: 'budi@jatimprov.go.id', status: 'Aktif' },
-  { id: 'u2', name: 'Siti Aminah', initials: 'SA', role: 'PETUGAS', email: 'siti@jatimprov.go.id', status: 'Aktif' },
-  { id: 'u3', name: 'Dewi Lestari', initials: 'DL', role: 'PETUGAS', email: 'dewi@jatimprov.go.id', status: 'Aktif' },
+  { id: 'u1', name: 'Budi Santoso', initials: 'BS', role: 'ANALIS', email: 'budi@jatimprov.go.id', status: 'Aktif' },
+  { id: 'u2', name: 'Siti Aminah', initials: 'SA', role: 'ANALIS', email: 'siti@jatimprov.go.id', status: 'Aktif' },
+  { id: 'u3', name: 'Dewi Lestari', initials: 'DL', role: 'ANALIS', email: 'dewi@jatimprov.go.id', status: 'Aktif' },
   { id: 'u4', name: 'Rahmat Hidayat', initials: 'RH', role: 'ADMIN', email: 'admin@jatimprov.go.id', status: 'Aktif' },
 ];
 
@@ -53,7 +53,7 @@ const Pengaturan: React.FC<PengaturanProps> = ({ onLogout }) => {
   const [users] = useState<User[]>(initialUsers);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  
+
 
 
   const openModalNewUser = () => {
@@ -72,9 +72,8 @@ const Pengaturan: React.FC<PengaturanProps> = ({ onLogout }) => {
   };
 
   const getRoleBadgeClass = (role: Role) => {
-    switch(role) {
-      case 'ANALYST': return 'badge-role-analyst';
-      case 'PETUGAS': return 'badge-role-petugas';
+    switch (role) {
+      case 'ANALIS': return 'badge-role-analyst';
       case 'ADMIN': return 'badge-role-admin';
       default: return '';
     }
@@ -83,7 +82,7 @@ const Pengaturan: React.FC<PengaturanProps> = ({ onLogout }) => {
   return (
     <AdminLayout title="Pengaturan Sistem" onLogout={onLogout}>
       <div className="pengaturan-page-wrapper">
-        
+
         {/* Header Section */}
         <div className="pengaturan-header">
           <div className="pengaturan-title-area">
@@ -107,7 +106,7 @@ const Pengaturan: React.FC<PengaturanProps> = ({ onLogout }) => {
               <Download size={16} className="cursor-pointer hover:text-gray-800 transition" />
             </div>
           </div>
-          
+
           <div className="table-responsive">
             <table className="user-table">
               <thead>
@@ -148,7 +147,7 @@ const Pengaturan: React.FC<PengaturanProps> = ({ onLogout }) => {
               </tbody>
             </table>
           </div>
-          
+
           <div className="pagination-wrapper border-t border-gray-200">
             <div className="pagination-info">
               Menampilkan {users.length} dari 12 pengguna
@@ -203,7 +202,7 @@ const Pengaturan: React.FC<PengaturanProps> = ({ onLogout }) => {
           <div className="modal-container">
             <div className="modal-header">
               <h4>{editingUser ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}</h4>
-              <button className="btn-close-modal" onClick={closeModal}><X size={20}/></button>
+              <button className="btn-close-modal" onClick={closeModal}><X size={20} /></button>
             </div>
             <div className="modal-body">
               <div className="form-group mb-4">

@@ -33,9 +33,36 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
     }
   };
 
+  const isHighMatch = data.match >= 80;
+  const cardStyle: React.CSSProperties = isHighMatch ? {
+    background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+    border: isSelected ? '2px solid #d97706' : '1px solid #fcd34d',
+    boxShadow: '0 4px 6px -1px rgba(234, 179, 8, 0.1)',
+    cursor: isLocked ? 'default' : 'pointer',
+    borderRadius: '12px',
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    transition: 'all 0.2s',
+    position: 'relative'
+  } : {
+    background: '#ffffff',
+    border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+    cursor: isLocked ? 'default' : 'pointer',
+    borderRadius: '12px',
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    transition: 'all 0.2s',
+    position: 'relative'
+  };
+
   return (
     <div
       className={`rec-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''}`}
+      style={cardStyle}
       onClick={() => onToggle && onToggle(data.id, data.isReceived)}
     >
       {/* Checkbox Area */}
@@ -56,7 +83,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
 
       <div className="flex-between mb-2">
         <h4 className="rec-title">{data.title}</h4>
-        <span className="match-text">{data.match}% Cocok</span>
+        <span className="match-text">Skor Bantuan: {(data.match / 100).toFixed(3)}</span>
       </div>
 
       {data.isReceived && (

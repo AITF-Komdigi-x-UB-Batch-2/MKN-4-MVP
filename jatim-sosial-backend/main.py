@@ -1,6 +1,6 @@
 import os
 import httpx
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -177,12 +177,83 @@ async def login(
         "username": user.username
     }
 
+def execute_asesmen_sosial_logic(keluarga_id: UUID, user_id: UUID, db: Session):
+    keluarga = db.query(models.Keluarga).filter(models.Keluarga.id == keluarga_id).first()
+    if not keluarga:
+        print(f"[Asinkron] Keluarga {keluarga_id} tidak ditemukan.")
+        return
+    
+    try:
+        data_untuk_ai = {
+            c.name: getattr(keluarga, c.name)
+            for c in models.Keluarga.__table__.columns
+        }
+        data_untuk_ai.pop("id", None)
+
+        with httpx.Client() as client:
+            try:
+                response = client.post(
+                    f"{AI_BASE_URL}/api/ai/jalur-sosial",
+                    json=data_untuk_ai,
+                    timeout=30.0
+                )
+                response.raise_for_status()
+                hasil_final = response.json()
+            except Exception as e:
+                print(f"[Asinkron AI Error] Gagal mendapatkan analisis: {e}")
+                return
+
+        rekomendasi_baru = hasil_final.get("rekomendasi_bantuan", [])
+        analisis_rag = hasil_final.get("justifikasi_dokumen", "")
+
+        hitung = db.query(models.Perhitungan).filter(
+            models.Perhitungan.keluarga_id == keluarga.id
+        ).first()
+
+        bantuan_lama = None
+
+        if not hitung:
+            hitung = models.Perhitungan(
+                keluarga_id=keluarga.id,
+                user_id=user_id
+            )
+            db.add(hitung)
+        else:
+            bantuan_lama = hitung.rekomendasi_bantuan
+
+        hitung.rekomendasi_bantuan = rekomendasi_baru
+        hitung.reasoning_tim3 = analisis_rag
+
+        log = models.LogHistori(
+            keluarga_id=keluarga.id,
+            user_id=user_id,
+            desil_lama=None,
+            desil_baru=None,
+            bantuan_lama=bantuan_lama,
+            bantuan_baru=rekomendasi_baru
+        )
+        db.add(log)
+        db.commit()
+        print(f"[Asinkron] Asesmen sukses untuk KK {keluarga.nomor_kartu_keluarga}")
+    except Exception as e:
+        db.rollback()
+        print(f"[Asinkron DB Error] {e}")
+
+def run_async_assessment(keluarga_id: UUID, user_id: UUID):
+    db_gen = get_db()
+    db = next(db_gen)
+    try:
+        execute_asesmen_sosial_logic(keluarga_id, user_id, db)
+    finally:
+        db.close()
+
 @app.post(
     "/api/v1/import-csv",
     tags=["1. Import Master Data"],
     summary="Sinkronisasi data warga dan foto dari file CSV atau Excel (XLSX)"
 )
 async def import_csv(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -263,6 +334,21 @@ async def import_csv(
                 ).first()
 
                 if keluarga_lama:
+                    # Cek apakah ada perubahan variabel
+                    any_changes = False
+                    for k, v in data_bersih.items():
+                        old_val = getattr(keluarga_lama, k, None)
+                        # Normalkan tipe perbandingan (misal int vs float atau bool)
+                        if old_val != v:
+                            any_changes = True
+                            break
+                    
+                    if not any_changes:
+                        di_skip += 1
+                        log_foto.append(f"KK {no_kk_row}: DITOLAK (Duplikat, tidak ada perubahan variabel)")
+                        continue
+
+                    # Ada perubahan variabel: Arsipkan data lama
                     data_histori = {c.name: getattr(keluarga_lama, c.name) for c in models.Keluarga.__table__.columns}
                     data_histori.pop("id", None)
                     data_histori["keluarga_id"] = keluarga_lama.id
@@ -273,10 +359,24 @@ async def import_csv(
                     for k, v in data_bersih.items():
                         setattr(keluarga_lama, k, v)
                     keluarga_diproses = keluarga_lama
+                    
+                    # Jadwalkan ulang analisis sosial di latar belakang
+                    background_tasks.add_task(
+                        run_async_assessment,
+                        keluarga_diproses.id,
+                        current_user.id
+                    )
                 else:
                     keluarga_baru = models.Keluarga(**data_bersih)
                     db.add(keluarga_baru)
                     keluarga_diproses = keluarga_baru
+
+                    # Jadwalkan analisis sosial pertama kali untuk keluarga baru
+                    background_tasks.add_task(
+                        run_async_assessment,
+                        keluarga_diproses.id,
+                        current_user.id
+                    )
                 
                 db.flush() # Amankan ID untuk tabel foto
 
@@ -350,70 +450,22 @@ async def asesmen_sosial(
     if not keluarga:
         raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
 
-    try:
-        data_untuk_ai = {
-            c.name: getattr(keluarga, c.name)
-            for c in models.Keluarga.__table__.columns
-        }
-        data_untuk_ai.pop("id", None)
+    execute_asesmen_sosial_logic(payload.keluarga_id, current_user.id, db)
 
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(
-                    f"{AI_BASE_URL}/api/ai/jalur-sosial",
-                    json=data_untuk_ai,
-                    timeout=30.0
-                )
-                response.raise_for_status()
-                hasil_final = response.json()
-            except Exception as e:
-                raise HTTPException(status_code=502, detail=f"Gagal mendapatkan analisis dari jalur AI: {e}")
+    # Ambil data terupdate untuk direspon
+    hitung = db.query(models.Perhitungan).filter(
+        models.Perhitungan.keluarga_id == keluarga.id
+    ).first()
 
-        rekomendasi_baru = hasil_final.get("rekomendasi_bantuan", [])
-        analisis_rag = hasil_final.get("justifikasi_dokumen", "")
+    rekomendasi_baru = hitung.rekomendasi_bantuan if hitung else []
+    analisis_rag = hitung.reasoning_tim3 if hitung else ""
 
-        hitung = db.query(models.Perhitungan).filter(
-            models.Perhitungan.keluarga_id == keluarga.id
-        ).first()
-
-        bantuan_lama = None
-
-        if not hitung:
-            hitung = models.Perhitungan(
-                keluarga_id=keluarga.id,
-                user_id=current_user.id
-            )
-            db.add(hitung)
-        else:
-            bantuan_lama = hitung.rekomendasi_bantuan
-
-        hitung.rekomendasi_bantuan = rekomendasi_baru
-        hitung.reasoning_tim3 = analisis_rag
-
-        log = models.LogHistori(
-            keluarga_id=keluarga.id,
-            user_id=current_user.id,
-            desil_lama=None,
-            desil_baru=None,
-            bantuan_lama=bantuan_lama,
-            bantuan_baru=rekomendasi_baru
-        )
-        db.add(log)
-        db.commit()
-
-        return {
-            "status": "Sukses",
-            "nomor_kk": keluarga.nomor_kartu_keluarga,
-            "hasil_rekomendasi_final": rekomendasi_baru,
-            "justifikasi_dokumen": analisis_rag
-        }
-
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Kesalahan internal: {str(e)}")
+    return {
+        "status": "Sukses",
+        "nomor_kk": keluarga.nomor_kartu_keluarga,
+        "hasil_rekomendasi_final": rekomendasi_baru,
+        "justifikasi_dokumen": analisis_rag
+    }
 
 # BAGIAN 9: ASESMEN VISUAL — TIM 2
 @app.post(
