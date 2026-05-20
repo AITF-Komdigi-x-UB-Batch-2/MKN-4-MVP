@@ -104,6 +104,8 @@ services:
           target: /app/vite.config.ts
         - path: ./jatim-sosial-frontend/package.json
           action: rebuild
+        - path: ./jatim-sosial-frontend/package-lock.json
+          action: rebuild
 
 volumes:
   pgdata:
