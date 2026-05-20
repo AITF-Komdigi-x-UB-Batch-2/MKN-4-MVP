@@ -6,10 +6,12 @@ export interface RecommendationData {
   title: string;
   match: number;
   desc: string;
-  reason: string;
+  reason?: string;
+  priority?: 'HIGH' | 'MEDIUM' | 'LOW';
+  estimate?: string;
   isReceived: boolean;
 }
-
+  
 interface RecommendationCardProps {
   data: RecommendationData;
   isSelected?: boolean;
@@ -32,7 +34,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
   };
 
   return (
-    <div 
+    <div
       className={`rec-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''}`}
       onClick={() => onToggle && onToggle(data.id, data.isReceived)}
     >
@@ -40,27 +42,38 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
       <div className="rec-checkbox">
         {isSelected ? <Check size={16} className="text-white" /> : null}
       </div>
-      
+
       <div className="rec-card-header flex-between">
         <div className="rec-icon">
           {getIcon(data.id)}
         </div>
+        {data.priority && (
+          <span className={`priority-badge ${data.priority.toLowerCase()}`}>
+            {data.priority}
+          </span>
+        )}
       </div>
-      
-      <h4 className="rec-title">{data.title}</h4>
-      
+
+      <div className="flex-between mb-2">
+        <h4 className="rec-title">{data.title}</h4>
+        <span className="match-text">{data.match}% Cocok</span>
+      </div>
+
       {data.isReceived && (
         <div className="received-warning">
           <AlertTriangle size={14} />
           Sudah Menerima Program Ini
         </div>
       )}
-      
+
       <p className="rec-desc">{data.desc}</p>
-      
-      <div className="rec-estimate">
-        Alasan : {data.reason}
-      </div>
+
+      {(data.estimate || data.reason) && (
+        <div className="rec-estimate">
+          {data.estimate ? `Estimasi: ${data.estimate}` : `Alasan: ${data.reason}`}
+        </div>
+      )}
     </div>
   );
 };
+

@@ -9,7 +9,7 @@ import BasisPengetahuan from './pages/BasisPengetahuan/basispengetahuan';
 import Pengaturan from './pages/Pengaturan/pengaturan';
 import DetailHasil from './pages/DetailHasil/detailhasil';
 import DetailKeluarga from './pages/DetailKeluarga/detailkeluarga';
-import './App.css'; 
+import './App.css';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -41,7 +41,7 @@ function App() {
           {/* Public Routes */}
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login onLogin={() => setIsLoggedIn(true)} />} />
-          
+
           {/* Protected Routes */}
           <Route path="/dashboard" element={protectedPage(<Dashboard onLogout={logout} />)} />
           <Route path="/analisis-baru" element={protectedPage(<AnalisisBaru onLogout={logout} />)} />
@@ -50,7 +50,7 @@ function App() {
           <Route path="/pengaturan" element={protectedPage(<Pengaturan onLogout={logout} />)} />
           <Route path="/detail-hasil/:id" element={protectedPage(<DetailHasil onLogout={logout} />)} />
           <Route path="/detail-keluarga/:id" element={protectedPage(<DetailKeluarga onLogout={logout} />)} />
-          
+
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

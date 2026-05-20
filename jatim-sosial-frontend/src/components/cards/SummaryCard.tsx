@@ -42,7 +42,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
   const numericValue = parseNumericValue(value);
   const hasNumericValue = numericValue !== null && numericValue !== undefined;
   const showBar = hasNumericValue || progress;
-  const barPercentage = numericValue !== null ? (numericValue / 10) * 100 : 0;
+  const barPercentage = progress ? progress.value : (numericValue !== null ? (numericValue / 10) * 100 : 0);
   const colorClass = progress?.colorClass ?? (hasNumericValue ? getColorIndicator(numericValue) : 'gray');
 
   return (

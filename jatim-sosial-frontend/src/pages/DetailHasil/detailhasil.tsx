@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { rawKeluargaData } from '../../data/dataKeluarga';
+import { mockData } from '../../data/mockData';
 import AdminLayout from '../../components/layout/AdminLayout';
 import { SummaryCard } from '../../components/cards/SummaryCard';
 import { RecommendationCard } from '../../components/cards/RecommendationCard';
-import { 
-  Download, 
-  BarChart2, 
-  AlertTriangle, 
+import {
+  Download,
+  BarChart2,
   CheckCircle,
   BrainCircuit,
   Home,
@@ -32,7 +32,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const currentTahap = location.state?.tahap || 'analisis';
-  const skorKesejahteraan = location.state?.skorKesejahteraan || 0.145;
   const desil = location.state?.desil || 1;
   const bantuanDariState = location.state?.bantuan || ['PKH'];
   const namaKeluarga = location.state?.nama || 'Bpk. Lailatur Coder';
@@ -41,12 +40,16 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   const kecamatan = location.state?.kecamatan || 'Wonokromo';
   const tanggal = location.state?.tanggal || '24 Okt 2023';
   const aiReasoning = location.state?.aiReasoning || 'Jumlah anggota keluarga yang besar mengindikasikan beban ketergantungan tinggi yang menekan kapasitas ekonomi rumah tangga. Kepemilikan aset terbatas menunjukkan akumulasi kekayaan yang masih rendah.';
-  
+
   const rawData = rawKeluargaData.find(k => k.id_keluarga === location.state?.id_keluarga) || rawKeluargaData[0];
+
+  const familyId = location.state?.id_keluarga || id || 'FAM-001';
+  const matchingMock = mockData.find(m => m.id_keluarga === familyId) || mockData[0];
+  const skorKesejahteraan = location.state?.skorKesejahteraan !== undefined ? location.state.skorKesejahteraan : (matchingMock?.skorKesejahteraan || 0.15);
 
   const demografiText = `Keluarga ini berlokasi di Kecamatan ${rawData.nama_kecamatan}, ${rawData.nama_kabupaten_kota}, Provinsi ${rawData.nama_provinsi}. Terdiri dari ${rawData.jumlah_anggota_keluarga} orang anggota keluarga.`;
   const perumahanText = `Mereka menempati rumah berstatus ${rawData.status_kepemilikan_rumah} dengan luas lantai ${rawData.luas_lantai} meter persegi. Jenis lantai: ${rawData.jenis_lantai}; dinding: ${rawData.jenis_dinding}; atap: ${rawData.jenis_atap}. Sumber air minum utama dari ${rawData.sumber_air_minum}. Penerangan utama menggunakan ${rawData.sumber_penerangan}. Bahan bakar utama untuk memasak adalah ${rawData.bahan_bakar_memasak}. Fasilitas BAB: ${rawData.fasilitas_bab}.`;
-  
+
   const hasAsetBergerak = rawData.tabung_gas || rawData.kulkas || rawData.ac || rawData.tv || rawData.sepeda_motor || rawData.sepeda || rawData.mobil || rawData.smartphone;
   const movingAssets = [
     rawData.tabung_gas ? 'Tabung Gas' : '',
@@ -58,11 +61,11 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     rawData.mobil ? 'Mobil' : '',
     rawData.smartphone ? 'Smartphone' : ''
   ].filter(Boolean).join(', ');
-  
+
   const asetText = `Aset bergerak yang dimiliki: ${hasAsetBergerak ? movingAssets : 'tidak ada'}. ${rawData.rumah_lain ? 'Memiliki rumah di tempat lain.' : 'Tidak memiliki rumah di tempat lain.'} ${rawData.lahan_lain ? 'Memiliki lahan lain.' : ''} Tidak memiliki hewan ternak berskala besar.`;
 
   const [selectedPrograms, setSelectedPrograms] = useState<string[]>(
-    currentTahap !== 'analisis' ? bantuanDariState : [] 
+    currentTahap !== 'analisis' ? bantuanDariState : []
   );
   const [isConfirming, setIsConfirming] = useState(false);
   const isFinalized = currentTahap !== 'analisis';
@@ -106,14 +109,14 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   const handleToggleProgram = (id: string) => {
     if (isFinalized) return;
 
-    setSelectedPrograms(prev => 
+    setSelectedPrograms(prev =>
       prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
     );
   };
 
   const handleConfirmAssistance = () => {
     if (selectedPrograms.length === 0) return;
-    
+
     setIsConfirming(true);
     setTimeout(() => {
       setIsConfirming(false);
@@ -130,7 +133,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   return (
     <AdminLayout title="Detail Analisis" onLogout={onLogout}>
       <div className="detail-page-wrapper">
-        
+
         {/* Header Options */}
         <div className="detail-page-header flex-between">
           <div>
@@ -160,33 +163,29 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
         {/* Content Layout */}
         <div className="detail-content-layout">
-          
+
           {/* Left Column (Main Analysis Data) */}
           <div className="detail-main-col">
-            
+
             {/* Summary Cards */}
             <div className="summary-cards-container w-full">
-              <SummaryCard 
-                label="DESIL KESEJAHTERAAN" 
-                icon={<BarChart2 size={16} className="text-blue" />} 
-                value={desil} 
-                maxValue="/ 10" 
-                // desc={`Skor Kesejahteraan: ${skorKesejahteraan}`}
+              <SummaryCard
+                label="DESIL KESEJAHTERAAN"
+                icon={<BarChart2 size={16} className="text-blue" />}
+                value={desil}
+                maxValue="/ 10"
+                desc="Klasifikasi tingkat kesejahteraan nasional"
               />
-              {/* <SummaryCard 
-                label="TINGKAT KERENTANAN" 
-                icon={<AlertTriangle size={16} className="text-orange" />} 
-                value="85%" 
-                progress={{ value: 85, colorClass: "orange" }}
-                desc="Risiko tinggi terhadap guncangan ekonomi"
+              <SummaryCard
+                label="SKOR DESIL (KERENTANAN)"
+                icon={<BrainCircuit size={16} className="text-purple" />}
+                value={skorKesejahteraan.toFixed(3)}
+                progress={{
+                  value: skorKesejahteraan * 100,
+                  colorClass: desil <= 3 ? 'red' : (desil <= 6 ? 'orange' : 'green')
+                }}
+                desc="Skor probabilitas kemiskinan model AI (0 s.d 1.0)"
               />
-              <SummaryCard 
-                label="CONFIDENCE SCORE" 
-                icon={<CheckCircle size={16} className="text-green" />} 
-                value="92%" 
-                progress={{ value: 92, colorClass: "green" }}
-                desc="Akurasi klasifikasi berdasarkan konsistensi data"
-              /> */}
             </div>
 
             {/* AI Reasoning Section */}
@@ -247,10 +246,10 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   <p style={{ fontSize: '14px', color: '#4b5563', lineHeight: '1.7', margin: 0, textAlign: 'justify' }}>
                     {aiReasoning}
                   </p>
-                  
+
                   <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
                     <p style={{ fontSize: '14px', color: '#4b5563', margin: 0 }}>
-                      Skor Kesejahteraan: {skorKesejahteraan} Desil Nasional: {desil}
+                      Bantuan: {bantuanDariState && bantuanDariState.length > 0 ? bantuanDariState.join(', ') : '-'}
                     </p>
                   </div>
                 </div>
@@ -263,41 +262,74 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                 <Home size={18} className="text-blue" />
                 <h4>Analisis Visual Hunian (Computer Vision)</h4>
               </div>
-              <div className="detail-card-body visual-analysis-grid">
-                <div className="visual-image-wrapper">
-                  <div className="placeholder-image">
-                    <Home size={48} className="text-gray-400" />
-                    <span className="img-caption">Foto Survey Lapangan - 12 Okt 2023</span>
-                  </div>
-                </div>
-                <div className="visual-conditions">
-                  <h5>OBJEK TERDETEKSI:</h5>
-                  <div className="condition-item">
-                    <span>Atap : Genteng</span>
-                    <span className="condition-status good">Baik</span>
-                  </div>
-                  <div className="condition-item">
-                    <span>Dinding : Tembok</span>
-                    <span className="condition-status good">Baik</span>
-                  </div>
-                  <div className="condition-item">
-                    <span>Lantai : Keramik</span>
-                    <span className="condition-status good">Baik</span>
-                  </div>
-                  
-                  <div className="comvis-tooltip-container">
-                    <Info size={16} />
-                    <span>Lihat Penjelasan Detail</span>
-                    
-                    <div className="comvis-tooltip-popup">
-                      <div className="comvis-tooltip-title">Penjelasan Analisis:</div>
-                      <p className="comvis-tooltip-desc">Rumah ini memiliki atap dari genteng yang terlihat rapi dan tidak ada kerusakan, sehingga kondisinya baik. Dinding luar terbuat dari tembok dengan permukaan yang bersih dan terawat, menunjukkan kondisi yang baik. Di dalam, lantai terbuat dari keramik yang tampak bersih dan terawat, juga dalam kondisi baik. Tidak ada perbedaan material dinding antara tampak luar dan dalam, sehingga tidak ada konflik.</p>
+              <div className="detail-card-body">
+                {/* Foto Centered */}
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+                  <div className="visual-image-wrapper" style={{ width: '60%', maxWidth: '500px' }}>
+                    <div className="placeholder-image">
+                      <Home size={48} className="text-gray-400" />
+                      <span className="img-caption">Foto Survey Lapangan - 12 Okt 2023</span>
                     </div>
                   </div>
                 </div>
+
+                {/* Tabel Komparasi */}
+                <div className="visual-analysis-grid" style={{ marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr 0.8fr', gap: '16px', alignItems: 'start' }}>
+                  {/* Kolom 1: Data Survey */}
+                  <div className="visual-conditions" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: '4px' }}>DATA DTSEN</div>
+                    <div className="condition-item" style={{ margin: 0, padding: '10px' }}>
+                      <span style={{ fontSize: '12px' }}>Atap: <strong style={{ color: '#334155' }}>Seng</strong></span>
+                    </div>
+                    <div className="condition-item" style={{ margin: 0, padding: '10px' }}>
+                      <span style={{ fontSize: '12px' }}>Dinding: <strong style={{ color: '#334155' }}>Tembok</strong></span>
+                    </div>
+                    <div className="condition-item" style={{ margin: 0, padding: '10px' }}>
+                      <span style={{ fontSize: '12px' }}>Lantai: <strong style={{ color: '#334155' }}>Keramik</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Kolom 2: Deteksi Comvis */}
+                  <div className="visual-conditions" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: '4px' }}>PREDIKSI COMVIS</div>
+                    <div className="condition-item" style={{ margin: 0, padding: '10px' }}>
+                      <span style={{ fontSize: '12px' }}>Atap: <strong style={{ color: '#334155' }}>Genteng</strong></span>
+                    </div>
+                    <div className="condition-item" style={{ margin: 0, padding: '10px' }}>
+                      <span style={{ fontSize: '12px' }}>Dinding: <strong style={{ color: '#334155' }}>Tembok</strong></span>
+                    </div>
+                    <div className="condition-item" style={{ margin: 0, padding: '10px' }}>
+                      <span style={{ fontSize: '12px' }}>Lantai: <strong style={{ color: '#334155' }}>Granit/Marmer</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Kolom 3: Status Komparasi */}
+                  <div className="visual-conditions" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: '4px', textAlign: 'left' }}>STATUS</div>
+                    <div className="condition-item" style={{ margin: 0, padding: '10px', justifyContent: 'flex-start', backgroundColor: '#EF4444', border: 'none' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'white' }}>Tidak Cocok</span>
+                    </div>
+                    <div className="condition-item" style={{ margin: 0, padding: '10px', justifyContent: 'flex-start', backgroundColor: '#10B981', border: 'none' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'white' }}>Cocok</span>
+                    </div>
+                    <div className="condition-item" style={{ margin: 0, padding: '10px', justifyContent: 'flex-start', backgroundColor: '#EF4444', border: 'none' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'white' }}>Tidak Cocok</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="visual-explanation" style={{ backgroundColor: '#eff6ff', padding: '16px', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#1e40af', fontWeight: 600 }}>
+                    <Info size={18} />
+                    <span>Penjelasan Analisis:</span>
+                  </div>
+                  <p style={{ fontSize: '13px', color: '#4b5563', lineHeight: '1.6', margin: 0, textAlign: 'justify' }}>
+                    Berdasarkan hasil klasifikasi dan proses validasi terhadap data DTSEN, terdapat satu komponen yang sesuai dengan data referensi dan dua komponen yang tidak sesuai. Hasil klasifikasi menunjukkan bahwa atap menggunakan genteng, yang ditandai dengan pola susunan berulang dan bentuk khas material genteng pada bagian atas bangunan, sehingga tidak sesuai dengan data DTSEN yang menyebutkan seng. Pada bagian dinding, hasil klasifikasi menunjukkan material tembok, terlihat dari permukaan dinding yang bertekstur plester, sehingga sesuai dengan data DTSEN. Sementara itu, pada bagian lantai interior, hasil klasifikasi menunjukkan material granit/marmer, ditandai dengan permukaan yang halus, mengilap, dan memiliki pola khas batu alam, sehingga tidak sesuai dengan data DTSEN yang menyebutkan keramik.
+                  </p>
+                </div>
               </div>
             </div>
-            
+
             {/* Assistance History Section */}
             <div className="detail-card-section">
               <div className="detail-card-header">
@@ -341,7 +373,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     <p>Program yang dipilih: {selectedPrograms.map(id => recommendations.find(r => r.id === id)?.title).join(', ')}</p>
                   </div>
                   {!isFinalized && (
-                    <button 
+                    <button
                       className={`btn-confirm-assistance ${isConfirming ? 'loading' : ''}`}
                       onClick={handleConfirmAssistance}
                       disabled={isConfirming}
@@ -350,7 +382,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     </button>
                   )}
                   {isFinalized && (
-                    <span className="badge-final"><CheckCircle size={16}/> Final Decision</span>
+                    <span className="badge-final"><CheckCircle size={16} /> Final Decision</span>
                   )}
                 </div>
               </div>
@@ -360,7 +392,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
           {/* Right Column (Dynamic Panel based on Tahap) */}
           <div className="detail-side-col">
-            
+
             {/* PANEL: ANALISIS */}
             {currentTahap === 'analisis' && (
               <div className="validation-panel">
@@ -371,14 +403,14 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                 <div className="panel-body">
                   <div className="form-group">
                     <label>Catatan Validasi</label>
-                    <textarea 
+                    <textarea
                       placeholder="Tambahkan observasi lapangan..."
                       rows={5}
                     ></textarea>
                   </div>
                   <div className="panel-actions" style={{ flexDirection: 'column' }}>
-                    <button 
-                      className="btn-action approve w-full" 
+                    <button
+                      className="btn-action approve w-full"
                       style={{ justifyContent: 'center' }}
                       onClick={handleConfirmAssistance}
                       disabled={selectedPrograms.length === 0 || isConfirming}
@@ -409,7 +441,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   </div>
                   <div className="form-group">
                     <label>Catatan Validasi / Alasan Penolakan</label>
-                    <textarea 
+                    <textarea
                       placeholder="Masukkan alasan jika ingin mengembalikan..."
                       rows={4}
                     ></textarea>

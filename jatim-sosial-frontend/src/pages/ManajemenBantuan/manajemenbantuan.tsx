@@ -20,7 +20,7 @@ import {
 import TimelineModal, { type TimelineEvent } from '../../components/ui/TimelineModal';
 import LoadingState from '../../components/ui/LoadingState';
 import EmptyState from '../../components/ui/EmptyState';
-import { type Tahap, type AnalisisOutput, timelineAktif, mockData } from '../../data/mockData';
+import { type Tahap, type AnalisisOutput, mockData } from '../../data/mockData';
 import { rawKeluargaData } from '../../data/dataKeluarga';
 import './ManajemenBantuan.css';
 
@@ -235,13 +235,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     }, 2000);
   };
 
-  const handleApprove = (id: string) => {
-    setData(prev => prev.map(d => d.id_keluarga === id ? { ...d, tahap: 'aktif' as Tahap, bantuan: d.bantuan || ['PKH'], timeline: timelineAktif } : d));
-  };
 
-  const handleReject = (id: string) => {
-    setData(prev => prev.map(d => d.id_keluarga === id ? { ...d, tahap: 'analisis' as Tahap } : d));
-  };
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -444,6 +438,9 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                           <span className={`mb-desil-label ${getDesilColor(row.desil)}`}>
                             DESIL {row.desil}
                           </span>
+                          <div className="mb-cell-secondary" style={{ marginTop: '4px', fontSize: '11px', fontWeight: 500 }}>
+                            Skor: {row.skorKesejahteraan.toFixed(3)}
+                          </div>
                         </td>
                       )}
 

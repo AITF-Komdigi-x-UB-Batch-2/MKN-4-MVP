@@ -2,7 +2,7 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 import { rawKeluargaData } from '../../data/dataKeluarga';
 import AdminLayout from '../../components/layout/AdminLayout';
-import { MapPin, FileText, Home, Monitor, Leaf, ShieldCheck, Users } from 'lucide-react';
+import { MapPin, FileText, Home, Monitor, Leaf, ShieldCheck } from 'lucide-react';
 import './DetailKeluarga.css';
 
 interface DetailKeluargaProps {
