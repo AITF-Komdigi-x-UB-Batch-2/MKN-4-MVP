@@ -160,6 +160,7 @@ class Foto(Base):
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     keluarga_id = Column(UUID(as_uuid=True), ForeignKey("keluarga.id"), nullable=False, index=True)
     url_foto       = Column(String(500), nullable=False)
+    tampak_dalam   = Column(Boolean, default=False)
     periode        = Column(String(10), nullable=True, index=True)
     sumber         = Column(String(20), default="dtsen", nullable=False)
     nama_file_asli = Column(String(200), nullable=True)
@@ -177,4 +178,4 @@ class LogHistori(Base):
     desil_baru   = Column(String(5), nullable=True)
     bantuan_lama = Column(JSONB, nullable=True)
     bantuan_baru = Column(JSONB, nullable=True)
-    keterangan   = Column(String(500), nullable=True)
+    keterangan   = Column(String(500), nullable=True)

@@ -58,6 +58,18 @@ class KeluargaResponse(BaseModel):
     skor: Optional[int] = None
     desil_nasional: Optional[int] = None
 
+    class Config:
+        from_attributes = True
+
+class FotoResponse(BaseModel):
+    id: UUID
+    keluarga_id: UUID
+    url_foto: str
+    tampak_dalam: Optional[bool] = None
+    periode: Optional[str] = None
+    sumber: Optional[str] = None
+    nama_file_asli: Optional[str] = None
+    diunggah_pada: datetime
 
     class Config:
         from_attributes = True
@@ -66,11 +78,15 @@ class KeluargaResponse(BaseModel):
 class PerhitunganResponse(BaseModel):
     id: UUID
     keluarga_id: UUID
-    rekomendasi_bantuan: Optional[str] = None
-    keterangan_tambahan: Optional[str] = None
-    kondisi_rumah: Optional[str] = None
-    foto_url: Optional[str] = None
+    rekomendasi_bantuan: Optional[List] = None
+    reasoning_tim2: Optional[str] = None
+    reasoning_tim1: Optional[str] = None
+    reasoning_tim3: Optional[str] = None
+    desil_kemiskinan: Optional[str] = None
+    skor_prioritas: Optional[int] = None
+    ada_ketidaksesuaian_visual: Optional[bool] = None
     status_validasi: Optional[str] = None
+    catatan_petugas: Optional[str] = None
 
     class Config:
         from_attributes = True

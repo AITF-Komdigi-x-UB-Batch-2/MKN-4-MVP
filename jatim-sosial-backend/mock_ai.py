@@ -1,16 +1,13 @@
+import os
 import json
-import boto3
-from fastapi import FastAPI, Request, File, UploadFile, Form
 import uvicorn
 import asyncio
 import random
-import json
 import boto3
 from dotenv import load_dotenv
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, Body, Depends
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-import os
 
 # Load environment variables
 load_dotenv()
@@ -47,7 +44,6 @@ async def mock_jalur_sosial(data_warga: dict = Body(...)):
     aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
     aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
     aws_region = os.getenv("AWS_REGION", "us-east-1")
-
 
     # Jalankan pemanggilan Bedrock secara asinkron di thread pool agar tidak memblokir event loop FastAPI
     loop = asyncio.get_event_loop()
@@ -187,7 +183,6 @@ async def mock_visual_validator(payload: dict = Body(...)):
     aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
     aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
     aws_region = os.getenv("AWS_REGION", "us-east-1")
-
 
     loop = asyncio.get_event_loop()
 
