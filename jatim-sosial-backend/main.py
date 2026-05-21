@@ -101,13 +101,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-AI_BASE_URL = os.getenv("AI_BASE_URL", "http://127.0.0.1:8001")
+AI_BASE_URL = os.getenv("AI_BASE_URL")
 
 # BAGIAN 5: DEPENDENCY — PENJAGA PINTU AUTENTIKASI
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
-) -> models.User:
+) -> models.User:    
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -194,50 +194,91 @@ async def import_csv(
     kolom_sah = [c.name for c in models.Keluarga.__table__.columns]
     sukses = 0
     di_skip = 0
-    log_foto = [] # Menampung status sukses/gagal upload foto
+    log_foto = []
+
+    # Kolom aset yang harus jadi INTEGER (0/1), bukan boolean
+    KOLOM_ASET_INT = {
+        "kepemilikan_aset",
+        "aset_bergerak_tabung_gas", "aset_bergerak_lemari_es", "aset_bergerak_ac",
+        "aset_bergerak_pemanas_air", "aset_bergerak_telepon_rumah", "aset_bergerak_tv_datar",
+        "aset_bergerak_emas_perhiasan", "aset_bergerak_komputer_laptop_tablet",
+        "aset_bergerak_sepeda_motor", "aset_bergerak_sepeda", "aset_bergerak_mobil",
+        "aset_bergerak_perahu", "aset_bergerak_kapal_perahu_motor", "aset_bergerak_smartphone",
+    }
+
+    # Kolom yang harus jadi INTEGER
+    KOLOM_INT = {
+        "desil_nasional", "jumlah_anggota_keluarga", "jumlah_jenis_usaha",
+        "jumlah_pekerja_dibayar", "jumlah_pekerja_tidak_dibayar",
+        "luas_lantai_bangunan", "id_dayapenerangan",
+        "lahan_tempat_lain", "rumah_tempat_lain",
+        "jml_sapi", "jml_kerbau", "jml_kuda", "jml_babi", "jml_kambing_domba",
+    }
+
+    def safe_int(v, default=0):
+        try:
+            return int(float(v)) if v and str(v).strip() not in ("", "nan") else default
+        except (ValueError, TypeError):
+            return default
+
+    def fix_nik(v):
+        """Konversi scientific notation '3.57301E+15' → '357301XXXXXXX'"""
+        if not v:
+            return None
+        try:
+            # Jika berupa scientific notation, konversi ke integer lalu string
+            return str(int(float(v)))
+        except (ValueError, TypeError):
+            return str(v).strip()
 
     async with httpx.AsyncClient() as client:
         for row in reader:
             try:
-                no_kk_row = row.get("nomor_kartu_keluarga")
+                no_kk_row = row.get("no_kk")
                 if not no_kk_row:
                     di_skip += 1
                     continue
 
-                # --- MENGGUNAKAN METODE POP ---
-                # Mengambil URL dan menghapusnya dari dictionary row
-                raw_urls = row.pop("url_foto_rumah", "")
+                # BUG FIX #3: Case-insensitive pop untuk kolom foto
+                # CSV punya 'Foto_rumah_tampak_dalam', bukan 'Foto_Rumah_Tampak_Dalam'
+                tampak_luar_raw_urls  = row.pop("foto_rumah", "")
+                tampak_dalam_raw_urls = row.pop("foto_rumah_tampak_dalam", "")  # ← huruf kecil
 
                 # 1. Bersihkan Data Keluarga
                 data_bersih = {}
                 for k, v in row.items():
                     if k not in kolom_sah:
                         continue
-                    val_str = str(v).strip().upper() if v else ""
 
-                    if k.startswith("kode_"):
-                        data_bersih[k] = val_str.replace(".", "")
-                    elif k.startswith("aset_") or k.startswith("pbi_") or k == "kepemilikan_aset":
-                        data_bersih[k] = val_str in ["YA", "1", "TRUE"]
-                    elif k in ["desil_nasional"]:
-                        try: data_bersih[k] = int(float(v)) if v else None
-                        except: data_bersih[k] = None
-                    elif k.startswith("jumlah_") or k in ["luas_lantai", "daya_terpasang", "status_kepemilikan_rumah", "jenis_lantai_terluas", "jenis_dinding_terluas", "jenis_atap_terluas", "sumber_air_minum_utama", "sumber_penerangan_utama", "bahan_bakar_utama_memasak", "fasilitas_bab", "jenis_kloset", "pembuangan_akhir_tinja"]:
-                        try: data_bersih[k] = int(float(v)) if v else 0
-                        except: data_bersih[k] = 0
+                    val_str = str(v).strip().upper() if v and str(v).strip() not in ("", "nan") else ""
+
+                    # BUG FIX #1: aset → INTEGER (0/1), bukan bool
+                    if k in KOLOM_ASET_INT:
+                        data_bersih[k] = 1 if val_str in ("YA", "1", "TRUE") else 0
+
+                    # BUG FIX #2: nik & no_kk → string bersih dari scientific notation
+                    elif k in ("nik", "no_kk"):
+                        data_bersih[k] = fix_nik(v)
+
+                    elif k.startswith("kode_"):
+                        data_bersih[k] = val_str.replace(".", "") if val_str else None
+
+                    elif k in KOLOM_INT:
+                        data_bersih[k] = safe_int(v)
+
                     else:
-                        data_bersih[k] = v
+                        data_bersih[k] = v if v and str(v).strip() not in ("", "nan") else None
 
-                # 2. CEK IDEMPOTENSI & HISTORY
+                # 2. Cek Idempotensi & History
                 keluarga_lama = db.query(models.Keluarga).filter(
-                    models.Keluarga.nomor_kartu_keluarga == no_kk_row
+                    models.Keluarga.no_kk == data_bersih.get("no_kk")
                 ).first()
 
                 if keluarga_lama:
                     data_histori = {c.name: getattr(keluarga_lama, c.name) for c in models.Keluarga.__table__.columns}
                     data_histori.pop("id", None)
                     data_histori["keluarga_id"] = keluarga_lama.id
-                    
+
                     arsip_baru = models.KeluargaHistory(**data_histori)
                     db.add(arsip_baru)
 
@@ -248,59 +289,60 @@ async def import_csv(
                     keluarga_baru = models.Keluarga(**data_bersih)
                     db.add(keluarga_baru)
                     keluarga_diproses = keluarga_baru
-                
-                db.flush() # Amankan ID untuk tabel foto
 
-                # 3. PROSES URL FOTO (Download ke MinIO)
-                if not raw_urls:
-                    log_foto.append(f"KK {no_kk_row}: Kolom 'url_foto_rumah' kosong/tidak ditemukan.")
-                else:
-                    list_url = [u.strip() for u in raw_urls.split(",") if u.strip()]
-                    for index, original_url in enumerate(list_url):
+                db.flush()
+
+                # 3. Proses URL Foto
+                for tipe, raw_urls in [("tampak_luar", tampak_luar_raw_urls), ("tampak_dalam", tampak_dalam_raw_urls)]:
+                    if not raw_urls:
+                        log_foto.append(f"KK {no_kk_row}: Kolom foto '{tipe}' kosong.")
+                        continue
+
+                    for index, original_url in enumerate(u.strip() for u in raw_urls.split(",") if u.strip()):
                         try:
                             foto_ada = db.query(models.Foto).filter(
                                 models.Foto.keluarga_id == keluarga_diproses.id,
                                 models.Foto.nama_file_asli == original_url
                             ).first()
-                            
+
                             if not foto_ada:
                                 foto_res = await client.get(original_url, follow_redirects=True, timeout=10.0)
                                 if foto_res.status_code == 200:
-                                    nama_file_minio = f"{keluarga_diproses.id}_{index}.jpg"
-
+                                    nama_file_minio = f"{keluarga_diproses.id}_{tipe}_{index}.jpg"
                                     s3_client.put_object(
                                         Bucket=MINIO_BUCKET,
                                         Key=nama_file_minio,
                                         Body=foto_res.content,
                                         ContentType="image/jpeg"
                                     )
-
                                     url_minio_final = f"http://{MINIO_ENDPOINT}/{MINIO_BUCKET}/{nama_file_minio}"
-                                    foto_baru = models.Foto(
+                                    db.add(models.Foto(
                                         keluarga_id=keluarga_diproses.id,
                                         url_foto=url_minio_final,
                                         sumber="dataset_csv",
-                                        nama_file_asli=original_url
-                                    )
-                                    db.add(foto_baru)
-                                    log_foto.append(f"KK {no_kk_row}: BERHASIL upload foto ke MinIO")
+                                        nama_file_asli=original_url,
+                                        tampak_dalam=(tipe == "tampak_dalam")
+                                    ))
+                                    log_foto.append(f"KK {no_kk_row}: BERHASIL upload foto {tipe}")
                                 else:
-                                    log_foto.append(f"KK {no_kk_row}: Gagal download dari picsum (Status {foto_res.status_code})")
+                                    log_foto.append(f"KK {no_kk_row}: Gagal download foto {tipe} (HTTP {foto_res.status_code})")
                         except Exception as e:
-                            log_foto.append(f"KK {no_kk_row}: ERROR MINIO/KONEKSI -> {str(e)}")
+                            log_foto.append(f"KK {no_kk_row}: ERROR foto {tipe} → {str(e)}")
 
                 sukses += 1
 
             except Exception as e:
+                # BUG FIX #4: Rollback session agar baris berikutnya tidak kena PendingRollbackError
+                db.rollback()
                 di_skip += 1
-                log_foto.append(f"Error fatal baris KK {row.get('nomor_kartu_keluarga')}: {str(e)}")
+                log_foto.append(f"Error fatal baris KK {row.get('no_kk', '?')}: {str(e)}")
                 continue
 
     db.commit()
 
     return {
         "status": "Sukses",
-        "pesan": f"{sukses} data keluarga beserta foto berhasil disinkronisasi.",
+        "pesan": f"{sukses} data keluarga berhasil disinkronisasi, {di_skip} baris dilewati.",
         "log_proses_foto": log_foto
     }
 
@@ -374,7 +416,7 @@ async def asesmen_sosial(
 
         return {
             "status": "Sukses",
-            "nomor_kk": keluarga.nomor_kartu_keluarga,
+            "nomor_kk": keluarga.no_kk,
             "hasil_rekomendasi_final": rekomendasi_baru,
             "justifikasi_dokumen": analisis_rag
         }
@@ -390,76 +432,70 @@ async def asesmen_sosial(
 @app.post(
     "/api/v1/asesmen/visual/{id_keluarga}",
     tags=["3. Asesmen Tim 2"],
-    summary="Trigger AI Visual berdasarkan foto yang ada di MinIO"
+    summary="Trigger AI Visual mengirim URL dan ID ke Tim 2"
 )
 async def asesmen_visual(
     id_keluarga: UUID,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # 1. Cek Data Keluarga
+    # 1. Cek Data Keluarga & Foto
     keluarga = db.query(models.Keluarga).filter(models.Keluarga.id == id_keluarga).first()
     if not keluarga:
         raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
 
-    # 2. Cari Foto Terbaru di Database
-    foto_terbaru = db.query(models.Foto).filter(
-        models.Foto.keluarga_id == id_keluarga
+    foto_tampak_luar = db.query(models.Foto).filter(
+        models.Foto.keluarga_id == id_keluarga,
+        models.Foto.tampak_dalam == False
+    ).order_by(models.Foto.diunggah_pada.desc()).first()
+    foto_tampak_dalam = db.query(models.Foto).filter(
+        models.Foto.keluarga_id == id_keluarga,
+        models.Foto.tampak_dalam == True
     ).order_by(models.Foto.diunggah_pada.desc()).first()
 
-    if not foto_terbaru:
-        raise HTTPException(status_code=404, detail="Warga ini belum memiliki foto yang diunggah ke MinIO.")
+    url_foto_luar = foto_tampak_luar.url_foto if foto_tampak_luar else None
+    url_foto_dalam = foto_tampak_dalam.url_foto if foto_tampak_dalam else None
+
+    # 2. Siapkan Payload JSON sesuai permintaan Tim 2
+    payload_ke_tim2 = {
+        "id_data": str(keluarga.id),
+        "foto_rumah": url_foto_luar,
+        "foto_rumah_tampak_dalam": url_foto_dalam, 
+        "id_atap_terluas": keluarga.id_atap_terluas,
+        "id_dinding_terluas": keluarga.id_dinding_terluas,
+        "id_lantai_terluas": keluarga.id_lantai_terluas
+    }
 
     try:
+        # 3. Tembak Endpoint Tim 2
         async with httpx.AsyncClient() as client:
             res_ai = await client.post(
                 f"{AI_BASE_URL}/api/ai/visual-validator",
-                data={
-                    "konteks_rumah": keluarga.jenis_dinding_terluas
-                },
-                files={"file": ("foto_otomatis.jpg", (await client.get(foto_terbaru.url_foto)).content, "image/jpeg")},
+                json=payload_ke_tim2,
                 timeout=30.0
             )
             res_ai.raise_for_status() 
             hasil_validator = res_ai.json() 
 
-        is_match = hasil_validator.get("is_match", False)
-        alasan = hasil_validator.get("reasoning", "")
-
+        # 4. Tangkap Response Bersarang (Nested JSON) dari Tim 2
         hitung = db.query(models.Perhitungan).filter(
             models.Perhitungan.keluarga_id == keluarga.id
         ).first()
         
         if not hitung:
-            hitung = models.Perhitungan(
-                keluarga_id=keluarga.id,
-                user_id=current_user.id
-            )
+            hitung = models.Perhitungan(keluarga_id=keluarga.id, user_id=current_user.id)
             db.add(hitung)
 
-        hitung.ada_ketidaksesuaian_visual = not is_match
-        hitung.reasoning_tim2 = alasan
-        hitung.foto_id_digunakan = foto_terbaru.id
         db.commit()
 
         return {
             "status": "Sukses",
-            "validation": {
-                "is_match": is_match,
-                "reasoning": alasan
-            },
-            "url_foto_divalidasi": foto_terbaru.url_foto,
+            "hasil_tim2": hasil_validator
         }
 
-    except HTTPException:
-        db.rollback()
-        raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Kesalahan internal saat asesmen visual: {str(e)}")
-    except httpx.RequestError as e:
-        db.rollback()
-        raise HTTPException(status_code=502, detail=f"Gagal menghubungi server Tim 2: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Kesalahan koneksi ke Tim 2: {str(e)}")
 
 # BAGIAN 10: ENDPOINT READ DATA (GET)
 @app.get(
@@ -542,4 +578,4 @@ async def get_histori(
 
 if __name__ == "__main__":
     print("Menjalankan Main Server di Port 8000...")
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

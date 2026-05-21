@@ -77,15 +77,15 @@ async def ai_sosial(request: Request):
 
 # 3. Endpoint Tim 2 (Visual Validator -> Tetap Mock Statis)
 @app.post("/api/ai/visual-validator")
-async def visual_validator(
-    file: UploadFile = File(...),
-    konteks_rumah: str = Form(default="Tidak ada konteks")
-):
-    print(f"[MOCK TIM 2] Menerima gambar: {file.filename} dengan kode material dinding: {konteks_rumah}")
+async def visual_validator(Request: Request):
+    payload=await Request.json()
+    print(f"[DEBUG] Payload untuk Visual Validator (Tim 2): {payload}")
     return {
-        "is_match": True,
-        "reasoning": f"Berdasarkan analisis visual AI statis, material dinding dengan kode {konteks_rumah} sangat identik dengan kondisi nyata pada foto rumah dari MinIO."
-    }
+        "id_data": 123,    
+        "atap": {"status": "sesuai", "alasan": "-"},
+        "dinding": {"status": "tidak sesuai", "alasan": "Hasil AI menunjukkan bahwa material dinding adalah kayu/papan/gipsum."   },
+        "lantai": {"status": "tidak teridentifikasi", "alasan": "Gambar lantai pada tampak dalam tidak tersedia."   } 
+        } 
 
 if __name__ == "__main__":
     print("AI Proxy Server (Terhubung ke AWS Bedrock) menyala di Port 8001...")
