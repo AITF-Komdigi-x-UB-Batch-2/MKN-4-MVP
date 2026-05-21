@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { apiFetch } from "../../services/api";
 import { type Tahap } from "../../data/mockData";
@@ -12,9 +12,9 @@ import {
   AlertCircle,
   ShieldCheck,
   ThumbsUp,
-  RefreshCw
-} from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+  RefreshCw,
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import "./DetailHasil.css";
 
 interface DetailHasilProps {
@@ -49,17 +49,39 @@ interface DetailKeluargaResponse {
 }
 
 const mapAtap = (val: number) => {
-  const map: Record<number, string> = { 1: "Beton", 2: "Genteng Tanah Liat", 3: "Asbes", 4: "Seng", 5: "Bambu", 6: "Jerami/Ijuk", 7: "Lainnya" };
+  const map: Record<number, string> = {
+    1: "Beton",
+    2: "Genteng Tanah Liat",
+    3: "Asbes",
+    4: "Seng",
+    5: "Bambu",
+    6: "Jerami/Ijuk",
+    7: "Lainnya",
+  };
   return map[val] || "Tidak Diketahui";
 };
 
 const mapDinding = (val: number) => {
-  const map: Record<number, string> = { 1: "Tembok", 2: "Kayu", 3: "Bambu", 4: "Tanah", 5: "Lainnya" };
+  const map: Record<number, string> = {
+    1: "Tembok",
+    2: "Kayu",
+    3: "Bambu",
+    4: "Tanah",
+    5: "Lainnya",
+  };
   return map[val] || "Tidak Diketahui";
 };
 
 const mapLantai = (val: number) => {
-  const map: Record<number, string> = { 1: "Marmer/Granit", 2: "Keramik", 3: "Ubin/Semen", 4: "Kayu", 5: "Bambu", 6: "Tanah", 7: "Lainnya" };
+  const map: Record<number, string> = {
+    1: "Marmer/Granit",
+    2: "Keramik",
+    3: "Ubin/Semen",
+    4: "Kayu",
+    5: "Bambu",
+    6: "Tanah",
+    7: "Lainnya",
+  };
   return map[val] || "Tidak Diketahui";
 };
 
@@ -68,30 +90,45 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [detailData, setDetailData] = useState<DetailKeluargaResponse | null>(null);
+  const [detailData, setDetailData] = useState<DetailKeluargaResponse | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   const familyId = id || location.state?.id_keluarga;
 
-  const [stageState, setStageState] = useState<Tahap>(location.state?.tahap || "analisis");
-  const [selectedPrograms, setSelectedPrograms] = useState<string[]>(location.state?.bantuan || []);
+  const [stageState, setStageState] = useState<Tahap>(
+    location.state?.tahap || "analisis",
+  );
+  const [selectedPrograms, setSelectedPrograms] = useState<string[]>(
+    location.state?.bantuan || [],
+  );
   const [isConfirming, setIsConfirming] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [isAssistanceConfirmed, setIsAssistanceConfirmed] = useState(false);
   const [catatanInput, setCatatanInput] = useState("");
   const [catatanSupInput, setCatatanSupInput] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const displayImages = (() => {
     const urls = [...(detailData?.foto_urls || [])];
-    
+
     // Replace minio hostnames if needed
-    const processedUrls = urls.map(url => 
-      url.replace('http://minio:9000', `http://${window.location.hostname}:9000`)
+    const processedUrls = urls.map((url) =>
+      url.replace(
+        "http://minio:9000",
+        `http://${window.location.hostname}:9000`,
+      ),
     );
 
     // If there is only one photo or it's empty, and we have a url_foto
     if (processedUrls.length === 0 && detailData?.url_foto) {
-      processedUrls.push(detailData.url_foto.replace('http://minio:9000', `http://${window.location.hostname}:9000`));
+      processedUrls.push(
+        detailData.url_foto.replace(
+          "http://minio:9000",
+          `http://${window.location.hostname}:9000`,
+        ),
+      );
     }
 
     return processedUrls;
@@ -157,28 +194,48 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     );
   };
 
-  useEffect(() => {
-    const fetchDetail = async () => {
-      try {
-        const res = await apiFetch(`/api/v1/manajemen-bantuan/${familyId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setDetailData(data);
-          
-          setStageState(data.tahap);
-          setSelectedPrograms(data.tahap !== "analisis" ? data.bantuan : []);
-          setIsAssistanceConfirmed(data.tahap !== "analisis");
-          if (data.catatan) setCatatanInput(data.catatan);
-          if (data.catatan_supervisor) setCatatanSupInput(data.catatan_supervisor);
-        }
-      } catch (err) {
-        console.error("Gagal mengambil data detail", err);
-      } finally {
-        setIsLoading(false);
+  const fetchDetail = useCallback(async () => {
+    if (!familyId) return;
+
+    try {
+      const res = await apiFetch(`/api/v1/manajemen-bantuan/${familyId}`);
+      if (res.status === 409) {
+        setIsProcessing(true);
+        setStageState("proses");
+        return;
       }
-    };
-    if (familyId) fetchDetail();
+      if (res.ok) {
+        const data = await res.json();
+        setDetailData(data);
+        setIsProcessing(false);
+
+        setStageState(data.tahap);
+        setSelectedPrograms(data.tahap !== "analisis" ? data.bantuan : []);
+        setIsAssistanceConfirmed(data.tahap !== "analisis");
+        if (data.catatan) setCatatanInput(data.catatan);
+        if (data.catatan_supervisor)
+          setCatatanSupInput(data.catatan_supervisor);
+      }
+    } catch (err) {
+      console.error("Gagal mengambil data detail", err);
+    } finally {
+      setIsLoading(false);
+    }
   }, [familyId]);
+
+  useEffect(() => {
+    fetchDetail();
+  }, [fetchDetail]);
+
+  useEffect(() => {
+    if (!isProcessing) return;
+
+    const pollInterval = setInterval(() => {
+      fetchDetail();
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
+  }, [fetchDetail, isProcessing]);
 
   const currentTahap = stageState;
   const isFinalized = currentTahap !== "analisis";
@@ -266,20 +323,28 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     );
   };
 
-  const handleUpdateStatus = async (status: string, bantuanList?: string[], catatan?: string, catatan_supervisor?: string) => {
+  const handleUpdateStatus = async (
+    status: string,
+    bantuanList?: string[],
+    catatan?: string,
+    catatan_supervisor?: string,
+  ) => {
     try {
-      const response = await apiFetch(`/api/v1/manajemen-bantuan/${id}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status_validasi: status,
-          bantuan: bantuanList,
-          catatan: catatan,
-          catatan_supervisor: catatan_supervisor
-        })
-      });
+      const response = await apiFetch(
+        `/api/v1/manajemen-bantuan/${id}/status`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status_validasi: status,
+            bantuan: bantuanList,
+            catatan: catatan,
+            catatan_supervisor: catatan_supervisor,
+          }),
+        },
+      );
       if (!response.ok) throw new Error("Gagal update status");
-      
+
       const data = await response.json();
       setDetailData(data);
       setStageState(status as Tahap);
@@ -293,7 +358,11 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   const handleConfirmAssistance = async () => {
     if (selectedPrograms.length === 0) return;
     setIsConfirming(true);
-    const success = await handleUpdateStatus("validasi", selectedPrograms, catatanInput);
+    const success = await handleUpdateStatus(
+      "validasi",
+      selectedPrograms,
+      catatanInput,
+    );
     setIsConfirming(false);
     if (success) {
       setSuccessMsg("Rekomendasi bantuan berhasil diajukan ke tahap Validasi!");
@@ -302,7 +371,12 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   };
 
   const handleSupervisorApprove = async () => {
-    const success = await handleUpdateStatus("diterima", selectedPrograms, undefined, catatanSupInput);
+    const success = await handleUpdateStatus(
+      "diterima",
+      selectedPrograms,
+      undefined,
+      catatanSupInput,
+    );
     if (success) {
       setSuccessMsg("Bantuan Sosial Berhasil Disetujui!");
       setTimeout(() => setSuccessMsg(""), 2000);
@@ -310,7 +384,12 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   };
 
   const handleSupervisorReject = async () => {
-    const success = await handleUpdateStatus("ditolak", undefined, undefined, catatanSupInput);
+    const success = await handleUpdateStatus(
+      "ditolak",
+      undefined,
+      undefined,
+      catatanSupInput,
+    );
     if (success) {
       setSuccessMsg("Pengajuan Bantuan Sosial Ditolak!");
       setTimeout(() => setSuccessMsg(""), 2000);
@@ -330,6 +409,16 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
       <AdminLayout title="Detail Analisis" onLogout={onLogout}>
         <div className="flex items-center justify-center h-full">
           <p>Memuat data detail...</p>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (isProcessing || currentTahap === "proses") {
+    return (
+      <AdminLayout title="Detail Analisis" onLogout={onLogout}>
+        <div className="flex items-center justify-center h-full">
+          <p>Data sedang diproses. Silakan coba lagi beberapa saat.</p>
         </div>
       </AdminLayout>
     );
@@ -397,17 +486,45 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                         style={{
                           width: displayImages.length > 1 ? "47%" : "60%",
                           minWidth: "260px",
-                          maxWidth: displayImages.length > 1 ? "360px" : "500px",
+                          maxWidth:
+                            displayImages.length > 1 ? "360px" : "500px",
                         }}
                       >
-                        <div className="placeholder-image" style={{ overflow: 'hidden', position: 'relative', height: '240px' }}>
-                          <img 
-                            src={imgUrl} 
-                            alt={`Survey Hunian ${index === 0 ? "Tampak Luar" : "Tampak Dalam"}`} 
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                        <div
+                          className="placeholder-image"
+                          style={{
+                            overflow: "hidden",
+                            position: "relative",
+                            height: "240px",
+                          }}
+                        >
+                          <img
+                            src={imgUrl}
+                            alt={`Survey Hunian ${index === 0 ? "Tampak Luar" : "Tampak Dalam"}`}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                            }}
                           />
-                          <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.65)', color: 'white', padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            {index === 0 ? "Foto 1: Tampak Luar" : "Foto 2: Tampak Dalam"}
+                          <div
+                            style={{
+                              position: "absolute",
+                              bottom: 10,
+                              left: "50%",
+                              transform: "translateX(-50%)",
+                              background: "rgba(0,0,0,0.65)",
+                              color: "white",
+                              padding: "4px 10px",
+                              borderRadius: 12,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {index === 0
+                              ? "Foto 1: Tampak Luar"
+                              : "Foto 2: Tampak Dalam"}
                           </div>
                         </div>
                       </div>
@@ -530,9 +647,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                         <td style={{ padding: "14px 16px" }}>
                           {renderVisualMatchBadge(detailData?.visual_match)}
                         </td>
-                        <td
-                          style={{ padding: "14px 16px", color: "#475569" }}
-                        >
+                        <td style={{ padding: "14px 16px", color: "#475569" }}>
                           -
                         </td>
                       </tr>
@@ -567,9 +682,17 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                 <FileText size={18} className="text-blue" />
                 <h4>Ringkasan Singkat & Rekomendasi</h4>
               </div>
-              <div className="detail-card-body" style={{ lineHeight: '1.6', color: '#4a5568', fontSize: '14px' }}>
+              <div
+                className="detail-card-body"
+                style={{
+                  lineHeight: "1.6",
+                  color: "#4a5568",
+                  fontSize: "14px",
+                }}
+              >
                 <ReactMarkdown>
-                  {location.state?.aiReasoning || 'Data reasoning belum tersedia dari AI.'}
+                  {location.state?.aiReasoning ||
+                    "Data reasoning belum tersedia dari AI."}
                 </ReactMarkdown>
               </div>
             </div>
@@ -821,7 +944,8 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                         whiteSpace: "pre-wrap",
                       }}
                     >
-                      {detailData?.catatan || "Tidak ada catatan analisis yang ditambahkan."}
+                      {detailData?.catatan ||
+                        "Tidak ada catatan analisis yang ditambahkan."}
                     </p>
                   </div>
                   <div className="form-group">
@@ -887,17 +1011,58 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     sosial berikut berdasarkan analisis kebutuhan dan kelayakan
                     ekonomi desil {desil}.
                   </p>
-                  
-                  <div style={{ marginBottom: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
+
+                  <div
+                    style={{
+                      marginBottom: "24px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "12px",
+                    }}
+                  >
                     <div>
-                      <label style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280" }}>CATATAN ANALIS</label>
-                      <p style={{ fontSize: "14px", background: "#f3f4f6", padding: "10px", borderRadius: "6px", whiteSpace: "pre-wrap", marginTop: "4px" }}>
+                      <label
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "#6b7280",
+                        }}
+                      >
+                        CATATAN ANALIS
+                      </label>
+                      <p
+                        style={{
+                          fontSize: "14px",
+                          background: "#f3f4f6",
+                          padding: "10px",
+                          borderRadius: "6px",
+                          whiteSpace: "pre-wrap",
+                          marginTop: "4px",
+                        }}
+                      >
                         {detailData?.catatan || "Tidak ada catatan."}
                       </p>
                     </div>
                     <div>
-                      <label style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280" }}>CATATAN SUPERVISOR</label>
-                      <p style={{ fontSize: "14px", background: "#f3f4f6", padding: "10px", borderRadius: "6px", whiteSpace: "pre-wrap", marginTop: "4px" }}>
+                      <label
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "#6b7280",
+                        }}
+                      >
+                        CATATAN SUPERVISOR
+                      </label>
+                      <p
+                        style={{
+                          fontSize: "14px",
+                          background: "#f3f4f6",
+                          padding: "10px",
+                          borderRadius: "6px",
+                          whiteSpace: "pre-wrap",
+                          marginTop: "4px",
+                        }}
+                      >
                         {detailData?.catatan_supervisor || "Tidak ada catatan."}
                       </p>
                     </div>
@@ -997,16 +1162,59 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     kelayakan sebagai penerima manfaat.
                   </p>
 
-                  <div style={{ marginBottom: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div
+                    style={{
+                      marginBottom: "24px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "12px",
+                    }}
+                  >
                     <div>
-                      <label style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280" }}>CATATAN ANALIS</label>
-                      <p style={{ fontSize: "14px", background: "#fef2f2", padding: "10px", borderRadius: "6px", whiteSpace: "pre-wrap", marginTop: "4px", color: "#b91c1c" }}>
+                      <label
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "#6b7280",
+                        }}
+                      >
+                        CATATAN ANALIS
+                      </label>
+                      <p
+                        style={{
+                          fontSize: "14px",
+                          background: "#fef2f2",
+                          padding: "10px",
+                          borderRadius: "6px",
+                          whiteSpace: "pre-wrap",
+                          marginTop: "4px",
+                          color: "#b91c1c",
+                        }}
+                      >
                         {detailData?.catatan || "Tidak ada catatan."}
                       </p>
                     </div>
                     <div>
-                      <label style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280" }}>CATATAN SUPERVISOR</label>
-                      <p style={{ fontSize: "14px", background: "#fef2f2", padding: "10px", borderRadius: "6px", whiteSpace: "pre-wrap", marginTop: "4px", color: "#b91c1c" }}>
+                      <label
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "#6b7280",
+                        }}
+                      >
+                        CATATAN SUPERVISOR
+                      </label>
+                      <p
+                        style={{
+                          fontSize: "14px",
+                          background: "#fef2f2",
+                          padding: "10px",
+                          borderRadius: "6px",
+                          whiteSpace: "pre-wrap",
+                          marginTop: "4px",
+                          color: "#b91c1c",
+                        }}
+                      >
                         {detailData?.catatan_supervisor || "Tidak ada catatan."}
                       </p>
                     </div>

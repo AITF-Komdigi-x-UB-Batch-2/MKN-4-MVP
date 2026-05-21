@@ -119,6 +119,43 @@
   color: var(--blue-primary);
 }
 
+/* Notification Toast */
+.notification-toast {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+  animation: slideIn 0.3s ease-out;
+  z-index: 1000;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.notification-toast.success {
+  background: #10b981;
+  color: white;
+}
+
+.notification-toast.error {
+  background: #ef4444;
+  color: white;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 .form-card-body {
   padding: 20px;
   display: flex;
@@ -140,8 +177,8 @@
   color: var(--text-primary);
 }
 
-.form-group input, 
-.form-group select, 
+.form-group input,
+.form-group select,
 .form-group textarea {
   padding: 10px 12px;
   border: 1px solid var(--border-color);
@@ -159,8 +196,8 @@
   resize: vertical;
 }
 
-.form-group input:focus, 
-.form-group select:focus, 
+.form-group input:focus,
+.form-group select:focus,
 .form-group textarea:focus {
   outline: none;
   border-color: var(--blue-primary);
@@ -279,8 +316,11 @@
 .upload-dropzone::before {
   content: "";
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-image: url('https://w7.pngwing.com/pngs/420/550/png-transparent-village-house-green-roof-hut-thumbnail.png'); /* Mocking the house background */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url("https://w7.pngwing.com/pngs/420/550/png-transparent-village-house-green-roof-hut-thumbnail.png"); /* Mocking the house background */
   background-size: cover;
   background-position: center;
   opacity: 0.15;
@@ -473,7 +513,6 @@
   margin-top: 16px;
 }
 
-
 .ai-input-container {
   display: flex;
   flex-direction: column;
@@ -504,7 +543,9 @@
   line-height: 1.5;
 }
 
-.chat-bubble.bot p { margin: 0; }
+.chat-bubble.bot p {
+  margin: 0;
+}
 
 .ai-input-box {
   background-color: var(--bg-card);
@@ -539,7 +580,9 @@
   cursor: pointer;
 }
 
-.ai-submit-btn:hover { background-color: #7e22ce; }
+.ai-submit-btn:hover {
+  background-color: #7e22ce;
+}
 
 /* Right Column (Insights) */
 .sticky-panel {
@@ -550,12 +593,13 @@
   gap: 20px;
 }
 
-.preview-panel, .insight-panel {
+.preview-panel,
+.insight-panel {
   background-color: var(--bg-card);
   border-radius: 12px;
   border: 1px solid var(--border-color);
   padding: 24px;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
 .panel-header {
@@ -572,11 +616,21 @@
   color: var(--text-primary);
 }
 
-.text-blue { color: var(--blue-primary); }
-.text-purple { color: #9333ea; }
-.text-red { color: var(--red-primary); }
-.text-yellow { color: var(--yellow-primary); }
-.text-green { color: var(--green-primary); }
+.text-blue {
+  color: var(--blue-primary);
+}
+.text-purple {
+  color: #9333ea;
+}
+.text-red {
+  color: var(--red-primary);
+}
+.text-yellow {
+  color: var(--yellow-primary);
+}
+.text-green {
+  color: var(--green-primary);
+}
 
 .risk-gauge-container {
   display: flex;
@@ -608,7 +662,10 @@
   font-weight: 600;
 }
 
-.risk-label.red { background-color: var(--red-light); color: var(--red-primary); }
+.risk-label.red {
+  background-color: var(--red-light);
+  color: var(--red-primary);
+}
 
 .risk-factors h5 {
   margin: 0 0 12px;
@@ -661,9 +718,13 @@
   font-size: 13px;
 }
 
-.confidence-level span { color: var(--text-secondary); }
-.confidence-level strong { color: var(--green-primary); font-size: 16px; }
-
+.confidence-level span {
+  color: var(--text-secondary);
+}
+.confidence-level strong {
+  color: var(--green-primary);
+  font-size: 16px;
+}
 
 /* Bottom Action Bar */
 .bottom-action-bar {
@@ -678,7 +739,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 32px;
-  box-shadow: 0 -4px 6px -1px rgba(0,0,0,0.02);
+  box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.02);
   z-index: 10;
 }
 
@@ -717,13 +778,14 @@
   .analisis-content-split {
     flex-direction: column;
   }
-  
+
   .sticky-panel {
     position: static;
     flex-direction: row;
   }
-  
-  .preview-panel, .insight-panel {
+
+  .preview-panel,
+  .insight-panel {
     flex: 1;
   }
 }
@@ -737,4 +799,6 @@
   }
 }
 
-.mt-4 { margin-top: 16px; }
+.mt-4 {
+  margin-top: 16px;
+}

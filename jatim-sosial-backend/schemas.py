@@ -16,6 +16,7 @@ class KeluargaResponse(BaseModel):
     kelurahan_desa: Optional[str] = None
     alamat: Optional[str] = None
     nomor_kartu_keluarga: str
+    nik: Optional[str] = None
     jumlah_anggota_keluarga: Optional[int] = None
     nama_anggota_keluarga: Optional[str] = None
     pbi_nas: Optional[bool] = None

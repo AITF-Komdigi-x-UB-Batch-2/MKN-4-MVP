@@ -22,6 +22,7 @@ class Keluarga(Base):
     __tablename__ = "keluarga"
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nomor_kartu_keluarga = Column(String(100), nullable=False, index=True)
+    nik                  = Column(String(100), nullable=True, index=True)
     periode              = Column(String(10), nullable=True, index=True)
     kode_provinsi           = Column(String(10))
     provinsi                = Column(String(100))
@@ -78,7 +79,8 @@ class KeluargaHistory(Base):
     __tablename__ = "keluarga_history"
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     keluarga_id = Column(UUID(as_uuid=True), ForeignKey("keluarga.id"), nullable=False, index=True)
-    nomor_kartu_keluarga = Column(String(16), nullable=False, index=True)
+    nomor_kartu_keluarga = Column(String(100), nullable=False, index=True)
+    nik                  = Column(String(100), nullable=True)
     periode              = Column(String(10), nullable=True, index=True)
     kode_provinsi           = Column(String(10))
     provinsi                = Column(String(100))

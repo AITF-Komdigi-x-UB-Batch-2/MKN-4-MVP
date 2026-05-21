@@ -36,8 +36,23 @@
 
 .mb-actions {
   display: flex;
+  align-items: center;
   gap: 12px;
   flex-shrink: 0;
+}
+
+.mb-monitoring-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .mb-btn-secondary {
@@ -113,7 +128,7 @@
 }
 
 .mb-tab-item.active::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: -2px;
   left: 0;
@@ -386,6 +401,15 @@
   background-color: #3b82f6;
 }
 
+/* Proses — Gray */
+.mb-badge-proses {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+.mb-badge-proses .mb-badge-dot {
+  background-color: #94a3b8;
+}
+
 /* Validasi — Orange */
 .mb-badge-validasi {
   background-color: #fff7ed;
@@ -435,9 +459,15 @@
   letter-spacing: 0.04em;
 }
 
-.mb-desil-label.red { color: #dc2626; }
-.mb-desil-label.orange { color: #ea580c; }
-.mb-desil-label.green { color: #16a34a; }
+.mb-desil-label.red {
+  color: #dc2626;
+}
+.mb-desil-label.orange {
+  color: #ea580c;
+}
+.mb-desil-label.green {
+  color: #16a34a;
+}
 
 .mb-progress-bar {
   width: 80px;
@@ -452,9 +482,15 @@
   border-radius: 3px;
 }
 
-.mb-progress-fill.red { background-color: #dc2626; }
-.mb-progress-fill.orange { background-color: #f59e0b; }
-.mb-progress-fill.green { background-color: #10b981; }
+.mb-progress-fill.red {
+  background-color: #dc2626;
+}
+.mb-progress-fill.orange {
+  background-color: #f59e0b;
+}
+.mb-progress-fill.green {
+  background-color: #10b981;
+}
 
 /* ── Desil Change (Evaluasi) ────────────── */
 .mb-desil-change {
@@ -662,8 +698,12 @@
 
 /* Spinner Animation */
 @keyframes mb-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .mb-spin {
@@ -766,12 +806,14 @@
   white-space: nowrap;
   z-index: 50;
   transition: all 0.2s ease-in-out;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
   pointer-events: none;
 }
 
 .mb-bantuan-tooltip::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 100%;
   left: 50%;
@@ -901,7 +943,7 @@
   .mb-tabs {
     gap: 0;
   }
-  
+
   .mb-tab-item {
     padding: 10px 12px;
     font-size: 13px;
