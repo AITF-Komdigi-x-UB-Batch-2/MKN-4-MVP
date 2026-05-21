@@ -10,5 +10,15 @@ export default defineConfig({
     watch: {
       usePolling: true, // Menggunakan polling untuk deteksi perubahan file di Windows host
     },
+    proxy: {
+      '/api': {
+        target: 'http://backend:8000',
+        changeOrigin: true,
+      },
+      '/auth': {
+        target: 'http://backend:8000',
+        changeOrigin: true,
+      },
+    },
   },
 });

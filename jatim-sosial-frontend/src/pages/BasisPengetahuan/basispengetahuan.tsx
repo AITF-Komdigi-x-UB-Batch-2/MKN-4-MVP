@@ -4,11 +4,7 @@ import {
   Search, 
   ChevronRight, 
   FileText, 
-  Download, 
-  Eye, 
-  History, 
-  Paperclip,
-  Sparkles
+  Download
 } from 'lucide-react';
 import SideDrawer from '../../components/ui/SideDrawer';
 import './BasisPengetahuan.css';
@@ -24,7 +20,6 @@ interface PolicyDocument {
   kategori: string;
   kategoriColorClass: string;
   tanggal: string;
-  status: 'Berlaku' | 'Draft';
   masaBerlaku: string;
   unit: string;
   size: string;
@@ -34,72 +29,81 @@ interface PolicyDocument {
 const mockDocuments: PolicyDocument[] = [
   {
     id: '1',
-    title: 'SK Gubernur No. 45/2023',
-    description: 'Penetapan Penerima Bantuan Sosial ASPD Tahap IV',
-    kategori: 'SK GUBERNUR',
+    title: 'Juklak ASPD Tahun 2026',
+    description: 'Petunjuk Pelaksanaan Asistensi Sosial Penyandang Disabilitas (ASPD) Tahun 2026',
+    kategori: 'ASPD',
     kategoriColorClass: 'kategori-sk',
-    tanggal: '12 Okt 2023',
-    status: 'Berlaku',
+    tanggal: '25 Feb 2026',
     masaBerlaku: 'S/D Dicabut',
     unit: 'Dinas Sosial',
-    size: '1.2 MB',
-    aiSummary: 'Dokumen ini menetapkan daftar resmi penerima bantuan sosial Asistensi Sosial Penyandang Disabilitas (ASPD) untuk tahap IV tahun 2023 sesuai kriteria kelayakan yang telah divalidasi.',
+    size: '11.7 MB',
+    aiSummary: 'Petunjuk pelaksanaan Asistensi Sosial Penyandang Disabilitas (ASPD) Provinsi Jawa Timur Tahun 2026 yang mengatur kriteria penerima, mekanisme penyaluran, dan tata cara monitoring bantuan bagi penyandang disabilitas.',
   },
   {
     id: '2',
-    title: 'PERGUB No. 112/2023',
-    description: 'Pedoman Pelaksanaan Jatim Sosial Care',
-    kategori: 'PERGUB',
+    title: 'Juknis PKH Plus 2026',
+    description: 'Petunjuk Teknis Program Keluarga Harapan (PKH) Plus Provinsi Jawa Timur Tahun 2026',
+    kategori: 'PKH PLUS',
     kategoriColorClass: 'kategori-pergub',
-    tanggal: '05 Nov 2023',
-    status: 'Berlaku',
+    tanggal: '01 Jan 2026',
     masaBerlaku: 'S/D Dicabut',
     unit: 'Dinas Sosial',
-    size: '4.2 MB',
-    aiSummary: 'Dokumen ini mengatur tentang skema distribusi bantuan pangan dan kesehatan bagi keluarga rentan di wilayah Jawa Timur, mencakup kriteria seleksi, metode penyaluran digital, dan sistem monitoring berbasis data geotagging.',
+    size: '1.9 MB',
+    aiSummary: 'Petunjuk teknis pelaksanaan PKH Plus Tahun 2026 di Jawa Timur, berfokus pada pemberian bantuan sosial tambahan bagi lanjut usia dalam keluarga sangat miskin.',
   },
   {
     id: '3',
-    title: 'Instruksi Gubernur No. 8/2023',
-    description: 'Percepatan Verifikasi Data Kemiskinan Ekstrem',
-    kategori: 'INGUB',
+    title: 'Juknis Kemiskinan Ekstrem',
+    description: 'Petunjuk Teknis Penyelenggaraan Percepatan Penghapusan Kemiskinan Ekstrem',
+    kategori: 'KEMISKINAN EKSTREM',
     kategoriColorClass: 'kategori-ingub',
-    tanggal: '20 Des 2023',
-    status: 'Berlaku',
+    tanggal: '13 Jan 2025',
     masaBerlaku: 'S/D Dicabut',
     unit: 'BAPPEDA',
-    size: '2.5 MB',
-    aiSummary: 'Instruksi Guberur ini mewajibkan seluruh pemerintah kota dan kabupaten di Jawa Timur untuk mempercepat proses verifikasi data penduduk miskin ekstrem.',
+    size: '1.6 MB',
+    aiSummary: 'Pedoman operasional verifikasi, validasi, dan koordinasi lintas sektor untuk percepatan penghapusan kemiskinan ekstrem di Provinsi Jawa Timur.',
   },
   {
     id: '4',
-    title: 'SE Sekdaprov No. 400/12/2024',
-    description: 'Mekanisme Pelaporan Bansos Berbasis Aplikasi',
-    kategori: 'SURAT EDARAN',
+    title: 'Juknis KIP KPM Jawara',
+    description: 'Petunjuk Teknis Kartu Indonesia Pintar (KIP) Keluarga Penerima Manfaat (KPM) Jawara',
+    kategori: 'KIP KPM JAWARA',
     kategoriColorClass: 'kategori-se',
-    tanggal: '15 Jan 2024',
-    status: 'Draft',
-    masaBerlaku: 'Menunggu Pengesahan',
-    unit: 'Sekretariat Daerah',
-    size: '0.8 MB',
-    aiSummary: 'Surat edaran ini memuat panduan penggunaan aplikasi pelaporan penyaluran bantuan sosial bagi perangkat desa agar proses rekapitulasi data menjadi realtime.',
+    tanggal: '10 Jan 2026',
+    masaBerlaku: 'S/D Dicabut',
+    unit: 'Dinas Pendidikan',
+    size: '6.0 MB',
+    aiSummary: 'Panduan juknis Kartu Indonesia Pintar khusus untuk anak-anak dari Keluarga Penerima Manfaat (KPM) peserta program Jatim Jawara.',
+  },
+  {
+    id: '5',
+    title: 'Juknis KIP Putri Jawara',
+    description: 'Petunjuk Teknis Kartu Indonesia Pintar (KIP) Putri Jawara',
+    kategori: 'KIP PUTRI JAWARA',
+    kategoriColorClass: 'kategori-se',
+    tanggal: '12 Jan 2026',
+    masaBerlaku: 'S/D Dicabut',
+    unit: 'Dinas Pendidikan',
+    size: '5.9 MB',
+    aiSummary: 'Panduan juknis Kartu Indonesia Pintar (KIP) Putri Jawara untuk mendukung keberlanjutan pendidikan anak perempuan berprestasi dari keluarga rentan.',
+  },
+  {
+    id: '6',
+    title: 'Juknis KIP PPKS Jawara',
+    description: 'Petunjuk Teknis Kartu Indonesia Pintar (KIP) Pemerlu Pelayanan Kesejahteraan Sosial (PPKS) Jawara',
+    kategori: 'KIP PPKS JAWARA',
+    kategoriColorClass: 'kategori-se',
+    tanggal: '15 Jan 2026',
+    masaBerlaku: 'S/D Dicabut',
+    unit: 'Dinas Sosial',
+    size: '10.2 MB',
+    aiSummary: 'Petunjuk teknis pemberian beasiswa Kartu Indonesia Pintar (KIP) bagi anak-anak PPKS (Pemerlu Pelayanan Kesejahteraan Sosial) di Provinsi Jawa Timur.',
   }
 ];
 
-const jenisProgramFilters = ['Semua', 'ASPD', 'PKHT', 'KE', 'JAWARA', 'JAWARA P', 'PPU', 'Disabilitas'];
-const jenisRegulasiFilters = ['Peraturan Gubernur', 'SK Gubernur', 'Instruksi Gubernur', 'Surat Edaran'];
-
 const BasisPengetahuan: React.FC<BasisPengetahuanProps> = ({ onLogout }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeProgram, setActiveProgram] = useState<string>('Semua');
-  const [activeRegulasi, setActiveRegulasi] = useState<string[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<PolicyDocument | null>(null);
-  
-  const toggleRegulasi = (rg: string) => {
-    setActiveRegulasi(prev => 
-      prev.includes(rg) ? prev.filter(item => item !== rg) : [...prev, rg]
-    );
-  };
 
   return (
     <AdminLayout title="Basis Pengetahuan" onLogout={onLogout}>
@@ -123,39 +127,6 @@ const BasisPengetahuan: React.FC<BasisPengetahuanProps> = ({ onLogout }) => {
             />
           </div>
 
-          {/* Filter Chips */}
-          <div className="filter-chips-section">
-            <div className="filter-row">
-              <span className="filter-label">JENIS PROGRAM:</span>
-              <div className="chips-container">
-                {jenisProgramFilters.map(prog => (
-                  <button 
-                    key={prog} 
-                    className={`chip ${activeProgram === prog ? 'active' : ''}`}
-                    onClick={() => setActiveProgram(prog)}
-                  >
-                    {prog}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            <div className="filter-row">
-              <span className="filter-label">JENIS REGULASI:</span>
-              <div className="chips-container">
-                {jenisRegulasiFilters.map(reg => (
-                  <button 
-                    key={reg} 
-                    className={`chip ${activeRegulasi.includes(reg) ? 'active' : ''}`}
-                    onClick={() => toggleRegulasi(reg)}
-                  >
-                    {reg}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
           {/* Table List */}
           <div className="bp-table-card">
             <table className="bp-table">
@@ -164,48 +135,47 @@ const BasisPengetahuan: React.FC<BasisPengetahuanProps> = ({ onLogout }) => {
                   <th>NAMA DOKUMEN</th>
                   <th>KATEGORI</th>
                   <th>TANGGAL TERBIT</th>
-                  <th>STATUS</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {mockDocuments.map((doc) => (
-                  <tr 
-                    key={doc.id} 
-                    className={selectedDoc?.id === doc.id ? 'active-row' : ''}
-                    onClick={() => setSelectedDoc(doc)}
-                  >
-                    <td>
-                      <div className="doc-title-cell">
-                        <FileText size={20} className="doc-icon-blue" />
-                        <div>
-                          <div className="doc-title-text">{doc.title}</div>
-                          <div className="doc-desc-text">{doc.description}</div>
+                {mockDocuments
+                  .filter(doc => 
+                    doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    doc.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    doc.kategori.toLowerCase().includes(searchTerm.toLowerCase())
+                  )
+                  .map((doc) => (
+                    <tr 
+                      key={doc.id} 
+                      className={selectedDoc?.id === doc.id ? 'active-row' : ''}
+                      onClick={() => setSelectedDoc(doc)}
+                    >
+                      <td>
+                        <div className="doc-title-cell">
+                          <FileText size={20} className="doc-icon-blue" />
+                          <div>
+                            <div className="doc-title-text">{doc.title}</div>
+                            <div className="doc-desc-text">{doc.description}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`kategori-badge ${doc.kategoriColorClass}`}>
-                        {doc.kategori}
-                      </span>
-                    </td>
-                    <td className="doc-date-text">{doc.tanggal}</td>
-                    <td>
-                      <div className="status-indicator">
-                        <span className={`dot ${doc.status === 'Berlaku' ? 'green' : 'gray'}`}></span>
-                        <span className={doc.status === 'Berlaku' ? 'status-green' : 'status-gray'}>{doc.status}</span>
-                      </div>
-                    </td>
-                    <td className="text-right">
-                      <ChevronRight size={18} className="text-gray-400" />
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        <span className={`kategori-badge ${doc.kategoriColorClass}`}>
+                          {doc.kategori}
+                        </span>
+                      </td>
+                      <td className="doc-date-text">{doc.tanggal}</td>
+                      <td className="text-right">
+                        <ChevronRight size={18} className="text-gray-400" />
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
             
             <div className="bp-pagination">
-              <span className="pagination-text">Menampilkan 1-4 dari 60 dokumen</span>
+              <span className="pagination-text">Menampilkan 1-6 dari 6 dokumen</span>
               <div className="pagination-actions">
                 <button className="btn-page-sm"><ChevronLeft size={16} /></button>
                 <button className="btn-page-sm"><ChevronRight size={16} /></button>
@@ -235,22 +205,6 @@ const BasisPengetahuan: React.FC<BasisPengetahuanProps> = ({ onLogout }) => {
                 <Download size={18} /> Unduh Dokumen (PDF)
               </button>
 
-              {/* Action List */}
-              <div className="panel-action-list">
-                <button className="action-list-item active-blue">
-                  <div className="icon-wrap"><Eye size={18} /></div>
-                  <span>Pratinjau Ringkasan</span>
-                </button>
-                <button className="action-list-item">
-                  <div className="icon-wrap"><History size={18} /></div>
-                  <span>Riwayat Perubahan</span>
-                </button>
-                <button className="action-list-item">
-                  <div className="icon-wrap"><Paperclip size={18} /></div>
-                  <span>Lampiran (3)</span>
-                </button>
-              </div>
-
               {/* Information Grid */}
               <div className="info-main-label">INFORMASI UTAMA</div>
               <div className="info-grid">
@@ -270,17 +224,6 @@ const BasisPengetahuan: React.FC<BasisPengetahuanProps> = ({ onLogout }) => {
                   <span className="info-item-label">UKURAN FILE</span>
                   <span className="info-item-value">{selectedDoc.size}</span>
                 </div>
-              </div>
-
-              {/* AI Summary Card */}
-              <div className="ai-summary-card">
-                <div className="ai-summary-header">
-                  <Sparkles size={16} className="ai-sparkle-icon" />
-                  <span>AI RINGKASAN CEPAT</span>
-                </div>
-                <p className="ai-summary-text">
-                  {selectedDoc.aiSummary}
-                </p>
               </div>
             </>
           )}

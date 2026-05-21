@@ -24,7 +24,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, isLoggedIn })
 };
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    return !!localStorage.getItem('access_token');
+  });
 
   const protectedPage = (component: React.ReactNode) => (
     <ProtectedRoute isLoggedIn={isLoggedIn}>
@@ -32,7 +34,12 @@ function App() {
     </ProtectedRoute>
   );
 
-  const logout = () => setIsLoggedIn(false);
+  const logout = () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('username');
+    localStorage.removeItem('role');
+    setIsLoggedIn(false);
+  };
 
   return (
     <BrowserRouter>

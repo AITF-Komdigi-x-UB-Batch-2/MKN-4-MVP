@@ -20,8 +20,8 @@ import {
 } from 'lucide-react';
 import LoadingState from '../../components/ui/LoadingState';
 import EmptyState from '../../components/ui/EmptyState';
-import { type Tahap, type AnalisisOutput, mockData } from '../../data/mockData';
-import { rawKeluargaData } from '../../data/dataKeluarga';
+import { type Tahap, type AnalisisOutput } from '../../data/mockData';
+import { apiFetch } from '../../services/api';
 import './ManajemenBantuan.css';
 
 /* ─── Types ──────────────────────────────── */
@@ -36,37 +36,7 @@ export interface DataRow extends AnalisisOutput {
   skorPKHT: number;
 }
 
-const joinedData: DataRow[] = mockData.map((output) => {
-  const keluarga = rawKeluargaData.find(k => k.id_keluarga === output.id_keluarga);
-  
-  // Assign realistic priority scores
-  let skorASPD = 50.0;
-  let skorPKHT = 50.0;
-  if (output.id_keluarga === 'FAM-001') { skorASPD = 85.4; skorPKHT = 92.1; }
-  else if (output.id_keluarga === 'FAM-002') { skorASPD = 82.1; skorPKHT = 35.0; }
-  else if (output.id_keluarga === 'FAM-003') { skorASPD = 40.5; skorPKHT = 35.2; }
-  else if (output.id_keluarga === 'FAM-004') { skorASPD = 95.2; skorPKHT = 91.0; }
-  else if (output.id_keluarga === 'FAM-005') { skorASPD = 38.0; skorPKHT = 88.0; }
-  else if (output.id_keluarga === 'FAM-006') { skorASPD = 86.4; skorPKHT = 82.1; }
-  else if (output.id_keluarga === 'FAM-007') { skorASPD = 98.5; skorPKHT = 94.2; }
-  else if (output.id_keluarga === 'FAM-008') { skorASPD = 32.3; skorPKHT = 89.4; }
-  else if (output.id_keluarga === 'FAM-009') { skorASPD = 89.1; skorPKHT = 35.0; }
-  else if (output.id_keluarga === 'FAM-010') { skorASPD = 34.0; skorPKHT = 31.5; }
-  else if (output.id_keluarga === 'FAM-011') { skorASPD = 35.5; skorPKHT = 80.2; }
-  else if (output.id_keluarga === 'FAM-012') { skorASPD = 83.0; skorPKHT = 31.5; }
-  else if (output.id_keluarga === 'FAM-013') { skorASPD = 38.0; skorPKHT = 82.5; }
-
-  return {
-    ...output,
-    nama: keluarga ? keluarga.nama_kepala_keluarga : 'Data Tidak Ditemukan',
-    nik: keluarga ? keluarga.nik_kepala_keluarga : '-',
-    wilayah: keluarga ? keluarga.nama_kabupaten_kota : '-',
-    kecamatan: keluarga ? keluarga.nama_kecamatan : '-',
-    desil: keluarga ? keluarga.desil_kesejahteraan : 0,
-    skorASPD,
-    skorPKHT,
-  };
-});
+// DataRow kini didefinisikan secara independen karena data asli berasal dari backend
 
 interface ManajemenBantuanProps {
   onLogout?: () => void;
@@ -132,7 +102,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   const [filterBantuan, setFilterBantuan] = useState('Semua');
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [data, setData] = useState<DataRow[]>(joinedData);
+  const [data, setData] = useState<DataRow[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
@@ -141,12 +111,27 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
   const [batchProgress, setBatchProgress] = useState(0);
 
-  // Simulate loading on filter/tab change & reset page
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const res = await apiFetch('/api/v1/manajemen-bantuan');
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      }
+    } catch (e) {
+      console.error("Gagal mengambil data dari server:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setIsLoading(true);
+    fetchData();
+  }, []);
+
+  useEffect(() => {
     setCurrentPage(1);
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
   }, [activeTab, searchTerm, filterStatus, filterWilayah, filterBantuan]);
 
   // Counts per tab (before search/filter)
@@ -272,15 +257,22 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   };
 
   // Actions
-  const handleAnalisis = (id: string) => {
+  const handleAnalisis = async (id: string) => {
     setAnalyzingId(id);
-    setTimeout(() => {
-      setData(prev => prev.map(d => d.id_keluarga === id 
-        ? { ...d, tahap: 'validasi' as Tahap, bantuan: d.rekomendasiBantuan || [] } 
-        : d
-      ));
+    try {
+      const res = await apiFetch('/api/v1/asesmen/sosial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keluarga_id: id })
+      });
+      if (res.ok) {
+        await fetchData(); // refresh data setelah AI selesai
+      }
+    } catch(e) {
+      console.error(e);
+    } finally {
       setAnalyzingId(null);
-    }, 2000);
+    }
   };
 
   // Batch selection helpers
@@ -312,7 +304,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     }
   };
 
-  const handleBatchAnalisis = () => {
+  const handleBatchAnalisis = async () => {
     if (selectedRows.size === 0 || isBatchAnalyzing) return;
     setIsBatchAnalyzing(true);
     setBatchProgress(0);
@@ -320,57 +312,55 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     const total = ids.length;
     let processed = 0;
 
-    const processNext = () => {
-      if (processed >= total) {
-        setIsBatchAnalyzing(false);
-        setSelectedRows(new Set());
-        setBatchProgress(0);
-        return;
+    for (const id of ids) {
+      try {
+        await apiFetch('/api/v1/asesmen/sosial', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keluarga_id: id })
+        });
+      } catch(e) {
+        console.error(e);
       }
-      const id = ids[processed];
-      setData(prev => prev.map(d => d.id_keluarga === id 
-        ? { ...d, tahap: 'validasi' as Tahap, bantuan: d.rekomendasiBantuan || [] } 
-        : d
-      ));
       processed++;
       setBatchProgress(Math.round((processed / total) * 100));
-      setTimeout(processNext, 400);
-    };
+    }
 
-    setTimeout(processNext, 300);
+    await fetchData();
+    setIsBatchAnalyzing(false);
+    setSelectedRows(new Set());
+    setBatchProgress(0);
   };
 
-
-  const handleAnalisisAll = () => {
+  const handleAnalisisAll = async () => {
     const allAnalisis = data.filter(d => d.tahap === 'analisis');
     if (allAnalisis.length === 0 || isBatchAnalyzing) return;
     const allIds = new Set(allAnalisis.map(d => d.id_keluarga));
     setSelectedRows(allIds);
-    // Trigger batch with small delay to let state update
     setIsBatchAnalyzing(true);
     setBatchProgress(0);
     const ids = Array.from(allIds);
     const total = ids.length;
     let processed = 0;
 
-    const processNext = () => {
-      if (processed >= total) {
-        setIsBatchAnalyzing(false);
-        setSelectedRows(new Set());
-        setBatchProgress(0);
-        return;
+    for (const id of ids) {
+      try {
+        await apiFetch('/api/v1/asesmen/sosial', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keluarga_id: id })
+        });
+      } catch(e) {
+        console.error(e);
       }
-      const id = ids[processed];
-      setData(prev => prev.map(d => d.id_keluarga === id 
-        ? { ...d, tahap: 'validasi' as Tahap, bantuan: d.rekomendasiBantuan || [] } 
-        : d
-      ));
       processed++;
       setBatchProgress(Math.round((processed / total) * 100));
-      setTimeout(processNext, 400);
-    };
+    }
 
-    setTimeout(processNext, 300);
+    await fetchData();
+    setIsBatchAnalyzing(false);
+    setSelectedRows(new Set());
+    setBatchProgress(0);
   };
 
   const resetFilters = () => {
@@ -419,7 +409,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   const showDesilChange = false; // Evaluasi kaku telah dihilangkan
 
   const colCount = 1 // checkbox
-    + 4
+    + 5 // id, nama, wilayah, desil
     + 2 // ASPD and PKHT columns
     + (showStageBadge ? 1 : 0)
     + (showBantuan ? 1 : 0)
@@ -553,6 +543,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                   {renderSortHeader('ID / TANGGAL', 'id')}
                   {renderSortHeader('NAMA PENERIMA', 'nama')}
                   {renderSortHeader('WILAYAH', 'wilayah')}
+                  {renderSortHeader('DESIL', 'desil')}
                   {renderSortHeader('ASPD', 'skorASPD')}
                   {renderSortHeader('PKHT', 'skorPKHT')}
                   {showStageBadge && renderSortHeader('STATUS TAHAP', 'tahap')}
@@ -609,13 +600,33 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                       {/* Nama */}
                       <td>
                         <div className="mb-cell-primary">{row.nama}</div>
-                        <div className="mb-cell-secondary">NIK: {row.nik}</div>
+                        <div className="mb-cell-secondary">
+                          NIK: {row.nik.length > 20 ? row.nik.substring(0, 20) + '...' : row.nik}
+                        </div>
                       </td>
 
                       {/* Wilayah */}
                       <td>
                         <div className="mb-cell-primary">{row.wilayah}</div>
                         <div className="mb-cell-secondary">{row.kecamatan}</div>
+                      </td>
+
+                      {/* Desil */}
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{ 
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: getDesilColor(row.desil), 
+                          fontWeight: '600',
+                          backgroundColor: getDesilColor(row.desil) === 'red' ? '#fee2e2' : getDesilColor(row.desil) === 'orange' ? '#ffedd5' : '#dcfce7',
+                          padding: '4px 12px',
+                          borderRadius: '9999px',
+                          fontSize: '13px',
+                          minWidth: '70px'
+                        }}>
+                          Desil {row.desil}
+                        </span>
                       </td>
 
                       {/* ASPD Column */}

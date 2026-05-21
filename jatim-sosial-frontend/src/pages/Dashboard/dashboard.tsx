@@ -9,8 +9,7 @@ import {
   PieChart, Pie, Cell
 } from 'recharts';
 import AdminLayout from '../../components/layout/AdminLayout';
-import { rawKeluargaData } from '../../data/dataKeluarga';
-import { mockData } from '../../data/mockData';
+import { apiFetch } from '../../services/api';
 import './Dashboard.css';
 
 interface DashboardProps {
@@ -20,15 +19,32 @@ interface DashboardProps {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#d0ed57', '#a4de6c'];
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
-  const totalData = rawKeluargaData.length;
+  const [data, setData] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await apiFetch('/api/v1/manajemen-bantuan');
+        if (res.ok) {
+          const json = await res.json();
+          setData(json);
+        }
+      } catch (err) {
+        console.error('Failed to fetch dashboard data', err);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const totalData = data.length;
 
   const countDiterima = useMemo(() => {
-    return mockData.filter(d => d.tahap === 'diterima').length;
-  }, []);
+    return data.filter(d => d.tahap === 'diterima').length;
+  }, [data]);
 
   const countDitolak = useMemo(() => {
-    return mockData.filter(d => d.tahap === 'ditolak').length;
-  }, []);
+    return data.filter(d => d.tahap === 'ditolak').length;
+  }, [data]);
 
   const approvalData = useMemo(() => {
     return [
@@ -39,14 +55,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
 
   const distributionByDecile = useMemo(() => {
     const counts: Record<string, number> = {};
-    rawKeluargaData.forEach(d => {
-      const key = `Desil ${d.desil_kesejahteraan}`;
+    data.forEach(d => {
+      const key = `Desil ${d.desil}`;
       counts[key] = (counts[key] || 0) + 1;
     });
     return Object.entries(counts)
       .map(([name, value]) => ({ name, value, decile: parseInt(name.replace('Desil ', '')) }))
       .sort((a, b) => a.decile - b.decile);
-  }, []);
+  }, [data]);
 
   return (
     <AdminLayout title="Dashboard Monitoring" onLogout={onLogout}>

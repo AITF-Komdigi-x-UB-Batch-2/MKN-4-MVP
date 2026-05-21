@@ -669,7 +669,7 @@
 .bottom-action-bar {
   position: fixed;
   bottom: 0;
-  left: 260px; /* sidebar width */
+  left: var(--sidebar-width);
   right: 0;
   height: 72px;
   background-color: white;

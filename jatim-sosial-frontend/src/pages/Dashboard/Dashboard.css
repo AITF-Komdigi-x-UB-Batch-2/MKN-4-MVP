@@ -1,4 +1,5 @@
 :root {
+  --sidebar-width: 260px;
   --sidebar-bg: #111827;
   --sidebar-active-bg: #2563eb;
   --sidebar-hover-bg: #1f2937;
@@ -33,6 +34,10 @@ body {
   color: var(--text-primary);
 }
 
+body.sidebar-collapsed {
+  --sidebar-width: 72px;
+}
+
 .dashboard-container {
   display: flex;
   height: 100vh;
@@ -42,12 +47,14 @@ body {
 
 /* Sidebar Styling */
 .sidebar {
-  width: 260px;
+  width: var(--sidebar-width);
   background-color: var(--sidebar-bg);
   color: white;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  transition: width 0.3s ease;
+  position: relative;
 }
 
 .sidebar-header {
@@ -142,6 +149,46 @@ body {
   color: var(--red-primary);
 }
 
+/* Sidebar Collapsed Styles */
+body.sidebar-collapsed .sidebar-title, 
+body.sidebar-collapsed .sidebar-nav span, 
+body.sidebar-collapsed .logout-btn span {
+  display: none;
+}
+
+body.sidebar-collapsed .sidebar-header {
+  padding: 24px 0;
+  justify-content: center;
+}
+
+body.sidebar-collapsed .sidebar-nav li {
+  justify-content: center;
+  padding: 12px;
+}
+
+.toggle-sidebar-btn {
+  position: absolute;
+  right: -12px;
+  top: 32px;
+  width: 24px;
+  height: 24px;
+  background-color: var(--blue-primary);
+  color: white;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 100;
+  padding: 0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.toggle-sidebar-btn:hover {
+  background-color: #1d4ed8;
+}
+
 /* Main Layout Wrapper */
 .main-wrapper {
   flex: 1;
@@ -169,10 +216,29 @@ body {
   color: var(--text-primary);
 }
 
-.user-profile {
+/* Wrapper untuk dropdown */
+.user-profile-wrapper {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
+}
+
+/* Tombol clickable untuk buka dropdown */
+.user-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.user-profile-btn:hover {
+  background-color: #f3f4f6;
+  border-color: #e5e7eb;
 }
 
 .user-info {
@@ -184,24 +250,159 @@ body {
 .user-name {
   font-size: 14px;
   font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
 }
 
-.user-role {
-  font-size: 11px;
-  color: var(--blue-primary);
-  background-color: var(--blue-light);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 500;
+/* ── Pill badge sama persis seperti di halaman Pengaturan ── */
+.header-role-badge {
+  display: inline-flex;
+  padding: 2px 9px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   margin-top: 2px;
 }
 
+.badge-role-admin {
+  background-color: #dcfce7;
+  color: #16a34a;
+}
+
+.badge-role-analyst {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+}
+
 .user-avatar {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background-color: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: #4b5563;
+  flex-shrink: 0;
 }
+
+.avatar-admin-header {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: white;
+}
+
+.avatar-initials {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.dropdown-chevron {
+  color: #9ca3af;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.dropdown-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+/* ── Dropdown menu ─────────────────────────────────────────── */
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+  min-width: 220px;
+  z-index: 500;
+  animation: fadeIn 0.15s ease-out;
+  overflow: hidden;
+}
+
+.profile-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background-color: #f8fafc;
+}
+
+.dropdown-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background-color: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #4b5563;
+  flex-shrink: 0;
+}
+
+.dropdown-username {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 3px;
+}
+
+.profile-dropdown-divider {
+  height: 1px;
+  background-color: #e5e7eb;
+}
+
+.profile-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.profile-dropdown-item:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+/* ── Header Toast ──────────────────────────────────────────── */
+.header-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+  animation: slideDown 0.25s ease-out;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-12px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
 
 /* Main Content Area */
 .main-content {
@@ -405,7 +606,7 @@ body {
 
 @media (max-width: 768px) {
   .sidebar {
-    width: 64px;
+    width: 72px; /* override instead of 64px to match collapsed */
   }
   .sidebar-title, .sidebar-nav span, .logout-btn span {
     display: none;

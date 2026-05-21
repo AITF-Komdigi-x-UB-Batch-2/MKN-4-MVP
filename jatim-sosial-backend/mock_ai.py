@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Body
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+import os
 
 # Load environment variables
 load_dotenv()
@@ -149,14 +150,18 @@ async def mock_jalur_sosial(data_warga: dict = Body(...)):
         return {
             "status": "success",
             "rekomendasi_bantuan": rekomendasi,
-            "justifikasi_dokumen": f"KK: {nomor_kk} → {alasan_lengkap} (Menggunakan Analisis Cadangan)"
+            "justifikasi_dokumen": f"KK: {nomor_kk} → {alasan_lengkap} (Menggunakan Analisis Cadangan)",
+            "skor_aspd": round(random.uniform(20.0, 95.0), 2),
+            "skor_pkh_plus": round(random.uniform(20.0, 95.0), 2)
         }
 
     # Kembalikan respon dari AI sesungguhnya
     return {
         "status": hasil_ai.get("status", "success"),
         "rekomendasi_bantuan": hasil_ai.get("rekomendasi_bantuan", ["Monitoring Sosial"]),
-        "justifikasi_dokumen": f"KK: {nomor_kk} → {hasil_ai.get('justifikasi_dokumen', 'Analisis AI selesai.')}"
+        "justifikasi_dokumen": f"KK: {nomor_kk} → {hasil_ai.get('justifikasi_dokumen', 'Analisis AI selesai.')}",
+        "skor_aspd": hasil_ai.get("skor_aspd", round(random.uniform(20.0, 95.0), 2)),
+        "skor_pkh_plus": hasil_ai.get("skor_pkh_plus", round(random.uniform(20.0, 95.0), 2))
     }
 
 

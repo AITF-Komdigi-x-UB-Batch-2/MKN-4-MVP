@@ -14,7 +14,7 @@ from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 import models
 import schemas
-from database import engine, get_db
+from database import engine, get_db, SessionLocal
 import csv
 import io
 import uvicorn
@@ -101,6 +101,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+def seed_admin_user():
+    db = SessionLocal()
+    try:
+        admin = db.query(models.User).filter_by(username="admin_jatim").first()
+        if not admin:
+            admin = models.User(
+                email="admin@dinsos.go.id",
+                username="admin_jatim",
+                password_hash=get_password_hash("admin123"),
+                role="ADMIN",
+                is_active=True
+            )
+            db.add(admin)
+            db.commit()
+            print("[Seeder] Akun admin_jatim berhasil dibuat.")
+        else:
+            # Pastikan akun admin lama punya role ADMIN
+            if admin.role != "ADMIN":
+                admin.role = "ADMIN"
+                db.commit()
+            print("[Seeder] Akun admin_jatim sudah tersedia.")
+    except Exception as e:
+        print(f"[Seeder] Error seeding admin: {e}")
+    finally:
+        db.close()
+
 AI_BASE_URL = os.getenv("AI_BASE_URL", "http://127.0.0.1:8001")
 
 # BAGIAN 5: DEPENDENCY — PENJAGA PINTU AUTENTIKASI
@@ -123,7 +150,7 @@ async def get_current_user(
     return user
 
 # BAGIAN 6: ENDPOINT AUTENTIKASI
-@app.post("/auth/register", tags=["Auth"], summary="Registrasi user baru atau login jika sudah ada")
+@app.post("/auth/register", tags=["Auth"], summary="Registrasi user baru (publik, untuk kebutuhan dev/debug saja)")
 def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
 
     user_exist = db.query(models.User).filter(models.User.username == payload.username).first()
@@ -146,7 +173,8 @@ def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
     new_user = models.User(
         username=payload.username,
         email=payload.email,
-        password_hash=get_password_hash(payload.password)
+        password_hash=get_password_hash(payload.password),
+        role=payload.role
     )
     db.add(new_user)
     db.commit()
@@ -159,6 +187,125 @@ def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
         "email": new_user.email,
         "action": "login"
     }
+
+# BAGIAN 6b: MANAJEMEN USER (ADMIN ONLY)
+@app.get(
+    "/api/v1/users",
+    tags=["5. Manajemen User"],
+    summary="Ambil daftar semua pengguna sistem (hanya admin)",
+    response_model=List[schemas.UserResponse]
+)
+def get_users(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    users = db.query(models.User).order_by(models.User.dibuat_pada.asc()).all()
+    return users
+
+@app.post(
+    "/api/v1/users",
+    tags=["5. Manajemen User"],
+    summary="Buat pengguna baru (hanya admin)",
+    response_model=schemas.UserResponse,
+    status_code=201
+)
+def create_user(
+    payload: schemas.UserCreate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Hanya admin yang bisa menambah pengguna baru.")
+
+    if db.query(models.User).filter(models.User.username == payload.username).first():
+        raise HTTPException(status_code=409, detail=f"Username '{payload.username}' sudah digunakan.")
+
+    if db.query(models.User).filter(models.User.email == payload.email).first():
+        raise HTTPException(status_code=409, detail=f"Email '{payload.email}' sudah terdaftar.")
+
+    # Admin hanya boleh membuat akun ANALIS, bukan ADMIN lain
+    if payload.role != "ANALIS":
+        raise HTTPException(status_code=403, detail="Admin hanya bisa membuat akun dengan role ANALIS.")
+
+    new_user = models.User(
+        username=payload.username,
+        email=payload.email,
+        password_hash=get_password_hash(payload.password),
+        role="ANALIS",
+        is_active=True
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+@app.delete(
+    "/api/v1/users/{user_id}",
+    tags=["5. Manajemen User"],
+    summary="Hapus pengguna dari sistem (hanya admin)"
+)
+def delete_user(
+    user_id: UUID,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Hanya admin yang bisa menghapus pengguna.")
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Pengguna tidak ditemukan.")
+
+    # Tidak bisa menghapus akun sendiri
+    if str(user.id) == str(current_user.id):
+        raise HTTPException(status_code=400, detail="Tidak dapat menghapus akun Anda sendiri.")
+
+    # Tidak bisa menghapus akun ADMIN lain
+    if user.role == "ADMIN":
+        raise HTTPException(status_code=403, detail="Tidak dapat menghapus akun dengan role ADMIN.")
+
+    db.delete(user)
+    db.commit()
+    return {"status": "Sukses", "pesan": f"Pengguna '{user.username}' berhasil dihapus."}
+
+@app.patch(
+    "/api/v1/users/{user_id}",
+    tags=["5. Manajemen User"],
+    summary="Update status aktif atau role pengguna (hanya admin)",
+    response_model=schemas.UserResponse
+)
+def update_user(
+    user_id: UUID,
+    is_active: bool = None,
+    role: str = None,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Hanya admin yang bisa mengubah data pengguna.")
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Pengguna tidak ditemukan.")
+
+    # Tidak boleh mengubah status diri sendiri via endpoint ini
+    if str(user.id) == str(current_user.id):
+        raise HTTPException(status_code=400, detail="Gunakan endpoint /api/v1/users/me untuk mengubah profil Anda sendiri.")
+
+    if is_active is not None:
+        user.is_active = is_active
+    if role is not None:
+        # Role hanya bisa diubah ke ANALIS, tidak ke ADMIN
+        if role == "ADMIN":
+            raise HTTPException(status_code=403, detail="Tidak dapat mengubah role pengguna menjadi ADMIN.")
+        if role != "ANALIS":
+            raise HTTPException(status_code=400, detail="Role hanya bisa diubah ke ANALIS.")
+        user.role = role
+
+    db.commit()
+    db.refresh(user)
+    return user
+
 
 @app.post("/auth/login", tags=["Auth"], summary="Login dan dapatkan token JWT")
 async def login(
@@ -174,8 +321,60 @@ async def login(
     return {
         "access_token": token,
         "token_type": "bearer",
-        "username": user.username
+        "username": user.username,
+        "role": user.role
     }
+
+# BAGIAN 6c: PROFIL DIRI SENDIRI
+@app.get(
+    "/api/v1/users/me",
+    tags=["5. Manajemen User"],
+    summary="Ambil profil akun yang sedang login",
+    response_model=schemas.UserResponse
+)
+def get_my_profile(
+    current_user: models.User = Depends(get_current_user),
+):
+    return current_user
+
+@app.put(
+    "/api/v1/users/me",
+    tags=["5. Manajemen User"],
+    summary="Edit profil akun sendiri (username, email, password)",
+    response_model=schemas.UserResponse
+)
+def update_my_profile(
+    payload: schemas.UpdateProfileRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Cek konflik username
+    if payload.username and payload.username != current_user.username:
+        if db.query(models.User).filter(models.User.username == payload.username).first():
+            raise HTTPException(status_code=409, detail=f"Username '{payload.username}' sudah digunakan.")
+        current_user.username = payload.username
+
+    # Cek konflik email
+    if payload.email and payload.email != current_user.email:
+        if db.query(models.User).filter(models.User.email == payload.email).first():
+            raise HTTPException(status_code=409, detail=f"Email '{payload.email}' sudah terdaftar.")
+        current_user.email = payload.email
+
+    # Update password jika diberikan
+    if payload.new_password:
+        if len(payload.new_password) < 6:
+            raise HTTPException(status_code=400, detail="Password baru minimal 6 karakter.")
+        current_user.password_hash = get_password_hash(payload.new_password)
+
+    db.commit()
+    db.refresh(current_user)
+
+    # Buat token baru jika username berubah
+    new_token = None
+    if payload.username and payload.username != current_user.username:
+        new_token = create_access_token(data={"sub": current_user.username})
+
+    return current_user
 
 def execute_asesmen_sosial_logic(keluarga_id: UUID, user_id: UUID, db: Session):
     keluarga = db.query(models.Keluarga).filter(models.Keluarga.id == keluarga_id).first()
@@ -223,6 +422,9 @@ def execute_asesmen_sosial_logic(keluarga_id: UUID, user_id: UUID, db: Session):
 
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
+        hitung.skor_aspd = hasil_final.get("skor_aspd", 0.0)
+        hitung.skor_pkht = hasil_final.get("skor_pkh_plus", hasil_final.get("skor_pkht", 0.0))
+        hitung.status_validasi = "analisis"
 
         log = models.LogHistori(
             keluarga_id=keluarga.id,
@@ -296,17 +498,66 @@ async def import_csv(
     di_skip = 0
     log_foto = [] # Menampung status sukses/gagal upload foto
 
+    # Mapping dari header CSV/Excel DTKS Alvin ke kolom Database
+    MAPPING_DTKS = {
+        "no_kk": "nomor_kartu_keluarga",
+        "nama": "nama_anggota_keluarga",
+        "pbi": "pbi_nas",
+        "id_status_penguasaan_bangunan": "status_kepemilikan_rumah",
+        "id_lantai_terluas": "jenis_lantai_terluas",
+        "luas_lantai_bangunan": "luas_lantai",
+        "id_dinding_terluas": "jenis_dinding_terluas",
+        "id_atap_terluas": "jenis_atap_terluas",
+        "id_sumber_airminum": "sumber_air_minum_utama",
+        "id_sumberpenerangan": "sumber_penerangan_utama",
+        "id_bb_utama": "bahan_bakar_utama_memasak",
+        "id_fasilitas_bab": "fasilitas_bab",
+        "id_jenis_kloset": "jenis_kloset",
+        "id_pembuangan_tinja": "pembuangan_akhir_tinja",
+        "lahan_tempat_lain": "aset_tidak_bergerak_lahan_lainnya",
+        "rumah_tempat_lain": "aset_tidak_bergerak_rumah_lainnya",
+        "jml_sapi": "jumlah_ternak_sapi",
+        "jml_kerbau": "jumlah_ternak_kerbau",
+        "jml_kuda": "jumlah_ternak_kuda",
+        "jml_babi": "jumlah_ternak_babi",
+        "jml_kambing_domba": "jumlah_ternak_kambing_domba",
+        "Foto_Rumah": "url_foto_rumah",
+        "foto_rumah": "url_foto_rumah",
+        "url_foto_rumah": "url_foto_rumah",
+        "Foto_rumah": "url_foto_rumah",
+        "FOTO_RUMAH": "url_foto_rumah",
+        "lokasi_foto_rumah": "url_foto_rumah",
+        "Lokasi_Foto_Rumah": "url_foto_rumah",
+        "LOKASI_FOTO_RUMAH": "url_foto_rumah",
+        "foto_rumah_tampak_dalam": "foto_rumah_tampak_dalam",
+        "Foto_rumah_tampak_dalam": "foto_rumah_tampak_dalam",
+        "Foto_Rumah_Tampak_Dalam": "foto_rumah_tampak_dalam",
+        "FOTO_RUMAH_TAMPAK_DALAM": "foto_rumah_tampak_dalam",
+        "lokasi_foto_rumah_tampak_dalam": "foto_rumah_tampak_dalam",
+        "Lokasi_Foto_Rumah_Tampak_Dalam": "foto_rumah_tampak_dalam",
+        "LOKASI_FOTO_RUMAH_TAMPAK_DALAM": "foto_rumah_tampak_dalam"
+    }
+
     async with httpx.AsyncClient() as client:
-        for row in reader:
+        for idx_row, raw_row in enumerate(reader):
             try:
+                # Terjemahkan key dari format CSV Alvin ke format DB
+                row = {}
+                for k, v in raw_row.items():
+                    if k:
+                        db_key = MAPPING_DTKS.get(str(k).strip(), str(k).strip())
+                        row[db_key] = v
+
                 no_kk_row = row.get("nomor_kartu_keluarga")
                 if not no_kk_row:
                     di_skip += 1
+                    log_foto.append(f"Baris {idx_row + 1} di-skip: 'nomor_kartu_keluarga' kosong. Header terdeteksi: {list(row.keys())[:5]}")
                     continue
 
                 # --- MENGGUNAKAN METODE POP ---
-                # Mengambil URL dan menghapusnya dari dictionary row
+                # Mengambil URL dari kedua kolom foto dan menghapusnya dari dictionary row
                 raw_urls = row.pop("url_foto_rumah", "")
+                raw_urls_dalam = row.pop("foto_rumah_tampak_dalam", "")
 
                 # 1. Bersihkan Data Keluarga
                 data_bersih = {}
@@ -360,6 +611,8 @@ async def import_csv(
                         setattr(keluarga_lama, k, v)
                     keluarga_diproses = keluarga_lama
                     
+                    db.flush() # Amankan ID sebelum memanggil background task
+
                     # Jadwalkan ulang analisis sosial di latar belakang
                     background_tasks.add_task(
                         run_async_assessment,
@@ -371,21 +624,26 @@ async def import_csv(
                     db.add(keluarga_baru)
                     keluarga_diproses = keluarga_baru
 
+                    db.flush() # Amankan ID sebelum memanggil background task
+
                     # Jadwalkan analisis sosial pertama kali untuk keluarga baru
                     background_tasks.add_task(
                         run_async_assessment,
                         keluarga_diproses.id,
                         current_user.id
                     )
-                
-                db.flush() # Amankan ID untuk tabel foto
 
                 # 3. PROSES URL FOTO (Download ke MinIO)
-                if not raw_urls:
-                    log_foto.append(f"KK {no_kk_row}: Kolom 'url_foto_rumah' kosong/tidak ditemukan.")
+                all_urls = []
+                if raw_urls:
+                    all_urls.extend([u.strip(" []\"'") for u in str(raw_urls).split(",") if u.strip(" []\"'")])
+                if raw_urls_dalam:
+                    all_urls.extend([u.strip(" []\"'") for u in str(raw_urls_dalam).split(",") if u.strip(" []\"'")])
+
+                if not all_urls:
+                    log_foto.append(f"KK {no_kk_row}: Kolom foto rumah dan tampak dalam kosong/tidak ditemukan.")
                 else:
-                    list_url = [u.strip() for u in raw_urls.split(",") if u.strip()]
-                    for index, original_url in enumerate(list_url):
+                    for index, original_url in enumerate(all_urls):
                         try:
                             foto_ada = db.query(models.Foto).filter(
                                 models.Foto.keluarga_id == keluarga_diproses.id,
@@ -547,7 +805,132 @@ async def asesmen_visual(
         db.rollback()
         raise HTTPException(status_code=502, detail=f"Gagal menghubungi server Tim 2: {str(e)}")
 
-# BAGIAN 10: ENDPOINT READ DATA (GET)
+# BAGIAN 10: ENDPOINT MANAJEMEN BANTUAN (FRONTEND)
+@app.get(
+    "/api/v1/manajemen-bantuan",
+    tags=["4. Read Data"],
+    summary="Ambil data gabungan Keluarga dan Perhitungan AI untuk tabel Manajemen Bantuan",
+    response_model=List[schemas.ManajemenBantuanResponse]
+)
+async def get_manajemen_bantuan(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    results = db.query(models.Keluarga, models.Perhitungan).outerjoin(
+        models.Perhitungan, models.Keluarga.id == models.Perhitungan.keluarga_id
+    ).all()
+
+    response_data = []
+    for k, p in results:
+        tahap_ui = p.status_validasi if p and p.status_validasi else "analisis"
+        bantuan_list = p.rekomendasi_bantuan if p and p.rekomendasi_bantuan else []
+        
+        row = schemas.ManajemenBantuanResponse(
+            id_keluarga=str(k.id),
+            idLabel=f"ANL-{str(k.id)[:5].upper()}",
+            tanggal=datetime.now().strftime("%d %b %Y"),
+            nama=k.nama_anggota_keluarga or "-",
+            nik=k.nomor_kartu_keluarga or "-",
+            wilayah=k.kabupaten_kota or "-",
+            kecamatan=k.kecamatan or "-",
+            desil=k.desil_nasional or 0,
+            skorASPD=p.skor_aspd if p and p.skor_aspd else 0.0,
+            skorPKHT=p.skor_pkht if p and p.skor_pkht else 0.0,
+            tahap=tahap_ui,
+            bantuan=bantuan_list,
+            rekomendasiBantuan=bantuan_list,
+            skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd else 0.0), # Dummy inversion for sorting
+            aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI."
+        )
+        response_data.append(row)
+        
+    return response_data
+
+@app.get(
+    "/api/v1/manajemen-bantuan/{id_keluarga}",
+    response_model=schemas.DetailKeluargaResponse,
+    tags=["4. Read Data"],
+    summary="Ambil detail lengkap satu keluarga untuk halaman DetailHasil"
+)
+async def get_detail_manajemen_bantuan(
+    id_keluarga: UUID,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    k = db.query(models.Keluarga).filter(models.Keluarga.id == id_keluarga).first()
+    if not k:
+        raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
+        
+    p = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == id_keluarga).first()
+    f = db.query(models.Foto).filter(models.Foto.keluarga_id == id_keluarga).order_by(models.Foto.diunggah_pada.desc()).first()
+    fotos = db.query(models.Foto).filter(models.Foto.keluarga_id == id_keluarga).order_by(models.Foto.diunggah_pada.asc()).all()
+    
+    tahap_ui = p.status_validasi if p and p.status_validasi else "analisis"
+    bantuan_list = p.rekomendasi_bantuan if p and p.rekomendasi_bantuan else []
+    
+    return schemas.DetailKeluargaResponse(
+        id_keluarga=str(k.id),
+        idLabel=f"ANL-{str(k.id)[:5].upper()}",
+        tanggal=datetime.now().strftime("%d %b %Y"),
+        nama=k.nama_anggota_keluarga or "-",
+        nik=k.nomor_kartu_keluarga or "-",
+        wilayah=k.kabupaten_kota or "-",
+        kecamatan=k.kecamatan or "-",
+        desil=k.desil_nasional or 0,
+        skorASPD=p.skor_aspd if p and p.skor_aspd else 0.0,
+        skorPKHT=p.skor_pkht if p and p.skor_pkht else 0.0,
+        tahap=tahap_ui,
+        bantuan=bantuan_list,
+        rekomendasiBantuan=bantuan_list,
+        skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd else 0.0),
+        
+        atap=k.jenis_atap_terluas or 0,
+        dinding=k.jenis_dinding_terluas or 0,
+        lantai=k.jenis_lantai_terluas or 0,
+        
+        url_foto=f.url_foto if f else None,
+        foto_urls=[foto.url_foto for foto in fotos if foto.url_foto],
+        visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian_visual is not None else None,
+        visual_reasoning=p.reasoning_tim2 if p else None,
+        catatan=p.catatan_petugas if p else None,
+        catatan_supervisor=p.catatan_supervisor if p else None,
+        
+        aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI."
+    )
+
+@app.put(
+    "/api/v1/manajemen-bantuan/{id_keluarga}/status",
+    tags=["Manajemen Bantuan"],
+    summary="Update status validasi dan rekomendasi bantuan",
+    response_model=schemas.DetailKeluargaResponse
+)
+async def update_status_validasi(
+    id_keluarga: UUID,
+    request: schemas.UpdateStatusValidasiRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    p = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == id_keluarga).first()
+    if not p:
+        p = models.Perhitungan(keluarga_id=id_keluarga)
+        db.add(p)
+    
+    if request.status_validasi:
+        p.status_validasi = request.status_validasi
+        
+    if request.bantuan is not None:
+        p.rekomendasi_bantuan = request.bantuan
+        
+    if request.catatan is not None:
+        p.catatan_petugas = request.catatan
+        
+    if request.catatan_supervisor is not None:
+        p.catatan_supervisor = request.catatan_supervisor
+        
+    db.commit()
+    return await get_detail_manajemen_bantuan(id_keluarga, current_user, db)
+
+# BAGIAN 11: ENDPOINT READ DATA (GET)
 @app.get(
     "/api/v1/keluarga",
     tags=["4. Read Data"],
@@ -579,16 +962,17 @@ async def get_keluarga(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    keluarga = db.query(models.Keluarga).filter(models.Keluarga.id == keluarga_id).first()
+    if not keluarga:
+        raise HTTPException(status_code=404, detail="Keluarga tidak ditemukan")
+
     foto_terbaru = db.query(models.Foto).filter(
         models.Foto.keluarga_id == keluarga_id
     ).order_by(models.Foto.diunggah_pada.desc()).first()
     
     url_public = foto_terbaru.url_foto if foto_terbaru else None
 
-    return {
-        "keluarga": schemas.KeluargaResponse.from_orm(keluarga),
-        "foto_url_public": url_public
-    }
+    return schemas.KeluargaResponse.from_orm(keluarga)
 
 @app.get(
     "/api/v1/keluarga/{keluarga_id}/histori",

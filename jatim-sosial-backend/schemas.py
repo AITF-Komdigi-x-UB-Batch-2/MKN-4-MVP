@@ -6,57 +6,58 @@ from datetime import datetime
 # Schema untuk response
 class KeluargaResponse(BaseModel):
     id: UUID
-    kode_provinsi: str
-    provinsi: str
-    kode_kabupaten_kota: str
-    kabupaten_kota: str
-    kode_kecamatan: str
-    kecamatan: str
-    kode_kelurahan_desa: str
-    kelurahan_desa: str
-    alamat: str
+    kode_provinsi: Optional[str] = None
+    provinsi: Optional[str] = None
+    kode_kabupaten_kota: Optional[str] = None
+    kabupaten_kota: Optional[str] = None
+    kode_kecamatan: Optional[str] = None
+    kecamatan: Optional[str] = None
+    kode_kelurahan_desa: Optional[str] = None
+    kelurahan_desa: Optional[str] = None
+    alamat: Optional[str] = None
     nomor_kartu_keluarga: str
-    jumlah_anggota_keluarga: int
-    nama_anggota_keluarga: str
-    pbi_nas: bool
-    pbi_pemda: bool
+    jumlah_anggota_keluarga: Optional[int] = None
+    nama_anggota_keluarga: Optional[str] = None
+    pbi_nas: Optional[bool] = None
+    pbi_pemda: Optional[bool] = None
     id_pelanggan_pln: Optional[str] = None
-    status_kepemilikan_rumah: int
-    jenis_lantai_terluas: int
-    luas_lantai: int
-    jenis_dinding_terluas: int
-    jenis_atap_terluas: int
-    sumber_air_minum_utama: int
-    sumber_penerangan_utama: int
-    daya_terpasang: int
-    bahan_bakar_utama_memasak: int
-    fasilitas_bab: int
-    jenis_kloset: int
-    pembuangan_akhir_tinja: int
-    kepemilikan_aset: bool
-    aset_bergerak_tabung_gas: bool
-    aset_bergerak_lemari_es: bool
-    aset_bergerak_ac: bool
-    aset_bergerak_pemanas_air: bool
-    aset_bergerak_telepon_rumah: bool
-    aset_bergerak_tv_datar: bool
-    aset_bergerak_emas_perhiasan: bool
-    aset_bergerak_komputer_laptop_tablet: bool
-    aset_bergerak_sepeda_motor: bool
-    aset_bergerak_sepeda: bool
-    aset_bergerak_mobil: bool
-    aset_bergerak_perahu: bool
-    aset_bergerak_kapal_perahu_motor: bool
-    aset_bergerak_smartphone: bool
-    aset_tidak_bergerak_lahan_lainnya: bool
-    aset_tidak_bergerak_rumah_lainnya: bool
-    jumlah_ternak_sapi: int
-    jumlah_ternak_kerbau: int
-    jumlah_ternak_kuda: int
-    jumlah_ternak_babi: int
-    jumlah_ternak_kambing_domba: int
+    status_kepemilikan_rumah: Optional[int] = None
+    jenis_lantai_terluas: Optional[int] = None
+    luas_lantai: Optional[int] = None
+    jenis_dinding_terluas: Optional[int] = None
+    jenis_atap_terluas: Optional[int] = None
+    sumber_air_minum_utama: Optional[int] = None
+    sumber_penerangan_utama: Optional[int] = None
+    daya_terpasang: Optional[int] = None
+    bahan_bakar_utama_memasak: Optional[int] = None
+    fasilitas_bab: Optional[int] = None
+    jenis_kloset: Optional[int] = None
+    pembuangan_akhir_tinja: Optional[int] = None
+    kepemilikan_aset: Optional[bool] = None
+    aset_bergerak_tabung_gas: Optional[bool] = None
+    aset_bergerak_lemari_es: Optional[bool] = None
+    aset_bergerak_ac: Optional[bool] = None
+    aset_bergerak_pemanas_air: Optional[bool] = None
+    aset_bergerak_telepon_rumah: Optional[bool] = None
+    aset_bergerak_tv_datar: Optional[bool] = None
+    aset_bergerak_emas_perhiasan: Optional[bool] = None
+    aset_bergerak_komputer_laptop_tablet: Optional[bool] = None
+    aset_bergerak_sepeda_motor: Optional[bool] = None
+    aset_bergerak_sepeda: Optional[bool] = None
+    aset_bergerak_mobil: Optional[bool] = None
+    aset_bergerak_perahu: Optional[bool] = None
+    aset_bergerak_kapal_perahu_motor: Optional[bool] = None
+    aset_bergerak_smartphone: Optional[bool] = None
+    aset_tidak_bergerak_lahan_lainnya: Optional[bool] = None
+    aset_tidak_bergerak_rumah_lainnya: Optional[bool] = None
+    jumlah_ternak_sapi: Optional[int] = None
+    jumlah_ternak_kerbau: Optional[int] = None
+    jumlah_ternak_kuda: Optional[int] = None
+    jumlah_ternak_babi: Optional[int] = None
+    jumlah_ternak_kambing_domba: Optional[int] = None
     skor: Optional[int] = None
     desil_nasional: Optional[int] = None
+
 
     class Config:
         from_attributes = True
@@ -78,7 +79,82 @@ class PerhitunganResponse(BaseModel):
 class TriggerAsesmenRequest(BaseModel):
     keluarga_id: UUID
 
+class UpdateStatusValidasiRequest(BaseModel):
+    status_validasi: str
+    bantuan: Optional[List[str]] = None
+    catatan: Optional[str] = None
+    catatan_supervisor: Optional[str] = None
+
 class UserCreate(BaseModel):
-    email: str = Field(..., example="admin@dinsos.go.id")
-    username: str = Field(..., example="admin_jatim")
-    password: str = Field(..., example="admin123")
+    email: str = Field(..., example="analis@dinsos.go.id")
+    username: str = Field(..., example="analis_jatim")
+    password: str = Field(..., example="password123")
+    role: str = Field(default="ANALIS", example="ANALIS")
+
+class UserResponse(BaseModel):
+    id: UUID
+    username: str
+    email: str
+    role: str
+    is_active: bool
+    dibuat_pada: datetime
+
+    class Config:
+        from_attributes = True
+
+class UpdateProfileRequest(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    new_password: Optional[str] = None
+
+class ManajemenBantuanResponse(BaseModel):
+    id_keluarga: str
+    idLabel: str
+    tanggal: str
+    nama: str
+    nik: str
+    wilayah: str
+    kecamatan: str
+    desil: int
+    skorASPD: float
+    skorPKHT: float
+    tahap: str
+    bantuan: list[str]
+    rekomendasiBantuan: list[str]
+    skorKesejahteraan: float
+    aiReasoning: str
+
+    class Config:
+        from_attributes = True
+
+class DetailKeluargaResponse(BaseModel):
+    id_keluarga: str
+    idLabel: str
+    tanggal: str
+    nama: str
+    nik: str
+    wilayah: str
+    kecamatan: str
+    desil: int
+    skorKesejahteraan: float
+    tahap: str
+    bantuan: list[str]
+    rekomendasiBantuan: list[str]
+    skorASPD: float
+    skorPKHT: float
+    
+    # Material
+    atap: int
+    dinding: int
+    lantai: int
+
+    # AI visual
+    url_foto: Optional[str] = None
+    foto_urls: list[str] = []
+    visual_match: Optional[bool] = None
+    visual_reasoning: Optional[str] = None
+    catatan: Optional[str] = None
+    catatan_supervisor: Optional[str] = None
+
+    # AI Tim 3
+    aiReasoning: str

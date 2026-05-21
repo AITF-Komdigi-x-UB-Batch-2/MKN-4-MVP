@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import './AnalisisBaru.css';
 import { useState } from 'react';
+import { apiFetch } from '../../services/api';
 
 interface AnalisisBaruProps {
   onLogout?: () => void;
@@ -48,14 +49,15 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
       const formData = new FormData();
       formData.append('file', uploadedFile);
 
-      // const response = await fetch('http://localhost:8000/api/import', {
-      //   method: 'POST',
-      //   body: formData,
-      // });
+      const response = await apiFetch('/api/v1/import-csv', {
+        method: 'POST',
+        body: formData,
+      });
 
-      // if (!response.ok) {
-      //   throw new Error('Upload gagal');
-      // }
+      if (!response.ok) {
+        throw new Error('Upload gagal, silakan coba lagi');
+      }
+
       // Navigasi ke ManajemenBantuan setelah upload berhasil
       navigate('/manajemen-bantuan');
     } catch (error) {

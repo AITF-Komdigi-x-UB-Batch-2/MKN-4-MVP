@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, SmallInteger, JSON, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, SmallInteger, JSON, DateTime, Text, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from database import Base
@@ -13,12 +13,15 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     email = Column(String, unique=True, index=True)
     password_hash = Column(String)
+    role = Column(String(20), default="ANALIS", nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    dibuat_pada = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 # --- TABEL 2: KELUARGA (MASTER DATA) ---
 class Keluarga(Base):
     __tablename__ = "keluarga"
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    nomor_kartu_keluarga = Column(String(16), nullable=False, index=True)
+    nomor_kartu_keluarga = Column(String(100), nullable=False, index=True)
     periode              = Column(String(10), nullable=True, index=True)
     kode_provinsi           = Column(String(10))
     provinsi                = Column(String(100))
@@ -143,10 +146,13 @@ class Perhitungan(Base):
     reasoning_tim1   = Column(Text, nullable=True)
     desil_kemiskinan = Column(String(5), nullable=True)
     skor_prioritas   = Column(Integer, nullable=True)
+    skor_aspd        = Column(Float, nullable=True)
+    skor_pkht        = Column(Float, nullable=True)
     reasoning_tim3      = Column(Text, nullable=True)
     rekomendasi_bantuan = Column(JSONB, nullable=True)
     status_validasi = Column(String(20), default="Menunggu", nullable=False)
     catatan_petugas = Column(String(500), nullable=True)
+    catatan_supervisor = Column(String(500), nullable=True)
 
 # --- TABEL 5: FOTO RUMAH (MENGHUBUNGKAN KELUARGA DENGAN FOTO) ---
 class Foto(Base):

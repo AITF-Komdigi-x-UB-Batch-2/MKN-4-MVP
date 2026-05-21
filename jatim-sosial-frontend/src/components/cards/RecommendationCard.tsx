@@ -83,7 +83,9 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
 
       <div className="flex-between mb-2">
         <h4 className="rec-title">{data.title}</h4>
-        <span className="match-text">Skor Bantuan: {(data.match / 100).toFixed(3)}</span>
+        {(data.id === 'PKHT' || data.id === 'ASPD') && (
+          <span className="match-text">Skor Bantuan: {(data.match / 100).toFixed(3)}</span>
+        )}
       </div>
 
       {data.isReceived && (
