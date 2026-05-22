@@ -16,7 +16,7 @@ interface ValidasiProps {
   onLogout?: () => void;
 }
 
-type VerificationStatus = 'perlu_tindakan' | 'menunggu' | 'selesai' | 'ditolak';
+type VerificationStatus = 'perlu_tindakan' | 'selesai' | 'ditolak';
 
 interface MockData {
   id: string;
@@ -139,14 +139,7 @@ const Validasi: React.FC<ValidasiProps> = ({ onLogout }) => {
             <span style={{display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444', marginRight: '8px'}}></span>
             Perlu Tindakan
           </button>
-          <button 
-            className={`tab-item ${activeTab === 'menunggu' ? 'active' : ''}`}
-            onClick={() => setActiveTab('menunggu')}
-            disabled={isLoading}
-          >
-            <span style={{display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#eab308', marginRight: '8px'}}></span>
-            Menunggu Verifikasi
-          </button>
+
           <button 
             className={`tab-item ${activeTab === 'selesai' ? 'active' : ''}`}
             onClick={() => setActiveTab('selesai')}

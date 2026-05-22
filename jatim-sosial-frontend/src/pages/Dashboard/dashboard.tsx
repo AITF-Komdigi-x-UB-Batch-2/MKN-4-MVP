@@ -1,15 +1,15 @@
 import React, { useMemo } from 'react';
 import { 
   Users,
-  Map,
-  Layers
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts';
 import AdminLayout from '../../components/layout/AdminLayout';
-import { rawKeluargaData } from '../../data/dataKeluarga';
+import { apiFetch } from '../../services/api';
 import './Dashboard.css';
 
 interface DashboardProps {
@@ -19,28 +19,50 @@ interface DashboardProps {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#d0ed57', '#a4de6c'];
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
-  const totalData = rawKeluargaData.length;
+  const [data, setData] = React.useState<any[]>([]);
 
-  const distributionByKecamatan = useMemo(() => {
-    const counts: Record<string, number> = {};
-    rawKeluargaData.forEach(d => {
-      counts[d.nama_kecamatan] = (counts[d.nama_kecamatan] || 0) + 1;
-    });
-    return Object.entries(counts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await apiFetch('/api/v1/manajemen-bantuan');
+        if (res.ok) {
+          const json = await res.json();
+          setData(json);
+        }
+      } catch (err) {
+        console.error('Failed to fetch dashboard data', err);
+      }
+    };
+    fetchData();
   }, []);
+
+  const totalData = data.length;
+
+  const countDiterima = useMemo(() => {
+    return data.filter(d => d.tahap === 'diterima').length;
+  }, [data]);
+
+  const countDitolak = useMemo(() => {
+    return data.filter(d => d.tahap === 'ditolak').length;
+  }, [data]);
+
+  const approvalData = useMemo(() => {
+    return [
+      { name: 'Diterima', value: countDiterima, fill: '#10b981' },
+      { name: 'Ditolak', value: countDitolak, fill: '#ef4444' }
+    ];
+  }, [countDiterima, countDitolak]);
 
   const distributionByDecile = useMemo(() => {
     const counts: Record<string, number> = {};
-    rawKeluargaData.forEach(d => {
-      const key = `Desil ${d.desil_kesejahteraan}`;
+    data.forEach(d => {
+      const key = `Desil ${d.desil}`;
       counts[key] = (counts[key] || 0) + 1;
     });
     return Object.entries(counts)
       .map(([name, value]) => ({ name, value, decile: parseInt(name.replace('Desil ', '')) }))
       .sort((a, b) => a.decile - b.decile);
-  }, []);
+  }, [data]);
 
   return (
     <AdminLayout title="Dashboard Monitoring" onLogout={onLogout}>
@@ -67,22 +89,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           </div>
           
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div style={{ backgroundColor: '#f0fdf4', padding: '16px', borderRadius: '12px' }}>
-              <Map size={32} color="#22c55e" />
+            <div style={{ backgroundColor: '#ecfdf5', padding: '16px', borderRadius: '12px' }}>
+              <CheckCircle size={32} color="#10b981" />
             </div>
             <div>
-              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Kecamatan</p>
-              <p style={{ margin: '4px 0 0 0', fontSize: '32px', fontWeight: 'bold', color: '#111827', lineHeight: 1 }}>{distributionByKecamatan.length}</p>
+              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Diterima</p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '32px', fontWeight: 'bold', color: '#111827', lineHeight: 1 }}>{countDiterima}</p>
             </div>
           </div>
 
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div style={{ backgroundColor: '#fffbeb', padding: '16px', borderRadius: '12px' }}>
-              <Layers size={32} color="#f59e0b" />
+            <div style={{ backgroundColor: '#fef2f2', padding: '16px', borderRadius: '12px' }}>
+              <XCircle size={32} color="#ef4444" />
             </div>
             <div>
-              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Desil Terdata</p>
-              <p style={{ margin: '4px 0 0 0', fontSize: '32px', fontWeight: 'bold', color: '#111827', lineHeight: 1 }}>{distributionByDecile.length}</p>
+              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Ditolak</p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '32px', fontWeight: 'bold', color: '#111827', lineHeight: 1 }}>{countDitolak}</p>
             </div>
           </div>
         </div>
@@ -90,19 +112,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         {/* Charts Section */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', paddingBottom: '24px' }}>
           
-          {/* Bar Chart Wilayah */}
+          {/* Bar Chart Status Persetujuan */}
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '24px', color: '#1f2937', marginTop: 0 }}>Persebaran Kemiskinan Berdasarkan Kecamatan</h3>
+            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '24px', color: '#1f2937', marginTop: 0 }}>Status Persetujuan Rekomendasi</h3>
             <div style={{ height: '350px' }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={distributionByKecamatan} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                <BarChart data={approvalData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6b7280'}} dy={10} />
                   <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{fill: '#6b7280'}} dx={-10} />
                   <RechartsTooltip cursor={{fill: '#f3f4f6'}} contentStyle={{borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
-                  <Bar dataKey="value" name="Jumlah Keluarga" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={40}>
-                    {distributionByKecamatan.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Bar dataKey="value" name="Jumlah Keluarga" radius={[6, 6, 0, 0]} barSize={50}>
+                    {approvalData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                   </Bar>
                 </BarChart>

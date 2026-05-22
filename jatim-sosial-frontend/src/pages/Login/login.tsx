@@ -10,11 +10,53 @@ interface LoginProps {
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = () => {
-    if (onLogin) onLogin();
-    navigate('/dashboard');
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!username || !password) {
+      setErrorMsg('Username dan password harus diisi!');
+      return;
+    }
+    
+    setIsLoading(true);
+    setErrorMsg('');
+    
+    try {
+      const formData = new URLSearchParams();
+      formData.append('username', username);
+      formData.append('password', password);
+      
+      const response = await fetch('/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || 'Login gagal, periksa kembali kredensial Anda');
+      }
+      
+      // Simpan JWT token
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('username', data.username);
+      localStorage.setItem('role', data.role || 'ANALIS');
+      
+      if (onLogin) onLogin();
+      navigate('/dashboard');
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -43,7 +85,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
 
         {/* Login Form */}
-        <form className="login-form">
+        <form className="login-form" onSubmit={handleLogin}>
+          {errorMsg && (
+            <div style={{ backgroundColor: '#fef2f2', color: '#ef4444', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px', fontWeight: 500, border: '1px solid #fca5a5' }}>
+              {errorMsg}
+            </div>
+          )}
           <div className="form-group">
             <label htmlFor="username">Nama Pengguna atau Email</label>
             <div className="input-wrapper">
@@ -52,6 +99,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 type="text"
                 id="username"
                 placeholder="Masukkan username atau email"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
               />
             </div>
           </div>
@@ -64,6 +113,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 type={showPassword ? "text" : "password"}
                 id="password"
                 placeholder="Masukkan kata sandi"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
               <button
                 type="button"
@@ -84,9 +135,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <a href="#" className="forgot-password">Lupa Kata Sandi?</a>
           </div>
 
-          <button type="button" className="login-submit-btn" onClick={handleLogin}>
-            Masuk ke Sistem
-            <LogIn size={18} className="btn-icon" />
+          <button type="submit" className="login-submit-btn" disabled={isLoading}>
+            {isLoading ? 'Memvalidasi...' : 'Masuk ke Sistem'}
+            {!isLoading && <LogIn size={18} className="btn-icon" />}
           </button>
         </form>
 
