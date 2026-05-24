@@ -14,6 +14,8 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     password_hash = Column(String)
     role = Column(String, default="petugas")
+    dibuat_pada = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, default=True)
 
 # --- TABEL 2: KELUARGA (DATA UTAMA) ---
 class Keluarga(Base):

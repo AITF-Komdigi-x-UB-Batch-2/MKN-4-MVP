@@ -69,7 +69,7 @@ def execute_asesmen_sosial_logic(keluarga_id: UUID, user_id: UUID, db: Session):
         )
         db.add(log)
         db.commit()
-        print(f"[Asinkron] Asesmen sukses untuk KK {keluarga.nomor_kartu_keluarga}")
+        print(f"[Asinkron] Asesmen sukses untuk KK {keluarga.no_kk}")
     except Exception as e:
         db.rollback()
         print(f"[Asinkron DB Error] {e}")
@@ -111,9 +111,9 @@ async def perform_visual_validation(keluarga_id: UUID, user_id: UUID, db: Sessio
         "image_url": url_foto_luar,
         "foto_rumah_tampak_dalam": url_foto_dalam,
         "konteks_rumah": {
-            "jenis_lantai_terluas": keluarga.jenis_lantai_terluas,
-            "jenis_dinding_terluas": keluarga.jenis_dinding_terluas,
-            "jenis_atap_terluas": keluarga.jenis_atap_terluas,
+            "jenis_lantai_terluas": keluarga.id_lantai_terluas,
+            "jenis_dinding_terluas": keluarga.id_dinding_terluas,
+            "jenis_atap_terluas": keluarga.id_atap_terluas,
         }
     }
 
@@ -238,7 +238,7 @@ async def asesmen_sosial(
 
         return {
             "status": "Sukses",
-            "nomor_kk": keluarga.nomor_kartu_keluarga,
+            "nomor_kk": keluarga.no_kk,
             "hasil_rekomendasi_final": rekomendasi_baru,
             "justifikasi_dokumen": analisis_rag
         }

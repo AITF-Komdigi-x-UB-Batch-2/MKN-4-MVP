@@ -150,13 +150,19 @@ async def import_csv(
                 row = {}
                 for k, v in raw_row.items():
                     if k:
-                        db_key = MAPPING_DTKS.get(str(k).strip(), str(k).strip())
+                        cleaned_key = str(k).strip().lstrip("\ufeff")  # buang BOM jika ada
+                        db_key = MAPPING_DTKS.get(cleaned_key, cleaned_key)
                         row[db_key] = v
 
-                no_kk_row = row.get("no_kk")
-                if not no_kk_row:
+                if idx_row < 3:
+                    log_foto.append(f"[DEBUG] Row {idx_row+1} keys: {list(row.keys())[:10]}")
+
+                no_kk_row = (row.get("no_kk") or row.get("nomor_kartu_keluarga") or "").strip()
+                if not no_kk_row or no_kk_row.lower() == "nan":
                     di_skip += 1
-                    log_foto.append(f"Baris {idx_row + 1} di-skip: 'nomor_kartu_keluarga' kosong. Header terdeteksi: {list(row.keys())[:5]}")
+                    log_foto.append(
+                        f"Baris {idx_row + 1} di-skip: 'no_kk' kosong. Header terdeteksi: {list(row.keys())[:10]}"
+                    )
                     continue
 
                 # --- MENGGUNAKAN METODE POP ---
@@ -204,7 +210,7 @@ async def import_csv(
 
                 # 2. Cek Idempotensi & History
                 keluarga_lama = db.query(models.Keluarga).filter(
-                    models.Keluarga.nomor_kartu_keluarga == data_bersih.get("nomor_kartu_keluarga")
+                    models.Keluarga.no_kk == data_bersih.get("no_kk")
                 ).first()
 
                 if keluarga_lama:
@@ -224,7 +230,7 @@ async def import_csv(
                     # Ada perubahan variabel: Arsipkan data lama
                     data_histori = {c.name: getattr(keluarga_lama, c.name) for c in models.Keluarga.__table__.columns}
                     data_histori.pop("id", None)
-                    data_histori["keluarga_id"] = keluarga_lama.id
+                    data_histori["id_keluarga"] = keluarga_lama.id
 
                     arsip_baru = models.KeluargaHistory(**data_histori)
                     db.add(arsip_baru)
@@ -305,6 +311,7 @@ async def import_csv(
                     keluarga_ids_for_tasks.add(keluarga_diproses.id)
 
             except Exception as e:
+                print(f"[ERROR] Baris {idx_row + 1} dengan KK {raw_row.get('nomor_kartu_keluarga', '?')} gagal diproses: {str(e)}")
                 # BUG FIX: Rollback session agar baris berikutnya tidak kena PendingRollbackError
                 db.rollback()
                 di_skip += 1
@@ -335,9 +342,9 @@ async def get_manajemen_bantuan(
     db: Session = Depends(get_db)
 ):
     results = db.query(models.Keluarga, models.Perhitungan).outerjoin(
-        models.Perhitungan, models.Keluarga.id == models.Perhitungan.keluarga_id
+        models.Perhitungan, models.Perhitungan.keluarga_id == models.Keluarga.id
     ).all()
-
+    print(f"[DEBUG] Jumlah keluarga yang di-query untuk manajemen bantuan: {len(results)}")
     response_data = []
     for k, p in results:
         tahap_ui = p.status_validasi if p and p.status_validasi else "analisis"
@@ -353,12 +360,12 @@ async def get_manajemen_bantuan(
             wilayah=k.kabupaten_kota or "-",
             kecamatan=k.kecamatan or "-",
             desil=k.desil_nasional or 0,
-            skorASPD=p.skor_aspd if p and p.skor_aspd else 0.0,
-            skorPKHT=p.skor_pkht if p and p.skor_pkht else 0.0,
+            skorASPD=p.skor_prioritas if p and p.skor_prioritas is not None else 0.0,
+            skorPKHT=0.0,
             tahap=tahap_ui,
             bantuan=bantuan_list,
             rekomendasiBantuan=rekomendasi_list,
-            skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd else 0.0), # Dummy inversion for sorting
+            skorKesejahteraan=100.0 - (p.skor_prioritas if p and p.skor_prioritas is not None else 0.0),
             aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI."
         )
         response_data.append(row)
@@ -400,24 +407,27 @@ async def get_detail_manajemen_bantuan(
         wilayah=k.kabupaten_kota or "-",
         kecamatan=k.kecamatan or "-",
         desil=k.desil_nasional or 0,
-        skorASPD=p.skor_aspd if p and p.skor_aspd else 0.0,
-        skorPKHT=p.skor_pkht if p and p.skor_pkht else 0.0,
+        skorASPD=p.skor_prioritas if p and p.skor_prioritas is not None else 0.0,
+        skorPKHT=0.0,
         tahap=tahap_ui,
         bantuan=bantuan_list,
         rekomendasiBantuan=rekomendasi_list,
-        skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd else 0.0),
-        
-        atap=k.jenis_atap_terluas or 0,
-        dinding=k.jenis_dinding_terluas or 0,
-        lantai=k.jenis_lantai_terluas or 0,
-        
+        skorKesejahteraan=100.0 - (p.skor_prioritas if p and p.skor_prioritas is not None else 0.0),
+
+        atap=k.id_atap_terluas or 0,
+        dinding=k.id_dinding_terluas or 0,
+        lantai=k.id_lantai_terluas or 0,
+
         url_foto=f.url_foto if f else None,
         foto_urls=[foto.url_foto for foto in fotos if foto.url_foto],
-        visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian_visual is not None else None,
+        visual_match=(
+            None if not p or p.ada_ketidaksesuaian_visual is None
+            else (not p.ada_ketidaksesuaian_visual)
+        ),
         visual_reasoning=p.reasoning_tim2 if p else None,
         catatan=p.catatan_petugas if p else None,
-        catatan_supervisor=p.catatan_supervisor if p else None,
-        
+        catatan_supervisor=None,
+
         aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI."
     )
 
@@ -448,7 +458,8 @@ async def update_status_validasi(
         p.catatan_petugas = request.catatan
         
     if request.catatan_supervisor is not None:
-        p.catatan_supervisor = request.catatan_supervisor
+        # Field tidak ada di model Perhitungan, jadi diabaikan
+        pass
         
     db.commit()
     return await get_detail_manajemen_bantuan(id_keluarga, current_user, db)
