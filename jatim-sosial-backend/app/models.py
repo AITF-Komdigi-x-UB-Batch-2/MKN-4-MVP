@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, SmallInteger, JSON, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, SmallInteger, JSON, DateTime, Text, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -217,21 +217,23 @@ class KeluargaHistory(Base):
 # --- TABEL 4: PERHITUNGAN (HASIL AI) ---
 class Perhitungan(Base):
     __tablename__ = "perhitungan"
-    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    keluarga_id = Column(UUID(as_uuid=True), ForeignKey("keluarga.id"), nullable=False, index=True)
-    user_id     = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=True)
-    periode_asesmen = Column(String(10), nullable=True)
-    diasesmen_pada  = Column(DateTime, default=datetime.utcnow)
+    id                         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    keluarga_id                = Column(UUID(as_uuid=True), ForeignKey("keluarga.id"), nullable=False, index=True)
+    user_id                    = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=True)
     foto_id_digunakan          = Column(UUID(as_uuid=True), ForeignKey("foto.id"), nullable=True)
-    reasoning_tim2             = Column(Text, nullable=True)
+    periode_asesmen            = Column(String(10), nullable=True)
+    diasesmen_pada             = Column(DateTime, default=datetime.utcnow)
+    status_validasi            = Column(String(20), default="Menunggu", nullable=False)
+    skor_aspd                  = Column(Float, nullable=True)
+    skor_pkh_plus              = Column(Float, nullable=True)
+    rekomendasi_bantuan        = Column(JSONB, nullable=True)
     ada_ketidaksesuaian_visual = Column(Boolean, nullable=True)
-    reasoning_tim1   = Column(Text, nullable=True)
-    desil_kemiskinan = Column(String(5), nullable=True)
-    skor_prioritas   = Column(Integer, nullable=True)
-    reasoning_tim3      = Column(Text, nullable=True)
-    rekomendasi_bantuan = Column(JSONB, nullable=True)
-    status_validasi = Column(String(20), default="Menunggu", nullable=False)
-    catatan_petugas = Column(String(500), nullable=True)
+    reasoning_tim2             = Column(Text, nullable=True)
+    reasoning_tim3             = Column(Text, nullable=True)
+    catatan_petugas            = Column(String(500), nullable=True)
+    catatan_supervisor         = Column(String(500), nullable=True)
+    desil_kemiskinan           = Column(String(5), nullable=True)
+    skor_prioritas             = Column(Integer, nullable=True)
 
 # --- TABEL 5: FOTO RUMAH (MENGHUBUNGKAN KELUARGA DENGAN FOTO) ---
 class Foto(Base):

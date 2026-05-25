@@ -267,20 +267,24 @@ async def asesmen_visual(
         models.Foto.keluarga_id == id_keluarga,
         models.Foto.tampak_dalam == False
     ).order_by(models.Foto.diunggah_pada.desc()).first()
-    
+
     foto_tampak_dalam = db.query(models.Foto).filter(
         models.Foto.keluarga_id == id_keluarga,
         models.Foto.tampak_dalam == True
     ).order_by(models.Foto.diunggah_pada.desc()).first()
 
-    url_foto_luar = foto_tampak_luar.url_foto if foto_tampak_luar else None
+    foto_utama = foto_tampak_luar or foto_tampak_dalam
+    if not foto_utama:
+        raise HTTPException(status_code=400, detail="Foto rumah tidak ditemukan untuk keluarga ini.")
+
+    url_foto_luar = foto_tampak_luar.url_foto if foto_tampak_luar else foto_utama.url_foto
     url_foto_dalam = foto_tampak_dalam.url_foto if foto_tampak_dalam else None
 
     # 2. Siapkan Payload JSON sesuai permintaan Tim 2
     payload_ke_tim2 = {
         "id_data": str(keluarga.id),
         "foto_rumah": url_foto_luar,
-        "foto_rumah_tampak_dalam": url_foto_dalam, 
+        "foto_rumah_tampak_dalam": url_foto_dalam,
         "id_atap_terluas": keluarga.id_atap_terluas,
         "id_dinding_terluas": keluarga.id_dinding_terluas,
         "id_lantai_terluas": keluarga.id_lantai_terluas
@@ -310,6 +314,7 @@ async def asesmen_visual(
 
         return {
             "status": "Sukses",
+            "url_foto_divalidasi": foto_utama.url_foto if foto_utama else None,
             "hasil_tim2": hasil_validator
         }
 

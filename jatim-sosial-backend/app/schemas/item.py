@@ -106,7 +106,7 @@ class FotoResponse(BaseModel):
     id: UUID
     keluarga_id: UUID
     url_foto: str
-    tampak_dalam: Optional[bool] = None
+    tampak_dalam: bool = False
     periode: Optional[str] = None
     sumber: Optional[str] = None
     nama_file_asli: Optional[str] = None

@@ -146,11 +146,10 @@ async def import_csv(
     async with httpx.AsyncClient() as client:
         for idx_row, raw_row in enumerate(reader):
             try:
-                # Terjemahkan key dari format CSV Alvin ke format DB menggunakan MAPPING_DTKS
                 row = {}
                 for k, v in raw_row.items():
                     if k:
-                        cleaned_key = str(k).strip().lstrip("\ufeff")  # buang BOM jika ada
+                        cleaned_key = str(k).strip().lstrip("\ufeff")
                         db_key = MAPPING_DTKS.get(cleaned_key, cleaned_key)
                         row[db_key] = v
 
@@ -166,19 +165,11 @@ async def import_csv(
                     continue
 
                 # --- MENGGUNAKAN METODE POP ---
-                # Mengambil URL dari kedua kolom foto dan menghapusnya dari dictionary row
                 raw_urls = row.pop("url_foto_rumah", "")
                 raw_urls_dalam = row.pop("foto_rumah_tampak_dalam", "")
 
                 # 1. Bersihkan Data Keluarga
                 data_bersih = {}
-
-                # Kolom Boolean sejati di tabel Keluarga (bukan aset int)
-                KOLOM_BOOL = {
-                    "pbi_nas", "pbi_pemda",
-                    "aset_tidak_bergerak_lahan_lainnya",
-                    "aset_tidak_bergerak_rumah_lainnya",
-                }
 
                 for k, v in row.items():
                     if k not in kolom_sah:
@@ -186,15 +177,9 @@ async def import_csv(
 
                     val_str = str(v).strip().upper() if v and str(v).strip() not in ("", "nan") else ""
 
-                    # BUG FIX #1: aset → INTEGER (0/1), bukan bool
                     if k in KOLOM_ASET_INT:
                         data_bersih[k] = 1 if val_str in ("YA", "1", "TRUE") else 0
 
-                    # Kolom boolean sejati (pbi_nas, pbi_pemda, dll) → Python bool
-                    elif k in KOLOM_BOOL:
-                        data_bersih[k] = val_str in ("1", "YA", "TRUE")
-
-                    # BUG FIX #2: nik & no_kk → string bersih dari scientific notation
                     elif k in ("nik", "no_kk", "nomor_kartu_keluarga"):
                         data_bersih[k] = fix_nik(v)
 
@@ -206,7 +191,6 @@ async def import_csv(
 
                     else:
                         data_bersih[k] = v if v and str(v).strip() not in ("", "nan") else None
-
 
                 # 2. Cek Idempotensi & History
                 keluarga_lama = db.query(models.Keluarga).filter(
@@ -239,12 +223,12 @@ async def import_csv(
                         setattr(keluarga_lama, k, v)
                     keluarga_diproses = keluarga_lama
                     
-                    db.flush() # Amankan ID sebelum proses foto
+                    db.flush()
                 else:
                     keluarga_baru = models.Keluarga(**data_bersih)
                     db.add(keluarga_baru)
                     keluarga_diproses = keluarga_baru
-                    db.flush() # Amankan ID sebelum proses foto
+                    db.flush()
 
                 # Tandai status awal sebagai "proses" agar data tidak terlihat sebelum selesai
                 hitung = db.query(models.Perhitungan).filter(
@@ -312,7 +296,6 @@ async def import_csv(
 
             except Exception as e:
                 print(f"[ERROR] Baris {idx_row + 1} dengan KK {raw_row.get('nomor_kartu_keluarga', '?')} gagal diproses: {str(e)}")
-                # BUG FIX: Rollback session agar baris berikutnya tidak kena PendingRollbackError
                 db.rollback()
                 di_skip += 1
                 log_foto.append(f"Error fatal baris KK {raw_row.get('nomor_kartu_keluarga', '?')}: {str(e)}")
@@ -360,12 +343,12 @@ async def get_manajemen_bantuan(
             wilayah=k.kabupaten_kota or "-",
             kecamatan=k.kecamatan or "-",
             desil=k.desil_nasional or 0,
-            skorASPD=p.skor_prioritas if p and p.skor_prioritas is not None else 0.0,
-            skorPKHT=0.0,
+            skorASPD=p.skor_aspd if p and p.skor_aspd else 0.0,
+            skorPKHT=p.skor_pkht if p and p.skor_pkht else 0.0,
             tahap=tahap_ui,
             bantuan=bantuan_list,
             rekomendasiBantuan=rekomendasi_list,
-            skorKesejahteraan=100.0 - (p.skor_prioritas if p and p.skor_prioritas is not None else 0.0),
+            skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd else 0.0),
             aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI."
         )
         response_data.append(row)
@@ -407,27 +390,21 @@ async def get_detail_manajemen_bantuan(
         wilayah=k.kabupaten_kota or "-",
         kecamatan=k.kecamatan or "-",
         desil=k.desil_nasional or 0,
-        skorASPD=p.skor_prioritas if p and p.skor_prioritas is not None else 0.0,
-        skorPKHT=0.0,
+        skorASPD=p.skor_aspd if p and p.skor_aspd else 0.0,
+        skorPKHT=p.skor_pkht if p and p.skor_pkht else 0.0,
         tahap=tahap_ui,
         bantuan=bantuan_list,
         rekomendasiBantuan=rekomendasi_list,
-        skorKesejahteraan=100.0 - (p.skor_prioritas if p and p.skor_prioritas is not None else 0.0),
-
-        atap=k.id_atap_terluas or 0,
-        dinding=k.id_dinding_terluas or 0,
-        lantai=k.id_lantai_terluas or 0,
-
+        skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd else 0.0),
+        atap=k.jenis_atap_terluas or 0,
+        dinding=k.jenis_dinding_terluas or 0,
+        lantai=k.jenis_lantai_terluas or 0,
         url_foto=f.url_foto if f else None,
         foto_urls=[foto.url_foto for foto in fotos if foto.url_foto],
-        visual_match=(
-            None if not p or p.ada_ketidaksesuaian_visual is None
-            else (not p.ada_ketidaksesuaian_visual)
-        ),
+        visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian_visual is not None else None,
         visual_reasoning=p.reasoning_tim2 if p else None,
         catatan=p.catatan_petugas if p else None,
-        catatan_supervisor=None,
-
+        catatan_supervisor=p.catatan_supervisor if p else None,
         aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI."
     )
 
@@ -458,8 +435,7 @@ async def update_status_validasi(
         p.catatan_petugas = request.catatan
         
     if request.catatan_supervisor is not None:
-        # Field tidak ada di model Perhitungan, jadi diabaikan
-        pass
+        p.catatan_supervisor = request.catatan_supervisor
         
     db.commit()
     return await get_detail_manajemen_bantuan(id_keluarga, current_user, db)
