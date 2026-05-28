@@ -83,7 +83,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
               <Users size={32} color="#3b82f6" />
             </div>
             <div>
-              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Data Input</p>
+              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Data Keluarga</p>
               <p style={{ margin: '4px 0 0 0', fontSize: '32px', fontWeight: 'bold', color: '#111827', lineHeight: 1 }}>{totalData}</p>
             </div>
           </div>
