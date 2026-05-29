@@ -250,7 +250,6 @@ async def asesmen_sosial(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Kesalahan internal: {str(e)}")
 
-
 # ASESMEN VISUAL — TIM 2
 @router.post("/visual/{id_keluarga}", summary="Trigger AI Visual mengirim URL dan ID ke Tim 2")
 async def asesmen_visual(
@@ -301,7 +300,7 @@ async def asesmen_visual(
             res_ai.raise_for_status() 
             hasil_validator = res_ai.json() 
 
-        # 4. Tangkap Response Bersarang (Nested JSON) dari Tim 2
+        # 4. Tangkap Response Bersarang (Nested JSON) dari Tim 2 & SIMPAN KE DB
         hitung = db.query(models.Perhitungan).filter(
             models.Perhitungan.keluarga_id == keluarga.id
         ).first()
@@ -310,11 +309,23 @@ async def asesmen_visual(
             hitung = models.Perhitungan(keluarga_id=keluarga.id, user_id=current_user.id)
             db.add(hitung)
 
+        # Ekstrak data dari response AI (Sesuaikan key-nya dengan format asli Tim 2 jika berbeda)
+        is_match = hasil_validator.get("is_match", True)
+        reasoning = hasil_validator.get("reasoning", str(hasil_validator))
+
+        # Masukkan ke dalam kolom tabel
+        hitung.ada_ketidaksesuaian_visual = not is_match
+        hitung.reasoning_tim2 = reasoning
+        hitung.foto_id_digunakan = foto_utama.id
+
         db.commit()
 
         return {
             "status": "Sukses",
-            "url_foto_divalidasi": foto_utama.url_foto if foto_utama else None,
+            "url_foto_dikirim": {
+                "luar": url_foto_luar,
+                "dalam": url_foto_dalam
+            },
             "hasil_tim2": hasil_validator
         }
 

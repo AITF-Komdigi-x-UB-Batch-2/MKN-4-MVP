@@ -13,6 +13,7 @@ from app.schemas import item as item_schema
 from app.routers.asesmen import run_async_visual_validation, run_async_assessment
 import httpx
 
+
 router = APIRouter(
     prefix="/api/v1",
     tags=["2. Data Warga & Bantuan"]
@@ -344,7 +345,7 @@ async def get_manajemen_bantuan(
             kecamatan=k.kecamatan or "-",
             desil=k.desil_nasional or 0,
             skorASPD=p.skor_aspd if p and p.skor_aspd else 0.0,
-            skorPKHT=p.skor_pkht if p and p.skor_pkht else 0.0,
+            skorPKHT=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
             tahap=tahap_ui,
             bantuan=bantuan_list,
             rekomendasiBantuan=rekomendasi_list,
@@ -391,7 +392,7 @@ async def get_detail_manajemen_bantuan(
         kecamatan=k.kecamatan or "-",
         desil=k.desil_nasional or 0,
         skorASPD=p.skor_aspd if p and p.skor_aspd else 0.0,
-        skorPKHT=p.skor_pkht if p and p.skor_pkht else 0.0,
+        skorPKHT=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
         tahap=tahap_ui,
         bantuan=bantuan_list,
         rekomendasiBantuan=rekomendasi_list,

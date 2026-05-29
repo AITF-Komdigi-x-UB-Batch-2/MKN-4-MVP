@@ -152,7 +152,7 @@ class ManajemenBantuanResponse(BaseModel):
     kecamatan: str
     desil: int
     skorASPD: float
-    skorPKHT: float
+    skorPKHPlus: float
     tahap: str
     bantuan: list[str]
     rekomendasiBantuan: list[str]
@@ -176,7 +176,7 @@ class DetailKeluargaResponse(BaseModel):
     bantuan: list[str]
     rekomendasiBantuan: list[str]
     skorASPD: float
-    skorPKHT: float
+    skorPKHPlus: float
     
     # Material
     atap: int

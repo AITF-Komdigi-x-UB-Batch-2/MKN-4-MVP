@@ -10,4 +10,7 @@ python-multipart
 email-validator
 boto3
 openpyxl
-bcrypt==3.2.2
+bcrypt
+pydantic
+alembic
+pandas
