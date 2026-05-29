@@ -45,9 +45,6 @@ Sistem ini terdiri dari 5 layanan utama yang saling terhubung di dalam jaringan 
     ├── nginx.conf             # Konfigurasi Nginx
     └── src/                   # Source code UI
 ```
-
-**Catatan Frontend**  
-Aplikasi frontend dibuild menjadi file statis dan disajikan oleh Nginx. Semua kode UI berada di `src/`, sementara `Dockerfile` dan `nginx.conf` mengatur proses build & hosting.
 ---
 
 ## 🛠️ Langkah-Langkah Menjalankan Aplikasi
