@@ -22,25 +22,32 @@ Sistem ini terdiri dari 5 layanan utama yang saling terhubung di dalam jaringan 
 
 ## 📂 Struktur Direktori Setelah Reorganisasi
 
-Semua file konfigurasi Docker dan variabel lingkungan ditarik keluar ke root folder demi kemudahan navigasi:
-
 ```
 .
 ├── docker-compose.yml         # [BARU] Konfigurasi utama multi-container
-├── .env                       # [BARU] Pengaturan variabel lingkungan global (Master)
-├── README.md                  # [BARU] Panduan operasional sistem
-├── jatim-sosial-backend/      # Folder Backend (FastAPI)
-│   ├── Dockerfile             # [BARU] Resep build backend image
-│   ├── .dockerignore          # [BARU] Mengabaikan cache & venv
-│   ├── main.py                # Kode API Utama
-│   └── mock_ai.py             # Simulasi AI Server
-└── jatim-sosial-frontend/     # Folder Frontend (React + Vite)
-    ├── Dockerfile             # [BARU] Resep multi-stage build (Node -> Nginx)
-    ├── nginx.conf             # [BARU] Penanganan SPA routing fallback di Nginx
-    ├── .dockerignore          # [BARU] Mengabaikan node_modules & build lokal
-    └── src/                   # Sumber kode dashboard frontend
+├── .env                       # [BARU] Variabel lingkungan global (root)
+├── README.md                  # [BARU] Dokumentasi utama proyek
+├── jatim-sosial-backend/      # Backend FastAPI (API utama + mock AI)
+│   ├── Dockerfile             # Build image backend
+│   ├── requirements.txt       # Dependensi Python
+│   ├── alembic.ini            # Konfigurasi migrasi DB
+│   ├── mock_ai.py             # Server Mock AI (Tim 1/2/3)
+│   ├── alembic/               # Skrip migrasi database
+│   └── app/                   # Source utama backend
+│       ├── main.py            # Entry point FastAPI
+│       ├── config.py          # Konfigurasi aplikasi
+│       ├── database.py        # Koneksi DB
+│       ├── models.py          # Model ORM
+│       ├── routers/           # Routing API
+│       └── schemas/           # Pydantic schemas
+└── jatim-sosial-frontend/     # Frontend React + Nginx
+    ├── Dockerfile             # Build image frontend
+    ├── nginx.conf             # Konfigurasi Nginx
+    └── src/                   # Source code UI
 ```
 
+**Catatan Frontend**  
+Aplikasi frontend dibuild menjadi file statis dan disajikan oleh Nginx. Semua kode UI berada di `src/`, sementara `Dockerfile` dan `nginx.conf` mengatur proses build & hosting.
 ---
 
 ## 🛠️ Langkah-Langkah Menjalankan Aplikasi
