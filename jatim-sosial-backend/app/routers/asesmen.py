@@ -1,38 +1,96 @@
 import httpx
+import logging
+import json
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
-
 from app.database import get_db
 from app import models
 from app.security import get_current_user
 from app.config import AI_BASE_URL
 from app.schemas import item as item_schema
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(
     prefix="/api/v1/asesmen",
-    tags=["3. Asesmen AI"]
+    tags=["4. Asesmen AI"]
 )
+
+# ==========================================
+# FUNGSI SIMULASI RETRIEVER (QDRANT - TIM 3)
+# ==========================================
+async def mock_qdrant_retriever(query_text: str) -> str:
+    """
+    Simulasi pemanggilan database vektor Qdrant milik Tim 3.
+    """
+    return """
+    [Konteks Kebijakan Sosial Jawa Timur]
+    - PKH Plus: (a) lansia >= 70 tahun, (b) desil 1-4 DTSEN, (c) memiliki NIK Jawa Timur.
+    - ASPD: (1) NIK Jawa Timur, (2) usia 6 bulan - 60 tahun, (3) penyandang disabilitas/bed ridden, (4) prioritas desil 1-5.
+    """
 
 # ==========================================
 # FUNGSI BACKGROUND (ASINKRON) UNTUK AI
 # ==========================================
 
-def execute_asesmen_sosial_logic(keluarga_id: UUID, user_id: UUID, db: Session):
+async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, db: Session):
     keluarga = db.query(models.Keluarga).filter(models.Keluarga.id == keluarga_id).first()
     if not keluarga:
         print(f"[Asinkron] Keluarga {keluarga_id} tidak ditemukan.")
         return
     
-    try:
-        data_untuk_ai = {c.name: getattr(keluarga, c.name) for c in models.Keluarga.__table__.columns}
-        data_untuk_ai.pop("id", None)
+    hitung = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == keluarga.id).first()
+    skor_pkh = hitung.skor_pkh_plus if hitung and hitung.skor_pkh_plus else 0.0
+    skor_aspd = hitung.skor_aspd if hitung and hitung.skor_aspd else 0.0
 
-        with httpx.Client() as client:
+    try:
+        # 1. Tarik Konteks Qdrant
+        konteks_aturan = await mock_qdrant_retriever("syarat penerima bansos")
+
+        # 2. Rakit Prompt (Role & User Content)
+        role_content = (
+            "Anda adalah AI Auditor resmi Dinas Sosial Provinsi Jawa Timur yang bertugas "
+            "melakukan verifikasi kelayakan penerima manfaat PKH Plus dan ASPD. "
+            "Balas HANYA dengan JSON valid berisi: status_kelayakan, urgensi, rekomendasi_bantuan (array), dan reasoning."
+        )
+
+        user_content = f"""
+        Profil Warga:
+        - NIK: {keluarga.nik or 'Tidak diketahui'}
+        - Nama: {keluarga.nama_kepala_keluarga}
+        - Desil Nasional: {keluarga.desil_nasional}
+        - Penglihatan: {keluarga.id_penglihatan}
+        - Mobilitas: {keluarga.id_berjalan_atau_naik_tangga}
+
+        Skor Prioritas:
+        - Skor PKH Plus: {skor_pkh}
+        - Skor ASPD: {skor_aspd}
+
+        Evaluasi kelayakan berdasarkan kebijakan berikut:
+        <hasil_retrieval>
+        {konteks_aturan}
+        </hasil_retrieval>
+        """
+
+        # Ini adalah payload yang akan dikirim ke Beeceptor / AI Tim 3
+        payload_llm = {
+            "messages": [
+                {"role": "system", "content": role_content},
+                {"role": "user", "content": user_content}
+            ],
+            "desil": keluarga.desil_nasional, 
+            "skor_aspd": skor_aspd,           
+            "skor_pkh": skor_pkh              # <--- Sudah ditambahkan di sini
+        }
+
+        # 3. Eksekusi ke URL AI (Beeceptor / Tim 3)
+        async with httpx.AsyncClient() as client:
             try:
-                response = client.post(
-                    f"{AI_BASE_URL}/api/ai/jalur-sosial",
-                    json=data_untuk_ai,
+                response = await client.post(
+                    f"{AI_BASE_URL}/api/chat", # <-- Memanggil URL di .env
+                    json=payload_llm,
                     timeout=30.0
                 )
                 response.raise_for_status()
@@ -42,9 +100,8 @@ def execute_asesmen_sosial_logic(keluarga_id: UUID, user_id: UUID, db: Session):
                 return
 
         rekomendasi_baru = hasil_final.get("rekomendasi_bantuan", [])
-        analisis_rag = hasil_final.get("justifikasi_dokumen", "")
+        analisis_rag = json.dumps(hasil_final) # Simpan semua response sebagai reasoning
 
-        hitung = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == keluarga.id).first()
         bantuan_lama = None
 
         if not hitung:
@@ -55,8 +112,6 @@ def execute_asesmen_sosial_logic(keluarga_id: UUID, user_id: UUID, db: Session):
 
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
-        hitung.skor_aspd = hasil_final.get("skor_aspd", 0.0)
-        hitung.skor_pkht = hasil_final.get("skor_pkh_plus", hasil_final.get("skor_pkht", 0.0))
         hitung.status_validasi = "analisis"
 
         log = models.LogHistori(
@@ -74,13 +129,16 @@ def execute_asesmen_sosial_logic(keluarga_id: UUID, user_id: UUID, db: Session):
         db.rollback()
         print(f"[Asinkron DB Error] {e}")
 
+# Fungsi wrapper untuk BackgroundTasks
 def run_async_assessment(keluarga_id: UUID, user_id: UUID):
     db_gen = get_db()
     db = next(db_gen)
     try:
-        execute_asesmen_sosial_logic(keluarga_id, user_id, db)
+        # Panggil versi async di dalam thread sinkron
+        asyncio.run(execute_asesmen_sosial_logic_async(keluarga_id, user_id, db))
     finally:
         db.close()
+
 
 async def perform_visual_validation(keluarga_id: UUID, user_id: UUID, db: Session):
     keluarga = db.query(models.Keluarga).filter(models.Keluarga.id == keluarga_id).first()
@@ -152,6 +210,7 @@ async def perform_visual_validation(keluarga_id: UUID, user_id: UUID, db: Sessio
             "hasil_tim2": hasil_validator
         }
     except Exception as e:
+        logger.error("Gagal terhubung ke server Tim 2.", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Kesalahan koneksi ke Tim 2: {str(e)}")
 
@@ -172,7 +231,6 @@ async def run_async_visual_validation(keluarga_id: UUID, user_id: UUID):
 # ENDPOINT ASESMEN (TRIGGER MANUAL)
 # ==========================================
 
-# ASESMEN SOSIAL — TIM 1 & TIM 3
 @router.post("/sosial", summary="Analisis Tim 1 yang diteruskan ke Tim 3")
 async def asesmen_sosial(
     payload: item_schema.TriggerAsesmenRequest,
@@ -185,39 +243,46 @@ async def asesmen_sosial(
     if not keluarga:
         raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
 
+    hitung = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == keluarga.id).first()
+    skor_pkh = hitung.skor_pkh_plus if hitung and hitung.skor_pkh_plus else 0.0
+    skor_aspd = hitung.skor_aspd if hitung and hitung.skor_aspd else 0.0
+
     try:
-        data_untuk_ai = {
-            c.name: getattr(keluarga, c.name)
-            for c in models.Keluarga.__table__.columns
+        konteks_aturan = await mock_qdrant_retriever("syarat penerima bansos")
+
+        role_content = "Anda adalah AI Auditor resmi Dinas Sosial Provinsi Jawa Timur..."
+        user_content = f"Profil Warga:\n- NIK: {keluarga.nik}\n- Desil: {keluarga.desil_nasional}\n- Skor PKH: {skor_pkh}\n- Skor ASPD: {skor_aspd}\n\nKonteks: {konteks_aturan}"
+
+        # Payload manual untuk Swagger
+        payload_llm = {
+            "messages": [
+                {"role": "system", "content": role_content},
+                {"role": "user", "content": user_content}
+            ],
+            "desil": keluarga.desil_nasional, 
+            "skor_aspd": skor_aspd,
+            "skor_pkh": skor_pkh              # <--- Sudah ditambahkan di sini juga
         }
-        data_untuk_ai.pop("id", None)
 
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    f"{AI_BASE_URL}/api/ai/jalur-sosial",
-                    json=data_untuk_ai,
+                    f"{AI_BASE_URL}/api/chat", # <-- Memanggil Beeceptor
+                    json=payload_llm,
                     timeout=30.0
                 )
                 response.raise_for_status()
                 hasil_final = response.json()
             except Exception as e:
-                raise HTTPException(status_code=502, detail=f"Gagal mendapatkan analisis dari jalur AI: {e}")
+                raise HTTPException(status_code=502, detail=f"Gagal mendapatkan analisis dari AI LLM: {e}")
 
         rekomendasi_baru = hasil_final.get("rekomendasi_bantuan", [])
-        analisis_rag = hasil_final.get("justifikasi_dokumen", "")
-
-        hitung = db.query(models.Perhitungan).filter(
-            models.Perhitungan.keluarga_id == keluarga.id
-        ).first()
+        analisis_rag = json.dumps(hasil_final) 
 
         bantuan_lama = None
 
         if not hitung:
-            hitung = models.Perhitungan(
-                keluarga_id=keluarga.id,
-                user_id=current_user.id
-            )
+            hitung = models.Perhitungan(keluarga_id=keluarga.id, user_id=current_user.id)
             db.add(hitung)
         else:
             bantuan_lama = hitung.rekomendasi_bantuan
@@ -226,12 +291,9 @@ async def asesmen_sosial(
         hitung.reasoning_tim3 = analisis_rag
 
         log = models.LogHistori(
-            keluarga_id=keluarga.id,
-            user_id=current_user.id,
-            desil_lama=None,
-            desil_baru=None,
-            bantuan_lama=bantuan_lama,
-            bantuan_baru=rekomendasi_baru
+            keluarga_id=keluarga.id, user_id=current_user.id,
+            desil_lama=None, desil_baru=None,
+            bantuan_lama=bantuan_lama, bantuan_baru=rekomendasi_baru
         )
         db.add(log)
         db.commit()

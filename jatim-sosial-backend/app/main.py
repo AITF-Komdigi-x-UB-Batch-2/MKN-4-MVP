@@ -18,8 +18,8 @@ logging.basicConfig(
 )
 
 # Cara pakai di dalam endpoint atau fungsi:
-logging.info("Proses sinkronisasi CSV dimulai.")
-logging.error("Gagal terhubung ke server Tim 2.")
+# logging.info("Proses sinkronisasi CSV dimulai.")
+# logging.error("Gagal terhubung ke server Tim 2.")
 
 # 1. Jalankan migrasi kolom NIK dan pembuatan tabel database otomatis
 models.Base.metadata.create_all(bind=engine)

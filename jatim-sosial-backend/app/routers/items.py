@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from uuid import UUID
 from datetime import datetime
@@ -12,16 +13,18 @@ from app.config import MINIO_BUCKET, MINIO_ENDPOINT, s3_client
 from app.schemas import item as item_schema
 from app.routers.asesmen import run_async_visual_validation, run_async_assessment
 import httpx
+import logging
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1",
-    tags=["2. Data Warga & Bantuan"]
+    tags=["3. Data Warga & Bantuan"]
 )
 
 @router.post(
     "/import-csv",
-    tags=["1. Import Master Data"],
     summary="Sinkronisasi data warga dan foto dari file CSV atau Excel (XLSX)"
 )
 async def import_csv(
@@ -59,7 +62,6 @@ async def import_csv(
             if row_has_data:
                 reader.append(row_dict)
     else:
-        # Jalankan parser CSV default
         csv_reader = csv.DictReader(io.StringIO(contents.decode("utf-8")))
         reader = list(csv_reader)
 
@@ -144,6 +146,88 @@ async def import_csv(
         "FOTO_RUMAH_TAMPAK_DALAM": "foto_rumah_tampak_dalam",
     }
 
+    def is_not_null(value) -> bool:
+        return value is not None and str(value).strip() not in ("", "nan", "NaN", "None")
+
+    def build_defaults_from_db() -> dict:
+        defaults = {}
+        for col_name in kolom_sah:
+            if col_name in ("id", "no_kk", "nik"):
+                continue
+            col = getattr(models.Keluarga, col_name)
+            if col_name in KOLOM_INT or col_name in KOLOM_ASET_INT:
+                avg_val = db.query(func.avg(col)).filter(col.isnot(None)).scalar()
+                defaults[col_name] = int(avg_val) if avg_val is not None else 0
+            else:
+                # Setara dengan: SELECT * FROM keluarga WHERE <col_name> IS NULL
+                # (dipakai untuk identifikasi nilai kosong di database)
+                mode_row = (
+                    db.query(col, func.count(col).label("cnt"))
+                    .filter(col.isnot(None))
+                    .group_by(col)
+                    .order_by(func.count(col).desc())
+                    .first()
+                )
+                defaults[col_name] = mode_row[0] if mode_row else None
+        return defaults
+
+    defaults_db = build_defaults_from_db()
+
+    def to_int(value, default=0):
+        try:
+            if not is_not_null(value):
+                return default
+            return int(float(value))
+        except (TypeError, ValueError):
+            return default
+
+    def hitung_skor_bantuan(row: dict) -> dict:
+        skor_pkh_plus = 0.0
+        skor_aspd = 0.0
+
+        desil = to_int(row.get("desil_nasional", 10), 10)
+        if desil in (1, 2):
+            skor_pkh_plus += 40.0
+        elif desil in (3, 4):
+            skor_pkh_plus += 20.0
+
+        lantai = to_int(row.get("id_lantai_terluas", 0), 0)
+        if lantai in (7, 8):
+            skor_pkh_plus += 20.0
+
+        atap = to_int(row.get("id_atap_terluas", 0), 0)
+        if atap in (5, 7):
+            skor_pkh_plus += 15.0
+
+        motor = to_int(row.get("aset_bergerak_sepeda_motor", 2), 2)
+        if motor == 1:
+            skor_pkh_plus -= 15.0
+
+        kolom_disabilitas = [
+            "id_penglihatan", "id_pendengaran", "id_berjalan_atau_naik_tangga",
+            "id_menggunakan_tangan_jari", "id_belajar_kemampuan_intelektual",
+            "id_pengendalian_perilaku", "id_berbicara_komunikasi",
+            "id_mengurus_diri", "id_mengingat_berkonsentrasi", "id_kesedihan_depresi"
+        ]
+
+        kondisi_terberat = 4
+        for col in kolom_disabilitas:
+            nilai = to_int(row.get(col, 4), 4)
+            if 0 < nilai < kondisi_terberat:
+                kondisi_terberat = nilai
+
+        if kondisi_terberat == 1:
+            skor_aspd += 95.0
+        elif kondisi_terberat == 2:
+            skor_aspd += 70.0
+        elif kondisi_terberat == 3:
+            skor_aspd += 30.0
+
+        return {
+            "skor_pkh_plus": max(0.0, min(100.0, float(skor_pkh_plus))),
+            "skor_aspd": max(0.0, min(100.0, float(skor_aspd)))
+        }
+
     async with httpx.AsyncClient() as client:
         for idx_row, raw_row in enumerate(reader):
             try:
@@ -171,7 +255,6 @@ async def import_csv(
 
                 # 1. Bersihkan Data Keluarga
                 data_bersih = {}
-
                 for k, v in row.items():
                     if k not in kolom_sah:
                         continue
@@ -192,6 +275,12 @@ async def import_csv(
 
                     else:
                         data_bersih[k] = v if v and str(v).strip() not in ("", "nan") else None
+
+                # 1b. Isi data kosong dari default database
+                for col_name, default_val in defaults_db.items():
+                    if col_name in data_bersih and not is_not_null(data_bersih[col_name]):
+                        if default_val is not None:
+                            data_bersih[col_name] = default_val
 
                 # 2. Cek Idempotensi & History
                 keluarga_lama = db.query(models.Keluarga).filter(
@@ -231,6 +320,9 @@ async def import_csv(
                     keluarga_diproses = keluarga_baru
                     db.flush()
 
+                # 3. Hitung skor SETELAH data bersih dan terisi
+                skor = hitung_skor_bantuan(data_bersih)
+
                 # Tandai status awal sebagai "proses" agar data tidak terlihat sebelum selesai
                 hitung = db.query(models.Perhitungan).filter(
                     models.Perhitungan.keluarga_id == keluarga_diproses.id
@@ -241,6 +333,9 @@ async def import_csv(
                         user_id=current_user.id
                     )
                     db.add(hitung)
+
+                hitung.skor_aspd = skor.get("skor_aspd", 0.0)
+                hitung.skor_pkh_plus = skor.get("skor_pkh_plus", 0.0)
 
                 is_processing = hitung.status_validasi not in ("diterima", "ditolak")
                 if is_processing:
@@ -317,7 +412,6 @@ async def import_csv(
 # ENDPOINT MANAJEMEN BANTUAN (FRONTEND)
 @router.get(
     "/manajemen-bantuan",
-    tags=["4. Read Data"],
     summary="Ambil data gabungan Keluarga dan Perhitungan AI untuk tabel Manajemen Bantuan",
     response_model=List[item_schema.ManajemenBantuanResponse]
 )
@@ -344,12 +438,12 @@ async def get_manajemen_bantuan(
             wilayah=k.kabupaten_kota or "-",
             kecamatan=k.kecamatan or "-",
             desil=k.desil_nasional or 0,
-            skorASPD=p.skor_aspd if p and p.skor_aspd else 0.0,
-            skorPKHT=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
+            skorASPD=p.skor_aspd if p and p.skor_aspd is not None else 0.0,
+            skorPKHPlus=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
             tahap=tahap_ui,
             bantuan=bantuan_list,
             rekomendasiBantuan=rekomendasi_list,
-            skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd else 0.0),
+            skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd is not None else 0.0),
             aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI."
         )
         response_data.append(row)
@@ -359,7 +453,6 @@ async def get_manajemen_bantuan(
 @router.get(
     "/manajemen-bantuan/{id_keluarga}",
     response_model=item_schema.DetailKeluargaResponse,
-    tags=["4. Read Data"],
     summary="Ambil detail lengkap satu keluarga untuk halaman DetailHasil"
 )
 async def get_detail_manajemen_bantuan(
@@ -391,18 +484,18 @@ async def get_detail_manajemen_bantuan(
         wilayah=k.kabupaten_kota or "-",
         kecamatan=k.kecamatan or "-",
         desil=k.desil_nasional or 0,
-        skorASPD=p.skor_aspd if p and p.skor_aspd else 0.0,
-        skorPKHT=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
+        skorASPD=p.skor_aspd if p and p.skor_aspd is not None else 0.0,
+        skorPKHPlus=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
         tahap=tahap_ui,
         bantuan=bantuan_list,
         rekomendasiBantuan=rekomendasi_list,
-        skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd else 0.0),
+        skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd is not None else 0.0),
         atap=k.jenis_atap_terluas or 0,
         dinding=k.jenis_dinding_terluas or 0,
         lantai=k.jenis_lantai_terluas or 0,
         url_foto=f.url_foto if f else None,
         foto_urls=[foto.url_foto for foto in fotos if foto.url_foto],
-        visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian_visual is not None else None,
+        visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian is not None else None,
         visual_reasoning=p.reasoning_tim2 if p else None,
         catatan=p.catatan_petugas if p else None,
         catatan_supervisor=p.catatan_supervisor if p else None,
@@ -411,7 +504,6 @@ async def get_detail_manajemen_bantuan(
 
 @router.put(
     "/manajemen-bantuan/{id_keluarga}/status",
-    tags=["Manajemen Bantuan"],
     summary="Update status validasi dan rekomendasi bantuan",
     response_model=item_schema.DetailKeluargaResponse
 )
@@ -444,7 +536,6 @@ async def update_status_validasi(
 # ENDPOINT READ DATA (GET)
 @router.get(
     "/keluarga",
-    tags=["4. Read Data"],
     summary="Ambil daftar semua keluarga (dengan pagination)"
 )
 async def list_keluarga(
@@ -465,7 +556,6 @@ async def list_keluarga(
 
 @router.get(
     "/keluarga/{keluarga_id}",
-    tags=["4. Read Data"],
     summary="Ambil detail satu keluarga berdasarkan ID"
 )
 async def get_keluarga(
@@ -487,7 +577,6 @@ async def get_keluarga(
 
 @router.get(
     "/keluarga/{keluarga_id}/histori",
-    tags=["4. Read Data"],
     summary="Lihat riwayat perubahan asesmen satu keluarga"
 )
 async def get_histori(

@@ -7,12 +7,11 @@ from app import models
 from app.security import get_current_user, get_password_hash, create_access_token
 from app.schemas import user as user_schema
 
-router = APIRouter(tags=["5. Manajemen User"])
+router = APIRouter(tags=["2. Manajemen User"])
 
 # profile user yang sedang login
 @router.get(
     "/api/v1/users/me",
-    tags=["5. Manajemen User"],
     summary="Ambil profil akun yang sedang login",
     response_model=user_schema.UserResponse
 )
@@ -23,7 +22,6 @@ def get_my_profile(
 
 @router.put(
     "/api/v1/users/me",
-    tags=["5. Manajemen User"],
     summary="Edit profil akun sendiri (username, email, password)",
     response_model=user_schema.UserResponse
 )
@@ -63,7 +61,6 @@ def update_my_profile(
 # Manajemen user (hanya untuk admin)
 @router.get(
     "/api/v1/users",
-    tags=["5. Manajemen User"],
     summary="Ambil daftar semua pengguna sistem (hanya admin)",
     response_model=List[user_schema.UserResponse]
 )
@@ -76,7 +73,6 @@ def get_users(
 
 @router.post(
     "/api/v1/users",
-    tags=["5. Manajemen User"],
     summary="Buat pengguna baru (hanya admin)",
     response_model=user_schema.UserResponse,
     status_code=201
@@ -113,7 +109,6 @@ def create_user(
 
 @router.delete(
     "/api/v1/users/{user_id}",
-    tags=["5. Manajemen User"],
     summary="Hapus pengguna dari sistem (hanya admin)"
 )
 def delete_user(
@@ -142,7 +137,6 @@ def delete_user(
 
 @router.patch(
     "/api/v1/users/{user_id}",
-    tags=["5. Manajemen User"],
     summary="Update status aktif atau role pengguna (hanya admin)",
     response_model=user_schema.UserResponse
 )
