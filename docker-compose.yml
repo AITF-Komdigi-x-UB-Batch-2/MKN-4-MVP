@@ -13,6 +13,8 @@ services:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - net_internal
 
   # --- 2. MINIO (GUDANG FOTO TIPE S3) ---
   minio:
@@ -28,6 +30,9 @@ services:
       - "9001:9001"
     volumes:
       - miniodata:/data
+    networks:
+      - net_internal
+      - net_public
 
   # --- 3. MOCK AI SERVICE ---
   mock_ai:
@@ -45,6 +50,8 @@ services:
       - ./jatim-sosial-backend:/app
     depends_on:
       - db
+    networks:
+      - net_internal
 
   # --- 4. BACKEND API SERVICE ---
   backend:
@@ -64,12 +71,16 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - AI_BASE_URL=http://mock_ai:8001
+      - MINIO_PUBLIC_ENDPOINT=localhost:9000
     volumes:
       - ./jatim-sosial-backend:/app
     depends_on:
       - db
       - minio
       - mock_ai
+    networks:
+      - net_public
+      - net_internal
     develop:
       watch:
         - path: ./jatim-sosial-backend
@@ -96,6 +107,8 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+    networks:
+      - net_public
     develop:
       watch:
         - path: ./jatim-sosial-frontend/src
@@ -115,3 +128,10 @@ services:
 volumes:
   pgdata:
   miniodata:
+
+# --- NETWORK SEGMENTATION ---
+networks:
+  net_public:
+    driver: bridge
+  net_internal:
+    driver: bridge

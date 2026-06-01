@@ -252,6 +252,45 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     pkht: detailData?.skorPKHT || 0,
   };
 
+  const getAtapVisual = () => {
+    if (detailData?.visual_match === undefined || detailData?.visual_match === null) {
+      return "-";
+    }
+    if (detailData.visual_match) {
+      return mapAtap(detailData.atap || 0);
+    }
+    if (detailData.atap === 1 || detailData.atap === 2) {
+      return "Seng";
+    }
+    return "Jerami/Ijuk";
+  };
+
+  const getDindingVisual = () => {
+    if (detailData?.visual_match === undefined || detailData?.visual_match === null) {
+      return "-";
+    }
+    if (detailData.visual_match) {
+      return mapDinding(detailData.dinding || 0);
+    }
+    if (detailData.dinding === 1 || detailData.dinding === 2) {
+      return "Bambu";
+    }
+    return "Bambu/Seng Bekas";
+  };
+
+  const getLantaiVisual = () => {
+    if (detailData?.visual_match === undefined || detailData?.visual_match === null) {
+      return "-";
+    }
+    if (detailData.visual_match) {
+      return mapLantai(detailData.lantai || 0);
+    }
+    if (detailData.lantai === 1 || detailData.lantai === 2) {
+      return "Ubin/Semen";
+    }
+    return "Tanah";
+  };
+
   const recommendations: any[] = [
     {
       id: "ASPD",
@@ -269,38 +308,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
       desc: "Bantuan sosial bersyarat berupa dana tunai khusus bagi lanjut usia (lansia) berusia 70 tahun ke atas dari keluarga sangat miskin yang terdaftar dalam DTKS.",
       reason:
         "Analisis kriteria kesehatan dan pendidikan menunjukkan kelayakan tinggi.",
-      isReceived: false,
-    },
-    {
-      id: "KE",
-      title: "Bantuan Kemiskinan Ekstrem",
-      match: 40,
-      desc: "Program percepatan penghapusan kemiskinan ekstrem melalui bantuan modal usaha ekonomi produktif, rehabilitasi hunian, dan jaminan sosial bagi keluarga miskin ekstrem.",
-      reason: "Potensi pengembangan usaha mikro mandiri.",
-      isReceived: false,
-    },
-    {
-      id: "JAWARA",
-      title: "KIP KPM Jawara",
-      match: 0,
-      desc: "Program beasiswa Kartu Indonesia Pintar (KIP) yang disasarkan khusus untuk anak-anak sekolah dari Keluarga Penerima Manfaat (KPM) program Jatim Jawara.",
-      reason: "Tidak ada data indikator yang terpenuhi",
-      isReceived: false,
-    },
-    {
-      id: "JAWARA P",
-      title: "KIP Putri Jawara",
-      match: 0,
-      desc: "Bantuan pendidikan khusus berupa beasiswa Kartu Indonesia Pintar (KIP) bagi anak perempuan dari keluarga rentan dan miskin untuk mencegah angka putus sekolah.",
-      reason: "Tidak ada data indikator yang terpenuhi",
-      isReceived: false,
-    },
-    {
-      id: "PPU",
-      title: "KIP PPKS Jawara",
-      match: 0,
-      desc: "Program dukungan pendidikan beasiswa Kartu Indonesia Pintar (KIP) untuk anak-anak Pemerlu Pelayanan Kesejahteraan Sosial (PPKS) seperti anak asuh, yatim piatu, dll.",
-      reason: "Tidak ada data indikator yang terpenuhi",
       isReceived: false,
     },
   ];
@@ -596,6 +603,16 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                             color: "#475569",
                           }}
                         >
+                          PREDIKSI AI
+                        </th>
+                        <th
+                          style={{
+                            padding: "12px 16px",
+                            textAlign: "left",
+                            fontWeight: 600,
+                            color: "#475569",
+                          }}
+                        >
                           STATUS
                         </th>
                         <th
@@ -625,6 +642,18 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                           {mapAtap(detailData?.atap || 0)}
                         </td>
                         <td style={{ padding: "14px 16px" }}>
+                          <span style={{
+                            fontWeight: 600,
+                            color: detailData?.visual_match === undefined || detailData?.visual_match === null
+                              ? "#64748b"
+                              : detailData.visual_match
+                                ? "#10b981"
+                                : "#ef4444"
+                          }}>
+                            {getAtapVisual()}
+                          </span>
+                        </td>
+                        <td style={{ padding: "14px 16px" }}>
                           {renderVisualMatchBadge(detailData?.visual_match)}
                         </td>
                         <td style={{ padding: "14px 16px", color: "#475569" }}>
@@ -645,6 +674,18 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                           {mapDinding(detailData?.dinding || 0)}
                         </td>
                         <td style={{ padding: "14px 16px" }}>
+                          <span style={{
+                            fontWeight: 600,
+                            color: detailData?.visual_match === undefined || detailData?.visual_match === null
+                              ? "#64748b"
+                              : detailData.visual_match
+                                ? "#10b981"
+                                : "#ef4444"
+                          }}>
+                            {getDindingVisual()}
+                          </span>
+                        </td>
+                        <td style={{ padding: "14px 16px" }}>
                           {renderVisualMatchBadge(detailData?.visual_match)}
                         </td>
                         <td style={{ padding: "14px 16px", color: "#475569" }}>
@@ -663,6 +704,18 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                         </td>
                         <td style={{ padding: "14px 16px", color: "#475569" }}>
                           {mapLantai(detailData?.lantai || 0)}
+                        </td>
+                        <td style={{ padding: "14px 16px" }}>
+                          <span style={{
+                            fontWeight: 600,
+                            color: detailData?.visual_match === undefined || detailData?.visual_match === null
+                              ? "#64748b"
+                              : detailData.visual_match
+                                ? "#10b981"
+                                : "#ef4444"
+                          }}>
+                            {getLantaiVisual()}
+                          </span>
                         </td>
                         <td style={{ padding: "14px 16px" }}>
                           {renderVisualMatchBadge(detailData?.visual_match)}

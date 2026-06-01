@@ -9,7 +9,7 @@ import io
 from app.database import get_db
 from app import models
 from app.security import get_current_user
-from app.config import MINIO_BUCKET, MINIO_ENDPOINT, s3_client
+from app.config import MINIO_BUCKET, MINIO_ENDPOINT, s3_client, to_public_foto_url
 from app.schemas import item as item_schema
 from app.routers.asesmen import run_async_visual_validation, run_async_assessment
 import httpx
@@ -528,12 +528,12 @@ async def get_detail_manajemen_bantuan(
         bantuan=bantuan_list,
         rekomendasiBantuan=rekomendasi_list,
         skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd is not None else 0.0),
-        atap=k.jenis_atap_terluas or 0,
-        dinding=k.jenis_dinding_terluas or 0,
-        lantai=k.jenis_lantai_terluas or 0,
-        url_foto=f.url_foto if f else None,
-        foto_urls=[foto.url_foto for foto in fotos if foto.url_foto],
-        visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian is not None else None,
+        atap=k.id_atap_terluas or 0,
+        dinding=k.id_dinding_terluas or 0,
+        lantai=k.id_lantai_terluas or 0,
+        url_foto=to_public_foto_url(f.url_foto) if f else None,
+        foto_urls=[to_public_foto_url(foto.url_foto) for foto in fotos if foto.url_foto],
+        visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian_visual is not None else None,
         visual_reasoning=p.reasoning_tim2 if p else None,
         catatan=p.catatan_petugas if p else None,
         catatan_supervisor=p.catatan_supervisor if p else None,

@@ -1313,7 +1313,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
               <div className="mb-batch-info" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <CheckSquare size={18} style={{ color: "#2563eb" }} />
                 <span>
-                  <strong>{selectedRows.size}</strong> data terpilih
+                  <strong>{selectedRows.size}</strong> data keluarga terpilih
                 </span>
                 <button
                   className="mb-batch-clear"
@@ -1350,7 +1350,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                   {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
                   {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}
                 </strong>{" "}
-                dari <strong>{filteredData.length}</strong> data
+                dari <strong>{filteredData.length}</strong> data keluarga
               </div>
               <div className="mb-pagination-controls" style={{ display: "flex", gap: "6px" }}>
                 <button

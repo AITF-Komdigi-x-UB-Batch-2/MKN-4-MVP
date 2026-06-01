@@ -17,6 +17,13 @@ MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 MINIO_BUCKET = "foto-rumah-warga"
+MINIO_PUBLIC_ENDPOINT = os.getenv("MINIO_PUBLIC_ENDPOINT", "localhost:9000")
+
+def to_public_foto_url(url: str) -> str:
+    """Konversi URL internal Docker (minio:9000) ke URL yang bisa diakses browser."""
+    if not url or not MINIO_ENDPOINT:
+        return url
+    return url.replace(f"http://{MINIO_ENDPOINT}", f"http://{MINIO_PUBLIC_ENDPOINT}")
 
 # Inisialisasi Klien S3/MinIO
 s3_client = boto3.client(
