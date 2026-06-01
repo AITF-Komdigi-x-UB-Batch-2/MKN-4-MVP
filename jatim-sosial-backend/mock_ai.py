@@ -17,11 +17,174 @@ class JalurSosialResponse(BaseModel):
     status: str
     rekomendasi_bantuan: List[str]
     justifikasi_dokumen: str
+    skor_aspd: float
+    skor_pkh_plus: float
 
 
 class VisualValidatorResponse(BaseModel):
     is_match: bool
     reasoning: str
+
+
+def hitung_skor_deterministik(data_warga: dict) -> dict:
+    """
+    Menghitung skor kelayakan bantuan secara deterministik berdasarkan data profil keluarga:
+    1. ASPD (Asistensi Sosial Penyandang Disabilitas) - Bobot: Disabilitas (60%), Kemandirian (20%), Ekonomi/Desil (20%)
+    2. PKH Plus (Program Keluarga Harapan Plus) - Bobot: Desil/Ekstrem (40%), Kelayakan Hunian/Material (30%), Aset (20%), Jumlah Anggota (10%)
+    """
+    # --- FORMULA SKOR ASPD ---
+    skor_aspd = 10.0  # Skor dasar
+    
+    # 1. Kriteria Disabilitas (Maksimal 60 poin)
+    id_disabilitas = data_warga.get("id_disabilitas")
+    tingkat_disabilitas = data_warga.get("tingkat_disabilitas")
+    aspd_flag = data_warga.get("aspd")
+    
+    if id_disabilitas and int(float(id_disabilitas)) > 0:
+        skor_aspd += 40.0
+    
+    if tingkat_disabilitas:
+        tingkat_upper = str(tingkat_disabilitas).upper()
+        if "BERAT" in tingkat_upper:
+            skor_aspd += 20.0
+        elif "SEDANG" in tingkat_upper:
+            skor_aspd += 12.0
+        elif "RINGAN" in tingkat_upper:
+            skor_aspd += 5.0
+            
+    if aspd_flag and int(float(aspd_flag)) == 1:
+        skor_aspd += 15.0
+
+    # Batasi kontribusi disabilitas max 70
+    skor_aspd = min(skor_aspd, 70.0)
+
+    # 2. Dampak Kemandirian (Fisik/Mental) (Maksimal 20 poin)
+    kesulitan = 0.0
+    for var in ["id_mengurus_diri", "id_berjalan_atau_naik_tangga", "id_belajar_kemampuan_intelektual", "id_berbicara_komunikasi"]:
+        val = data_warga.get(var)
+        if val is not None:
+            try:
+                val_int = int(float(val))
+                if val_int == 1:  # Sangat Sulit
+                    kesulitan += 8.0
+                elif val_int == 2:  # Sulit
+                    kesulitan += 5.0
+                elif val_int == 3:  # Sedikit Sulit
+                    kesulitan += 2.0
+            except (ValueError, TypeError):
+                pass
+    skor_aspd += min(kesulitan, 20.0)
+
+    # 3. Kriteria Desil Ekonomi (Maksimal 10 poin)
+    desil = data_warga.get("desil_nasional")
+    if desil is not None:
+        try:
+            desil_int = int(float(desil))
+            if desil_int == 1:
+                skor_aspd += 10.0
+            elif desil_int == 2:
+                skor_aspd += 8.0
+            elif desil_int == 3:
+                skor_aspd += 6.0
+            elif desil_int == 4:
+                skor_aspd += 4.0
+        except (ValueError, TypeError):
+            pass
+
+    # Total Maksimal ASPD = 100, Minimal = 0
+    skor_aspd = min(max(round(skor_aspd, 2), 0.0), 100.0)
+
+
+    # --- FORMULA SKOR PKH PLUS ---
+    skor_pkh = 10.0  # Skor dasar
+
+    # 1. Kriteria Desil dan Kemiskinan Ekstrem (Maksimal 40 poin)
+    desil = data_warga.get("desil_nasional")
+    kemiskinan_ekstrem = data_warga.get("kemiskinan_ekstrem")
+    pkh_plus_flag = data_warga.get("pkh_plus")
+    
+    if desil is not None:
+        try:
+            desil_int = int(float(desil))
+            if desil_int == 1:
+                skor_pkh += 25.0
+            elif desil_int == 2:
+                skor_pkh += 20.0
+            elif desil_int == 3:
+                skor_pkh += 15.0
+            elif desil_int == 4:
+                skor_pkh += 10.0
+        except (ValueError, TypeError):
+            pass
+
+    if kemiskinan_ekstrem and int(float(kemiskinan_ekstrem)) == 1:
+        skor_pkh += 10.0
+        
+    if pkh_plus_flag and int(float(pkh_plus_flag)) == 1:
+        skor_pkh += 10.0
+
+    skor_pkh = min(skor_pkh, 45.0)
+
+    # 2. Kelayakan Material Rumah (Maksimal 25 poin)
+    id_lantai = data_warga.get("id_lantai_terluas")
+    id_dinding = data_warga.get("id_dinding_terluas")
+    id_atap = data_warga.get("id_atap_terluas")
+    
+    material_score = 0.0
+    if id_lantai is not None:
+        try:
+            if int(float(id_lantai)) >= 3:
+                material_score += 10.0
+        except (ValueError, TypeError):
+            pass
+    if id_dinding is not None:
+        try:
+            if int(float(id_dinding)) >= 2:
+                material_score += 8.0
+        except (ValueError, TypeError):
+            pass
+    if id_atap is not None:
+        try:
+            if int(float(id_atap)) >= 3:
+                material_score += 7.0
+        except (ValueError, TypeError):
+            pass
+    skor_pkh += min(material_score, 25.0)
+
+    # 3. Ketiadaan Aset Produktif/Bergerak (Maksimal 20 poin)
+    punya_motor = data_warga.get("aset_bergerak_sepeda_motor")
+    punya_kulkas = data_warga.get("aset_bergerak_lemari_es")
+    punya_tv = data_warga.get("aset_bergerak_tv_datar")
+    punya_ac = data_warga.get("aset_bergerak_ac")
+    
+    aset_score = 0.0
+    if punya_motor is not None and int(float(punya_motor)) == 0:
+        aset_score += 8.0
+    if punya_kulkas is not None and int(float(punya_kulkas)) == 0:
+        aset_score += 5.0
+    if punya_tv is not None and int(float(punya_tv)) == 0:
+        aset_score += 4.0
+    if punya_ac is not None and int(float(punya_ac)) == 0:
+        aset_score += 3.0
+        
+    skor_pkh += min(aset_score, 20.0)
+
+    # 4. Kriteria Kerentanan Lansia (Jumlah Anggota Keluarga) (Maksimal 10 poin)
+    jumlah_anggota = data_warga.get("jumlah_anggota_keluarga")
+    if jumlah_anggota is not None:
+        try:
+            if int(float(jumlah_anggota)) >= 5:
+                skor_pkh += 10.0
+            elif int(float(jumlah_anggota)) >= 3:
+                skor_pkh += 5.0
+        except (ValueError, TypeError):
+            pass
+
+    # Total Maksimal PKH Plus = 100, Minimal = 0
+    skor_pkh = min(max(round(skor_pkh, 2), 0.0), 100.0)
+
+    return {"skor_aspd": skor_aspd, "skor_pkh_plus": skor_pkh}
+
 
 # INISIALISASI FASTAPI
 app = FastAPI(
@@ -62,13 +225,17 @@ async def mock_jalur_sosial(data_warga: dict = Body(...)):
                 "Tugas Anda adalah menganalisis data profil keluarga yang diberikan untuk menentukan kelayakan dan jenis bantuan yang tepat sasaran.\n"
                 "Tentukan:\n"
                 "1. Status tingkat kemiskinan (pilih salah satu dari: 'Sangat Miskin', 'Rentan Miskin', atau 'Mampu').\n"
-                "2. Rekomendasi bantuan sosial yang sesuai dari daftar berikut: 'Program Keluarga Harapan (PKH)', 'Bantuan Pangan Non Tunai (BPNT)', 'Bantuan Rutilahu (Rumah Tidak Layak Huni)', atau 'Monitoring dan Advokasi Sosial'.\n"
-                "3. Justifikasi/alasan ilmiah terperinci mengapa mereka layak atau tidak layak menerima bantuan tersebut berdasarkan kondisi lantai, dinding, kepemilikan aset motor/kulkas/tv, dll.\n\n"
+                "2. Rekomendasi bantuan sosial yang sesuai dari daftar berikut: 'ASPD', 'PKHT'.\n"
+                "   - Rekomendasikan 'ASPD' jika terdapat anggota keluarga penyandang disabilitas (disabilitas > 0 atau ada tingkat disabilitas).\n"
+                "   - Rekomendasikan 'PKHT' jika keluarga tersebut miskin/rentan miskin dan layak menerima Program Keluarga Harapan Plus (PKH Plus).\n"
+                "   - Rekomendasikan keduanya jika memenuhi syarat keduanya.\n"
+                "   - JANGAN merekomendasikan bantuan lain selain 'ASPD' dan 'PKHT'. Jika tidak layak mendapat keduanya, kembalikan array kosong [].\n"
+                "3. Justifikasi/alasan ilmiah terperinci mengapa mereka layak atau tidak layak menerima bantuan tersebut berdasarkan kondisi disabilitas (untuk ASPD) dan kondisi desil/kemiskinan (untuk PKHT).\n\n"
                 "Format respon Anda HARUS berupa JSON valid dengan struktur kunci berikut:\n"
                 "{\n"
                 '  "status": "Sangat Miskin / Rentan Miskin / Mampu",\n'
-                '  "rekomendasi_bantuan": ["Nama Bantuan 1", "Nama Bantuan 2"],\n'
-                '  "justifikasi_dokumen": "Tuliskan 2-3 kalimat analisis objektif mengapa bantuan ini direkomendasikan berdasarkan aset dan kondisi tempat tinggal mereka."\n'
+                '  "rekomendasi_bantuan": ["ASPD", "PKHT"],\n'
+                '  "justifikasi_dokumen": "Tuliskan 2-3 kalimat analisis objektif mengapa bantuan ini direkomendasikan berdasarkan kondisi disabilitas atau tingkat desil kesejahteraan mereka."\n'
                 "}\n\n"
                 "Kembalikan HANYA objek JSON di atas tanpa tambahan teks pembuka, penutup, atau pembungkus markdown (```json)."
             )
@@ -114,50 +281,65 @@ async def mock_jalur_sosial(data_warga: dict = Body(...)):
         print("[Fallback] Mengaktifkan analisis rule-based statis cadangan.")
         await asyncio.sleep(1.0)
         
-        luas_lantai = data_warga.get("luas_lantai", 0)
-        punya_motor = data_warga.get("aset_bergerak_sepeda_motor", False)
-        punya_kulkas = data_warga.get("aset_bergerak_lemari_es", False)
-        punya_tv = data_warga.get("aset_bergerak_tv_datar", False)
+        id_disabilitas = data_warga.get("id_disabilitas")
+        tingkat_disabilitas = data_warga.get("tingkat_disabilitas")
+        desil_nasional = data_warga.get("desil_nasional")
+        pkh_plus = data_warga.get("pkh_plus")
+        aspd = data_warga.get("aspd")
 
         rekomendasi = []
         justifikasi = []
         
-        # Aturan 1: Sangat miskin
-        if not punya_motor and not punya_kulkas and not punya_tv:
-            rekomendasi.append("Program Keluarga Harapan (PKH)")
-            justifikasi.append("Keluarga terdeteksi sangat miskin - tidak memiliki aset motor, kulkas, atau TV")
+        # Aturan ASPD (Disabilitas)
+        has_disability = False
+        if id_disabilitas and id_disabilitas > 0:
+            has_disability = True
+        if tingkat_disabilitas and str(tingkat_disabilitas).strip() not in ["", "None", "0"]:
+            has_disability = True
+        if aspd and aspd == 1:
+            has_disability = True
+
+        if has_disability:
+            rekomendasi.append("ASPD")
+            justifikasi.append("Terdapat anggota keluarga penyandang disabilitas (Rekomendasi bantuan ASPD)")
         
-        # Aturan 2: Rumah dengan luas lantai kecil
-        if luas_lantai > 0 and luas_lantai < 20:
-            rekomendasi.append("Bantuan Rutilahu (Rumah Tidak Layak Huni)")
-            justifikasi.append(f"Luas lantai hanya {luas_lantai} m² (< 20 m²) - tidak memenuhi standar layak huni")
+        # Aturan PKHT (PKH Plus)
+        is_poor = False
+        if pkh_plus and pkh_plus == 1:
+            is_poor = True
+        if desil_nasional and desil_nasional <= 4:
+            is_poor = True
         
-        # Aturan 3: Rentan miskin
-        if (punya_motor or punya_kulkas) and not punya_tv:
-            rekomendasi.append("Bantuan Pangan Non Tunai (BPNT)")
-            justifikasi.append("Keluarga tergolong rentan miskin - diberikan dukungan pangan")
+        if is_poor:
+            rekomendasi.append("PKHT")
+            justifikasi.append(f"Keluarga tergolong miskin/rentan (Desil {desil_nasional or 1}) (Rekomendasi bantuan PKH Plus)")
         
         if not rekomendasi:
-            rekomendasi = ["Monitoring dan Advokasi Sosial"]
-            justifikasi.append("Keluarga tergolong mampu secara kepemilikan aset - diberikan monitoring berkala")
+            justifikasi.append("Keluarga dinilai mampu secara ekonomi dan tidak terdata penyandang disabilitas.")
 
         alasan_lengkap = " | ".join(justifikasi) if justifikasi else "Analisis sosial ekonomi selesai"
         
+        scores = hitung_skor_deterministik(data_warga)
         return {
             "status": "success",
             "rekomendasi_bantuan": rekomendasi,
             "justifikasi_dokumen": f"KK: {nomor_kk} → {alasan_lengkap} (Menggunakan Analisis Cadangan)",
-            "skor_aspd": round(random.uniform(20.0, 95.0), 2),
-            "skor_pkh_plus": round(random.uniform(20.0, 95.0), 2)
+            "skor_aspd": scores["skor_aspd"],
+            "skor_pkh_plus": scores["skor_pkh_plus"]
         }
 
     # Kembalikan respon dari AI sesungguhnya
+    rekomendasi_final = hasil_ai.get("rekomendasi_bantuan", [])
+    # Sanitasi agar hanya berisi program yang valid
+    rekomendasi_final = [r for r in rekomendasi_final if r in ["ASPD", "PKHT"]]
+
+    scores = hitung_skor_deterministik(data_warga)
     return {
         "status": hasil_ai.get("status", "success"),
-        "rekomendasi_bantuan": hasil_ai.get("rekomendasi_bantuan", ["Monitoring Sosial"]),
+        "rekomendasi_bantuan": rekomendasi_final,
         "justifikasi_dokumen": f"KK: {nomor_kk} → {hasil_ai.get('justifikasi_dokumen', 'Analisis AI selesai.')}",
-        "skor_aspd": hasil_ai.get("skor_aspd", round(random.uniform(20.0, 95.0), 2)),
-        "skor_pkh_plus": hasil_ai.get("skor_pkh_plus", round(random.uniform(20.0, 95.0), 2))
+        "skor_aspd": scores["skor_aspd"],
+        "skor_pkh_plus": scores["skor_pkh_plus"]
     }
 
 

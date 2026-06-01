@@ -235,6 +235,14 @@ class Perhitungan(Base):
     desil_kemiskinan           = Column(String(5), nullable=True)
     skor_prioritas             = Column(Integer, nullable=True)
 
+    @property
+    def skor_pkht(self):
+        return self.skor_pkh_plus
+
+    @skor_pkht.setter
+    def skor_pkht(self, value):
+        self.skor_pkh_plus = value
+
 # --- TABEL 5: FOTO RUMAH (MENGHUBUNGKAN KELUARGA DENGAN FOTO) ---
 class Foto(Base):
     __tablename__ = "foto"
