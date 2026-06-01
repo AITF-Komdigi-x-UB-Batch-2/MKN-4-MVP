@@ -5,6 +5,21 @@ from app.database import engine, ensure_nik_columns, SessionLocal
 from app.security import get_password_hash
 from app import models
 from sqlalchemy import text
+from app.config import APP_HOST, APP_PORT, ensure_bucket_exists
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("app_service.log"), # Menyimpan log ke file
+        logging.StreamHandler()                 # Tetap menampilkan di terminal
+    ]
+)
+
+# Cara pakai di dalam endpoint atau fungsi:
+# logging.info("Proses sinkronisasi CSV dimulai.")
+# logging.error("Gagal terhubung ke server Tim 2.")
 
 # 1. Jalankan migrasi kolom NIK dan pembuatan tabel database otomatis
 models.Base.metadata.create_all(bind=engine)
@@ -73,5 +88,5 @@ app.include_router(items.router)
 app.include_router(asesmen.router) 
 
 if __name__ == "__main__":
-    print("Menjalankan Main Server di Port 8000...")
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    print(f"Menjalankan Main Server di Port {APP_PORT}...")
+    uvicorn.run("app.main:app", host=APP_HOST, port=APP_PORT, reload=True)

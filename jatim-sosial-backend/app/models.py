@@ -233,7 +233,6 @@ class Perhitungan(Base):
     catatan_petugas            = Column(String(500), nullable=True)
     catatan_supervisor         = Column(String(500), nullable=True)
     desil_kemiskinan           = Column(String(5), nullable=True)
-    skor_prioritas             = Column(Integer, nullable=True)
 
     @property
     def skor_pkht(self):

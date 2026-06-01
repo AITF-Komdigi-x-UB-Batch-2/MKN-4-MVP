@@ -121,10 +121,8 @@ class PerhitunganResponse(BaseModel):
     keluarga_id: UUID
     rekomendasi_bantuan: Optional[List] = None
     reasoning_tim2: Optional[str] = None
-    reasoning_tim1: Optional[str] = None
     reasoning_tim3: Optional[str] = None
     desil_kemiskinan: Optional[str] = None
-    skor_prioritas: Optional[int] = None
     ada_ketidaksesuaian_visual: Optional[bool] = None
     status_validasi: Optional[str] = None
     catatan_petugas: Optional[str] = None
@@ -152,7 +150,7 @@ class ManajemenBantuanResponse(BaseModel):
     kecamatan: str
     desil: int
     skorASPD: float
-    skorPKHT: float
+    skorPKHPlus: float
     tahap: str
     bantuan: list[str]
     rekomendasiBantuan: list[str]
@@ -176,7 +174,7 @@ class DetailKeluargaResponse(BaseModel):
     bantuan: list[str]
     rekomendasiBantuan: list[str]
     skorASPD: float
-    skorPKHT: float
+    skorPKHPlus: float
     
     # Material
     atap: int

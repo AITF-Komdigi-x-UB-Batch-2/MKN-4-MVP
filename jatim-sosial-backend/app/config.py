@@ -6,7 +6,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+APP_HOST = os.getenv("APP_HOST", "127.0.0.1")
+APP_PORT = int(os.getenv("APP_PORT", 8000))
 AI_BASE_URL = os.getenv("AI_BASE_URL")
+MOCK_APP_HOST = os.getenv("MOCK_APP_HOST", "0.0.0.0")
+MOCK_APP_PORT = int(os.getenv("MOCK_APP_PORT", 8001))
 
 # --- KONFIGURASI MINIO (STORAGE) ---
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
