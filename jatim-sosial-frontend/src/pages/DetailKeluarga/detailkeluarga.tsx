@@ -23,18 +23,26 @@ const DetailKeluarga: React.FC<DetailKeluargaProps> = ({ onLogout }) => {
   const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const latestRequestRef = React.useRef(0);
 
   useEffect(() => {
+    const requestId = ++latestRequestRef.current;
     const fetchData = async () => {
       try {
         if (id) {
           const result = await getKeluargaDetail(id);
-          setData(result);
+          if (requestId === latestRequestRef.current) {
+            setData(result);
+          }
         }
       } catch (err) {
-        console.error(err);
+        if (requestId === latestRequestRef.current) {
+          console.error(err);
+        }
       } finally {
-        setLoading(false);
+        if (requestId === latestRequestRef.current) {
+          setLoading(false);
+        }
       }
     };
     fetchData();

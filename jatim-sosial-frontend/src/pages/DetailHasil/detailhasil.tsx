@@ -109,6 +109,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   const [catatanInput, setCatatanInput] = useState("");
   const [catatanSupInput, setCatatanSupInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const latestRequestRef = React.useRef(0);
 
   const displayImages = (() => {
     const urls = [...(detailData?.foto_urls || [])];
@@ -196,9 +197,12 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
   const fetchDetail = useCallback(async () => {
     if (!familyId) return;
+    const requestId = ++latestRequestRef.current;
 
     try {
       const res = await apiFetch(`/api/v1/manajemen-bantuan/${familyId}`);
+      if (requestId !== latestRequestRef.current) return;
+
       if (res.status === 409) {
         setIsProcessing(true);
         setStageState("proses");
@@ -217,9 +221,13 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
           setCatatanSupInput(data.catatan_supervisor);
       }
     } catch (err) {
-      console.error("Gagal mengambil data detail", err);
+      if (requestId === latestRequestRef.current) {
+        console.error("Gagal mengambil data detail", err);
+      }
     } finally {
-      setIsLoading(false);
+      if (requestId === latestRequestRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [familyId]);
 

@@ -279,19 +279,25 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
   const [batchProgress, setBatchProgress] = useState(0);
+  const latestRequestRef = React.useRef(0);
 
   const fetchData = useCallback(async (showLoading = false) => {
+    const requestId = ++latestRequestRef.current;
     try {
       if (showLoading) setIsLoading(true);
       const res = await apiFetch("/api/v1/manajemen-bantuan");
-      if (res.ok) {
+      if (res.ok && requestId === latestRequestRef.current) {
         const json = await res.json();
         setData(json);
       }
     } catch (e) {
-      console.error("Gagal mengambil data dari server:", e);
+      if (requestId === latestRequestRef.current) {
+        console.error("Gagal mengambil data dari server:", e);
+      }
     } finally {
-      if (showLoading) setIsLoading(false);
+      if (showLoading && requestId === latestRequestRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 

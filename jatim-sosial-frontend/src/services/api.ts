@@ -6,26 +6,31 @@
  */
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
-  const token = localStorage.getItem('access_token');
-  
-  const headers = new Headers(options.headers || {});
-  
-  // Jika ada token, selipkan ke dalam Authorization header
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+  try {
+    const token = localStorage.getItem('access_token');
+    
+    const headers = new Headers(options.headers || {});
+    
+    // Jika ada token, selipkan ke dalam Authorization header
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    // Khusus untuk JSON (jika tipe konten tidak didefinisikan secara manual)
+    if (!headers.has('Content-Type') && !(options.body instanceof FormData || options.body instanceof URLSearchParams)) {
+      headers.set('Content-Type', 'application/json');
+    }
+
+    const response = await fetch(endpoint, {
+      ...options,
+      headers,
+    });
+
+    return response;
+  } catch (error) {
+    console.error(`Error pada pemanggilan API fetch [${endpoint}]:`, error);
+    throw error;
   }
-
-  // Khusus untuk JSON (jika tipe konten tidak didefinisikan secara manual)
-  if (!headers.has('Content-Type') && !(options.body instanceof FormData || options.body instanceof URLSearchParams)) {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  const response = await fetch(endpoint, {
-    ...options,
-    headers,
-  });
-
-  return response;
 };
 
 // ─── Tipe Data User ───────────────────────────────────────────────────────────

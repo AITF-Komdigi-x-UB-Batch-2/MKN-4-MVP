@@ -20,17 +20,21 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const [data, setData] = React.useState<any[]>([]);
+  const latestRequestRef = React.useRef(0);
 
   React.useEffect(() => {
+    const requestId = ++latestRequestRef.current;
     const fetchData = async () => {
       try {
         const res = await apiFetch('/api/v1/manajemen-bantuan');
-        if (res.ok) {
+        if (res.ok && requestId === latestRequestRef.current) {
           const json = await res.json();
           setData(json);
         }
       } catch (err) {
-        console.error('Failed to fetch dashboard data', err);
+        if (requestId === latestRequestRef.current) {
+          console.error('Failed to fetch dashboard data', err);
+        }
       }
     };
     fetchData();
