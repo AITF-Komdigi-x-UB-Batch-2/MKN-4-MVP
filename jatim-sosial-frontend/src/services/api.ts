@@ -7,24 +7,53 @@
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   try {
-    const token = localStorage.getItem('access_token');
-    
     const headers = new Headers(options.headers || {});
     
-    // Jika ada token, selipkan ke dalam Authorization header
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
-    }
-
     // Khusus untuk JSON (jika tipe konten tidak didefinisikan secara manual)
     if (!headers.has('Content-Type') && !(options.body instanceof FormData || options.body instanceof URLSearchParams)) {
       headers.set('Content-Type', 'application/json');
     }
 
-    const response = await fetch(endpoint, {
+    let response = await fetch(endpoint, {
       ...options,
       headers,
     });
+
+    if (response.status === 401) {
+      // Cegah infinite loop jika request /login atau /refresh yang 401
+      if (!endpoint.includes('/auth/login') && !endpoint.includes('/auth/refresh') && !endpoint.includes('/login')) {
+        try {
+          const refreshRes = await fetch('/auth/refresh', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (refreshRes.ok) {
+            // Lakukan retry request asli (cookie baru otomatis terkirim oleh browser)
+            response = await fetch(endpoint, {
+              ...options,
+              headers,
+            });
+          } else {
+            throw new Error('Refresh token gagal atau kadaluarsa');
+          }
+        } catch (refreshErr) {
+          console.warn("Silent refresh gagal, mengarahkan ke login:", refreshErr);
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('username');
+          localStorage.removeItem('role');
+          if (!window.location.pathname.includes('/login')) {
+            window.location.replace('/login?reason=expired');
+          }
+        }
+      } else {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('username');
+        localStorage.removeItem('role');
+      }
+    }
 
     return response;
   } catch (error) {

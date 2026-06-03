@@ -25,7 +25,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, isLoggedIn })
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return !!localStorage.getItem('access_token');
+    return !!localStorage.getItem('username');
   });
 
   const protectedPage = (component: React.ReactNode) => (
@@ -34,8 +34,13 @@ function App() {
     </ProtectedRoute>
   );
 
-  const logout = () => {
-    localStorage.removeItem('access_token');
+  const logout = async () => {
+    try {
+      await fetch('/auth/logout', { method: 'POST' });
+    } catch (e) {
+      console.error('Gagal memanggil API logout:', e);
+    }
+    localStorage.removeItem('access_token'); // Bersihkan sisa token lama jika ada
     localStorage.removeItem('username');
     localStorage.removeItem('role');
     setIsLoggedIn(false);
