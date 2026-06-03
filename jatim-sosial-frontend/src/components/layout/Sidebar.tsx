@@ -6,8 +6,11 @@ import {
   ClipboardList, 
   BookOpen, 
   Settings, 
-  LogOut 
+  LogOut,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import logoJatim from '../../assets/Lambang_Provinsi_Jawa_Timur.svg';
 
 interface SidebarProps {
@@ -18,6 +21,19 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const activePath = location.pathname;
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    return localStorage.getItem('sidebar_collapsed') === 'true';
+  });
+
+  useEffect(() => {
+    if (isCollapsed) {
+      document.body.classList.add('sidebar-collapsed');
+      localStorage.setItem('sidebar_collapsed', 'true');
+    } else {
+      document.body.classList.remove('sidebar-collapsed');
+      localStorage.setItem('sidebar_collapsed', 'false');
+    }
+  }, [isCollapsed]);
 
   const handleLogout = () => {
     if (onLogout) onLogout();
@@ -25,13 +41,20 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
   };
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-header">
         <img src={logoJatim} alt="Logo Provinsi Jawa Timur" className="sidebar-logo" />
         <div className="sidebar-title">
           <h3>Pemetaan Kemiskinan dan Bantuan</h3>
           <p>DISKOMINFO JATIM</p>
         </div>
+        <button 
+          className="toggle-sidebar-btn"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          title={isCollapsed ? "Perbesar Sidebar" : "Perkecil Sidebar"}
+        >
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
       </div>
       
       <nav className="sidebar-nav">

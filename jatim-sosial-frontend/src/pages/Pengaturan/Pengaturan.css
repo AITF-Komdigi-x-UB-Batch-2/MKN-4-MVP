@@ -449,3 +449,315 @@ input:checked + .slider:before {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* ── Animasi ────────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── Toast Notification ─────────────────────────────────────────────────── */
+.toast-notification {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  animation: slideUp 0.3s ease-out;
+  max-width: 380px;
+}
+
+.toast-success {
+  background-color: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.toast-error {
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+/* ── Loading & Empty State ──────────────────────────────────────────────── */
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+/* ── User Count Badge ───────────────────────────────────────────────────── */
+.user-count-badge {
+  background-color: #eff6ff;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+/* ── Avatar Admin ───────────────────────────────────────────────────────── */
+.avatar-circle.avatar-admin {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: white;
+}
+
+/* ── Row Inactive ───────────────────────────────────────────────────────── */
+.row-inactive {
+  opacity: 0.55;
+}
+
+/* ── Status Toggle Button ───────────────────────────────────────────────── */
+.status-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.status-toggle.active {
+  color: #15803d;
+  border-color: #86efac;
+  background-color: #f0fdf4;
+}
+
+.status-toggle.inactive {
+  color: #6b7280;
+  border-color: #e5e7eb;
+  background-color: #f9fafb;
+}
+
+.status-toggle:hover {
+  filter: brightness(0.95);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot.green { background-color: #10b981; }
+.dot.gray  { background-color: #9ca3af; }
+
+/* ── Action Cell ────────────────────────────────────────────────────────── */
+.action-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Icon Danger Button ─────────────────────────────────────────────────── */
+.btn-icon-danger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-icon-danger:hover {
+  background-color: #dc2626;
+  color: white;
+}
+
+/* ── Refresh Button ─────────────────────────────────────────────────────── */
+.btn-secondary-sm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary-sm:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+/* ── Danger Button ──────────────────────────────────────────────────────── */
+.btn-danger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background-color: #dc2626;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-danger:hover {
+  background-color: #b91c1c;
+}
+
+/* ── Form Grid 2-col ────────────────────────────────────────────────────── */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 480px) {
+  .form-grid-2 { grid-template-columns: 1fr; }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.required {
+  color: #dc2626;
+}
+
+/* ── Password Input Wrapper ─────────────────────────────────────────────── */
+.input-password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-password-wrapper .config-input {
+  padding-right: 40px;
+}
+
+.btn-toggle-password {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.btn-toggle-password:hover {
+  color: #4b5563;
+}
+
+/* ── Form Error Banner ──────────────────────────────────────────────────── */
+.form-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+/* ── Small Modal ────────────────────────────────────────────────────────── */
+.modal-sm {
+  max-width: 380px !important;
+}
+
+/* ── Delete Confirm Body ────────────────────────────────────────────────── */
+.delete-confirm-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.delete-icon-wrap {
+  width: 60px;
+  height: 60px;
+  background-color: #fef2f2;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.delete-target-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.delete-warning {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 0;
+}
+
+/* ── Btn Primary disabled state ─────────────────────────────────────────── */
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Gap Utilities ──────────────────────────────────────────────────────── */
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }

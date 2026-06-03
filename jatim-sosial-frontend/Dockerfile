@@ -1,25 +1,22 @@
-# Stage 1: Build the React/Vite application
-FROM node:20-alpine AS build
-
+# Stage 1: Base image with dependencies installed
+FROM node:20-alpine AS base
 WORKDIR /app
-
-# Copy package configurations and install dependencies
 COPY package*.json ./
 RUN npm ci
-
-# Copy all source files and compile the production bundle
 COPY . .
+
+# Stage 2: Development mode (Vite Dev Server with Hot-Reload)
+FROM base AS dev
+EXPOSE 5173
+CMD ["npm", "run", "dev"]
+
+# Stage 3: Production compilation
+FROM base AS build
 RUN npm run build
 
-# Stage 2: Serve the application using Nginx
-FROM nginx:stable-alpine
-
-# Copy static assets from build stage to Nginx HTML path
+# Stage 4: Production Nginx Server
+FROM nginx:stable-alpine AS prod
 COPY --from=build /app/dist /usr/share/nginx/html
-
-# Apply custom configuration to handle client-side routing
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
 EXPOSE 80
-
 CMD ["nginx", "-g", "daemon off;"]

@@ -40,10 +40,10 @@ const mockTimelineDataBerjalan: TimelineEvent[] = [
 ];
 
 const mockData: BantuanData[] = [
-  { id: '1', idBantuan: '#BTN-PKH-8821', nama: 'Budi Santoso', nik: '3578012300094xxx', jenis: 'PKH', tanggalMulai: '10 Feb 2024', progress: 50, status: 'Aktif', timeline: mockTimelineDataBerjalan },
-  { id: '2', idBantuan: '#BTN-BPT-8822', nama: 'Siti Aminah', nik: '3571025500112xxx', jenis: 'BPNT', tanggalMulai: '15 Jan 2024', progress: 100, status: 'Selesai', timeline: mockTimelineDataSelesai },
-  { id: '3', idBantuan: '#BTN-BLT-8823', nama: 'Agus Setiawan', nik: '3515041101900xxx', jenis: 'BLT BBM', tanggalMulai: '20 Feb 2024', progress: 20, status: 'Aktif', timeline: mockTimelineDataBerjalan },
-  { id: '4', idBantuan: '#BTN-BST-8824', nama: 'Dewi Lestari', nik: '3578056001000xxx', jenis: 'BST', tanggalMulai: '05 Mar 2024', progress: 0, status: 'Tertunda', timeline: [
+  { id: '1', idBantuan: '#BTN-PKH-8821', nama: 'Budi Santoso', nik: '3578012300094xxx', jenis: 'ASPD', tanggalMulai: '10 Feb 2024', progress: 50, status: 'Aktif', timeline: mockTimelineDataBerjalan },
+  { id: '2', idBantuan: '#BTN-BPT-8822', nama: 'Siti Aminah', nik: '3571025500112xxx', jenis: 'PKHT', tanggalMulai: '15 Jan 2024', progress: 100, status: 'Selesai', timeline: mockTimelineDataSelesai },
+  { id: '3', idBantuan: '#BTN-BLT-8823', nama: 'Agus Setiawan', nik: '3515041101900xxx', jenis: 'ASPD', tanggalMulai: '20 Feb 2024', progress: 20, status: 'Aktif', timeline: mockTimelineDataBerjalan },
+  { id: '4', idBantuan: '#BTN-BST-8824', nama: 'Dewi Lestari', nik: '3578056001000xxx', jenis: 'KE', tanggalMulai: '05 Mar 2024', progress: 0, status: 'Tertunda', timeline: [
     { status: 'Disetujui', timestamp: '05 Mar 2024, 09:00', isComplete: true },
     { status: 'Diproses', timestamp: '', isComplete: false, notes: 'Menunggu kelengkapan dokumen administrasi.' },
     { status: 'Disalurkan', timestamp: '', isComplete: false },
@@ -139,10 +139,12 @@ const StatusBantuan: React.FC<StatusBantuanProps> = ({ onLogout }) => {
           <div className="sb-filter-group">
             <select value={filterJenis} onChange={(e) => setFilterJenis(e.target.value)} disabled={isLoading}>
               <option value="Semua">Semua Jenis Bantuan</option>
-              <option value="PKH">PKH</option>
-              <option value="BPNT">BPNT</option>
-              <option value="BLT BBM">BLT BBM</option>
-              <option value="BST">BST</option>
+              <option value="ASPD">ASPD</option>
+              <option value="PKHT">PKHT</option>
+              <option value="KE">KE</option>
+              <option value="JAWARA">Jawara</option>
+              <option value="JAWARA P">Jawara P</option>
+              <option value="PPU">PPU</option>
             </select>
           </div>
           <div className="sb-filter-group">

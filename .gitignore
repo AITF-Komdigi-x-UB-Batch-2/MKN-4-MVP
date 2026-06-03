@@ -27,6 +27,11 @@ jatim-sosial-frontend/dist/
 jatim-sosial-frontend/dist-ssr/
 jatim-sosial-frontend/*.local
 
+# Local data and reference files
+Juknis/
+df_sample_10_skor.csv
+df_sample_10_tanpa_skor.csv
+
 # ─── 4. LOGS AND TEMPORARY FILES ─────────────────────────────────────────────
 logs
 *.log

@@ -3,11 +3,11 @@ import AdminLayout from '../../components/layout/AdminLayout';
 import { SummaryCard } from '../../components/cards/SummaryCard';
 import { RecommendationCard } from '../../components/cards/RecommendationCard';
 import type { RecommendationData } from '../../components/cards/RecommendationCard';
-import { 
-  Download, 
-  Share2, 
-  BarChart2, 
-  AlertTriangle, 
+import {
+  Download,
+  Share2,
+  BarChart2,
+  AlertTriangle,
   CheckCircle,
   BrainCircuit,
   Home,
@@ -66,14 +66,14 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
     if (isReceived) return;
 
-    setSelectedPrograms(prev => 
+    setSelectedPrograms(prev =>
       prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
     );
   };
 
   const handleConfirmAssistance = () => {
     if (selectedPrograms.length === 0) return;
-    
+
     setIsConfirming(true);
     // Simulate API Call
     setTimeout(() => {
@@ -87,7 +87,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   return (
     <AdminLayout title="Detail Analisis Page" onLogout={onLogout}>
       <div className="detail-page-wrapper">
-        
+
         {/* Header Options */}
         <div className="detail-page-header flex-between">
           <div>
@@ -117,29 +117,29 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
         {/* Content Layout */}
         <div className="detail-content-layout">
-          
+
           {/* Left Column (Main Analysis Data) */}
           <div className="detail-main-col">
-            
+
             {/* Summary Cards */}
             <div className="summary-cards-container">
-              <SummaryCard 
-                label="DESIL KESEJAHTERAAN" 
-                icon={<BarChart2 size={16} className="text-blue" />} 
-                value="1" 
-                maxValue="/ 10" 
+              <SummaryCard
+                label="DESIL KESEJAHTERAAN"
+                icon={<BarChart2 size={16} className="text-blue" />}
+                value="1"
+                maxValue="/ 10"
               />
-              <SummaryCard 
-                label="TINGKAT KERENTANAN" 
-                icon={<AlertTriangle size={16} className="text-orange" />} 
-                value="85%" 
+              <SummaryCard
+                label="TINGKAT KERENTANAN"
+                icon={<AlertTriangle size={16} className="text-orange" />}
+                value="85%"
                 progress={{ value: 85, colorClass: "orange" }}
                 desc="Risiko tinggi terhadap guncangan ekonomi"
               />
-              <SummaryCard 
-                label="CONFIDENCE SCORE" 
-                icon={<CheckCircle size={16} className="text-green" />} 
-                value="92%" 
+              <SummaryCard
+                label="CONFIDENCE SCORE"
+                icon={<CheckCircle size={16} className="text-green" />}
+                value="92%"
                 progress={{ value: 92, colorClass: "green" }}
                 desc="Akurasi klasifikasi berdasarkan konsistensi data"
               />
@@ -208,7 +208,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                 </div>
               </div>
             </div>
-            
+
             {/* Assistance History Section */}
             <div className="detail-card-section">
               <div className="detail-card-header">
@@ -224,6 +224,19 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     <RefreshCw size={14} /> Rutilahu (Sedang Berjalan)
                   </span>
                 </div>
+              </div>
+            </div>
+
+            {/* AI Summary Section (mkn3 reasoning) */}
+            <div className="detail-card-section">
+              <div className="detail-card-header">
+                <FileText size={18} className="text-blue" />
+                <h4>Ringkasan Singkat</h4>
+              </div>
+              <div className="detail-card-body">
+                <p style={{ lineHeight: '1.6', color: '#4a5568' }}>
+                  Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+                </p>
               </div>
             </div>
 
@@ -252,7 +265,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     <p>Program yang dipilih: {selectedPrograms.map(id => recommendations.find(r => r.id === id)?.title).join(', ')}</p>
                   </div>
                   {!isFinalized && (
-                    <button 
+                    <button
                       className={`btn-confirm-assistance ${isConfirming ? 'loading' : ''}`}
                       onClick={handleConfirmAssistance}
                       disabled={isConfirming}
@@ -261,7 +274,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     </button>
                   )}
                   {isFinalized && (
-                    <span className="badge-final"><CheckCircle size={16}/> Final Decision</span>
+                    <span className="badge-final"><CheckCircle size={16} /> Final Decision</span>
                   )}
                 </div>
               </div>
@@ -279,7 +292,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
               <div className="panel-body">
                 <div className="form-group">
                   <label>Catatan Validasi</label>
-                  <textarea 
+                  <textarea
                     placeholder="Tambahkan observasi lapangan atau alasan keputusan..."
                     rows={8}
                   ></textarea>
