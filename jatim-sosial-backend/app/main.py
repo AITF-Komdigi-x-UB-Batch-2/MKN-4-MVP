@@ -78,6 +78,23 @@ def seed_admin_user():
     finally:
         db.close()
 
+# Cleanup Stuck Processes
+@app.on_event("startup")
+def cleanup_stuck_processes():
+    db = SessionLocal()
+    try:
+        stuck_records = db.query(models.Perhitungan).filter(models.Perhitungan.status_validasi == "proses").all()
+        if stuck_records:
+            print(f"[Cleanup] Menemukan {len(stuck_records)} data dalam status 'proses'. Mereset status ke 'analisis'...")
+            for record in stuck_records:
+                record.status_validasi = "analisis"
+            db.commit()
+            print("[Cleanup] Reset status 'proses' berhasil.")
+    except Exception as e:
+        print(f"[Cleanup] Gagal membersihkan status 'proses': {e}")
+    finally:
+        db.close()
+
 # 5. Rute Dasar untuk Testing Kesehatan API
 @app.get("/")
 def root():

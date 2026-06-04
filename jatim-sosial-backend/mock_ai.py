@@ -33,66 +33,73 @@ def hitung_skor_deterministik(data_warga: dict) -> dict:
     2. PKH Plus (Program Keluarga Harapan Plus) - Bobot: Desil/Ekstrem (40%), Kelayakan Hunian/Material (30%), Aset (20%), Jumlah Anggota (10%)
     """
     # --- FORMULA SKOR ASPD ---
-    skor_aspd = 10.0  # Skor dasar
-    
-    # 1. Kriteria Disabilitas (Maksimal 60 poin)
+    # ASPD hanya dihitung jika warga memiliki disabilitas (id_disabilitas > 0)
     id_disabilitas = data_warga.get("id_disabilitas")
-    tingkat_disabilitas = data_warga.get("tingkat_disabilitas")
-    aspd_flag = data_warga.get("aspd")
-    
-    if id_disabilitas and int(float(id_disabilitas)) > 0:
+    try:
+        id_disab_val = int(float(id_disabilitas)) if id_disabilitas is not None else 0
+    except (ValueError, TypeError):
+        id_disab_val = 0
+
+    if id_disab_val <= 0:
+        skor_aspd = 0.0
+    else:
+        skor_aspd = 10.0  # Skor dasar
+        
+        # 1. Kriteria Disabilitas (Maksimal 60 poin)
         skor_aspd += 40.0
-    
-    if tingkat_disabilitas:
-        tingkat_upper = str(tingkat_disabilitas).upper()
-        if "BERAT" in tingkat_upper:
-            skor_aspd += 20.0
-        elif "SEDANG" in tingkat_upper:
-            skor_aspd += 12.0
-        elif "RINGAN" in tingkat_upper:
-            skor_aspd += 5.0
-            
-    if aspd_flag and int(float(aspd_flag)) == 1:
-        skor_aspd += 15.0
+        
+        tingkat_disabilitas = data_warga.get("tingkat_disabilitas")
+        if tingkat_disabilitas:
+            tingkat_upper = str(tingkat_disabilitas).upper()
+            if "BERAT" in tingkat_upper:
+                skor_aspd += 20.0
+            elif "SEDANG" in tingkat_upper:
+                skor_aspd += 12.0
+            elif "RINGAN" in tingkat_upper:
+                skor_aspd += 5.0
+                
+        aspd_flag = data_warga.get("aspd")
+        if aspd_flag and int(float(aspd_flag)) == 1:
+            skor_aspd += 15.0
 
-    # Batasi kontribusi disabilitas max 70
-    skor_aspd = min(skor_aspd, 70.0)
+        # Batasi kontribusi disabilitas max 70
+        skor_aspd = min(skor_aspd, 70.0)
 
-    # 2. Dampak Kemandirian (Fisik/Mental) (Maksimal 20 poin)
-    kesulitan = 0.0
-    for var in ["id_mengurus_diri", "id_berjalan_atau_naik_tangga", "id_belajar_kemampuan_intelektual", "id_berbicara_komunikasi"]:
-        val = data_warga.get(var)
-        if val is not None:
+        # 2. Dampak Kemandirian (Fisik/Mental) (Maksimal 20 poin)
+        kesulitan = 0.0
+        for var in ["id_mengurus_diri", "id_berjalan_atau_naik_tangga", "id_belajar_kemampuan_intelektual", "id_berbicara_komunikasi"]:
+            val = data_warga.get(var)
+            if val is not None:
+                try:
+                    val_int = int(float(val))
+                    if val_int == 1:  # Sangat Sulit
+                        kesulitan += 8.0
+                    elif val_int == 2:  # Sulit
+                        kesulitan += 5.0
+                    elif val_int == 3:  # Sedikit Sulit
+                        kesulitan += 2.0
+                except (ValueError, TypeError):
+                    pass
+        skor_aspd += min(kesulitan, 20.0)
+
+        # 3. Kriteria Desil Ekonomi (Maksimal 10 poin)
+        desil = data_warga.get("desil_nasional")
+        if desil is not None:
             try:
-                val_int = int(float(val))
-                if val_int == 1:  # Sangat Sulit
-                    kesulitan += 8.0
-                elif val_int == 2:  # Sulit
-                    kesulitan += 5.0
-                elif val_int == 3:  # Sedikit Sulit
-                    kesulitan += 2.0
+                desil_int = int(float(desil))
+                if desil_int == 1:
+                    skor_aspd += 10.0
+                elif desil_int == 2:
+                    skor_aspd += 8.0
+                elif desil_int == 3:
+                    skor_aspd += 6.0
+                elif desil_int == 4:
+                    skor_aspd += 4.0
             except (ValueError, TypeError):
                 pass
-    skor_aspd += min(kesulitan, 20.0)
 
-    # 3. Kriteria Desil Ekonomi (Maksimal 10 poin)
-    desil = data_warga.get("desil_nasional")
-    if desil is not None:
-        try:
-            desil_int = int(float(desil))
-            if desil_int == 1:
-                skor_aspd += 10.0
-            elif desil_int == 2:
-                skor_aspd += 8.0
-            elif desil_int == 3:
-                skor_aspd += 6.0
-            elif desil_int == 4:
-                skor_aspd += 4.0
-        except (ValueError, TypeError):
-            pass
-
-    # Total Maksimal ASPD = 100, Minimal = 0
-    skor_aspd = min(max(round(skor_aspd, 2), 0.0), 100.0)
+        # Total Maksimal ASPD = 100, Minimal = 0
+        skor_aspd = min(max(round(skor_aspd, 2), 0.0), 100.0)
 
 
     # --- FORMULA SKOR PKH PLUS ---
@@ -434,6 +441,196 @@ async def mock_visual_validator(payload: dict = Body(...)):
     return {
         "is_match": is_match,
         "reasoning": alasan_dinamis
+    }
+
+
+# --- OPENAI / RUNPOD COMPATIBLE CHAT COMPLETIONS ENDPOINT (DYNAMIC MOCK) ---
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatCompletionRequest(BaseModel):
+    model: str
+    messages: List[ChatMessage]
+    response_format: Optional[Dict[str, Any]] = None
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = 2048
+
+def extract_from_prompt(prompt: str) -> dict:
+    data = {}
+    if not prompt:
+        return data
+    lines = prompt.split("\n")
+    for line in lines:
+        if ":" in line:
+            parts = line.split(":", 1)
+            key = parts[0].strip().replace("-", "").strip().lower()
+            val = parts[1].strip()
+            
+            # Match keys
+            if "nik" in key:
+                data["nik"] = val
+            elif "nama" in key:
+                data["nama"] = val
+            elif "desil nasional" in key:
+                try:
+                    data["desil_nasional"] = int(float(val))
+                except (ValueError, TypeError):
+                    data["desil_nasional"] = 4
+            elif "skor pkh plus" in key:
+                try:
+                    data["skor_pkh_plus"] = float(val)
+                except (ValueError, TypeError):
+                    data["skor_pkh_plus"] = 0.0
+            elif "skor aspd" in key:
+                try:
+                    data["skor_aspd"] = float(val)
+                except (ValueError, TypeError):
+                    data["skor_aspd"] = 0.0
+            elif "umur" in key:
+                try:
+                    cleaned_val = val.split(" ")[0].strip()
+                    data["umur"] = int(float(cleaned_val))
+                except (ValueError, TypeError):
+                    data["umur"] = 0
+            elif "penglihatan" in key:
+                data["id_penglihatan"] = val
+            elif "pendengaran" in key:
+                data["id_pendengaran"] = val
+            elif "berjalan/tangga" in key:
+                data["id_berjalan_atau_naik_tangga"] = val
+            elif "tangan/jari" in key:
+                data["id_menggunakan_tangan_jari"] = val
+            elif "belajar/intelektual" in key:
+                data["id_belajar_kemampuan_intelektual"] = val
+            elif "pengendalian perilaku" in key:
+                data["id_pengendalian_perilaku"] = val
+            elif "bicara/komunikasi" in key:
+                data["id_berbicara_komunikasi"] = val
+            elif "mengurus diri" in key:
+                data["id_mengurus_diri"] = val
+            elif "memori/konsentrasi" in key:
+                data["id_mengingat_berkonsentrasi"] = val
+            elif "kesedihan/depresi" in key:
+                data["id_kesedihan_depresi"] = val
+    return data
+
+@app.post(
+    "/v1/chat/completions",
+    tags=["OpenAI Compatible completions"],
+    summary="Mock API OpenAI Chat Completions secara dinamis"
+)
+async def chat_completions(req: ChatCompletionRequest):
+    # Cari pesan dari user
+    user_content = ""
+    for msg in req.messages:
+        if msg.role == "user":
+            user_content = msg.content
+            break
+            
+    # Ekstrak data warga dari prompt
+    data = extract_from_prompt(user_content)
+    
+    # 1. Cek Kelayakan Disabilitas (ASPD)
+    has_disability = False
+    disab_reasons = []
+    disab_fields = {
+        "id_penglihatan": "Penglihatan",
+        "id_pendengaran": "Pendengaran",
+        "id_berjalan_atau_naik_tangga": "Mobilitas (Berjalan/Naik Tangga)",
+        "id_menggunakan_tangan_jari": "Motorik (Tangan/Jari)",
+        "id_belajar_kemampuan_intelektual": "Kognitif (Belajar/Intelektual)",
+        "id_pengendalian_perilaku": "Perilaku",
+        "id_berbicara_komunikasi": "Komunikasi",
+        "id_mengurus_diri": "Perawatan Diri",
+        "id_mengingat_berkonsentrasi": "Memori/Konsentrasi",
+        "id_kesedihan_depresi": "Kesehatan Mental (Kesedihan/Depresi)"
+    }
+    for field, name in disab_fields.items():
+        v = data.get(field)
+        if v and "kesulitan" not in v.lower() and "tidak" not in v.lower() and "unknown" not in v.lower() and "ditanyakan" not in v.lower():
+            has_disability = True
+            disab_reasons.append(f"Hambatan pada fungsi {name} ({v})")
+            
+    skor_aspd = data.get("skor_aspd", 0.0)
+    if skor_aspd > 0.0:
+        has_disability = True
+        disab_reasons.append(f"Skor prioritas ASPD terhitung {skor_aspd}")
+
+    # 2. Cek Kelayakan Kemiskinan (PKH Plus)
+    is_poor = False
+    pkh_reasons = []
+    desil = data.get("desil_nasional", 10)
+    if desil <= 4:
+        is_poor = True
+        pkh_reasons.append(f"Terdaftar dalam Desil Nasional {desil} (Kategori Miskin/Rentan)")
+    skor_pkh = data.get("skor_pkh_plus", 0.0)
+    if skor_pkh >= 50.0:
+        is_poor = True
+        pkh_reasons.append(f"Skor prioritas PKH Plus terhitung cukup tinggi ({skor_pkh})")
+
+    status_pkh_str = "LAYAK" if is_poor else "TIDAK LAYAK"
+    status_aspd_str = "LAYAK" if has_disability else "TIDAK LAYAK"
+    
+    justifikasi_pkh = " | ".join(pkh_reasons) if pkh_reasons else "Tidak memenuhi kriteria desil rendah untuk PKH Plus."
+    justifikasi_aspd = " | ".join(disab_reasons) if disab_reasons else "Tidak terdeteksi hambatan disabilitas yang signifikan untuk ASPD."
+    justifikasi_analisis = f"Analisis kelayakan untuk kepala keluarga {data.get('nama', 'Warga')}. Kelayakan PKH Plus: {status_pkh_str} ({justifikasi_pkh}). Kelayakan ASPD: {status_aspd_str} ({justifikasi_aspd})."
+
+    # Bangun objek JSON respon laporan evaluasi
+    content_obj = {
+        "laporan_evaluasi": {
+            "profil_warga": {
+                "nik": data.get("nik", "Tidak diketahui"),
+                "nama": data.get("nama", "Tidak diketahui"),
+                "umur": f"{data.get('umur', 0)} tahun"
+            },
+            "analisis": {
+                "justifikasi": justifikasi_analisis
+            },
+            "kesimpulan": {
+                "pkh_plus": {
+                    "status_kelayakan": status_pkh_str,
+                    "urgensi": "TINGGI" if is_poor else "RENDAH",
+                    "label": "Prioritas Penerima" if is_poor else "Tidak Prioritas",
+                    "justifikasi": justifikasi_pkh
+                },
+                "aspd": {
+                    "status_kelayakan": status_aspd_str,
+                    "urgensi": "TINGGI" if has_disability else "RENDAH",
+                    "label": "Rekomendasi Bantuan" if has_disability else "Tidak Direkomendasikan",
+                    "justifikasi": justifikasi_aspd
+                }
+            }
+        },
+        "skor": {
+            "skor_pkh_plus": skor_pkh,
+            "skor_aspd": skor_aspd
+        }
+    }
+    
+    content_str = json.dumps(content_obj, ensure_ascii=False)
+    
+    # Kembalikan struktur respon standar OpenAI/RunPod
+    return {
+        "id": "chatcmpl-mock-dynamic",
+        "object": "chat.completion",
+        "created": 1717000000,
+        "model": req.model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": content_str
+                },
+                "finish_reason": "stop"
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 150,
+            "total_tokens": 250
+        }
     }
 
 

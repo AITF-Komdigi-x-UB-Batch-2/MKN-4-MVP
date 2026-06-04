@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { apiFetch } from "../../services/api";
-import { type Tahap } from "../../data/mockData";
+import type { Tahap } from "../../data/mockData";
 import AdminLayout from "../../components/layout/AdminLayout";
-import { RecommendationCard } from "../../components/cards/RecommendationCard";
+import { RecommendationCard, type RecommendationData } from "../../components/cards/RecommendationCard";
 import {
   FileText,
   User,
@@ -35,7 +35,7 @@ interface DetailKeluargaResponse {
   bantuan: string[];
   rekomendasiBantuan: string[];
   skorASPD: number;
-  skorPKHT: number;
+  skorPKHPlus: number;
   atap: number;
   dinding: number;
   lantai: number;
@@ -257,7 +257,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
   const familyScores = {
     aspd: detailData?.skorASPD || 0,
-    pkht: detailData?.skorPKHT || 0,
+    pkh_plus: detailData?.skorPKHPlus || 0,
   };
 
   const getAtapVisual = () => {
@@ -299,7 +299,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     return "Tanah";
   };
 
-  const recommendations: any[] = [
+  const recommendations: RecommendationData[] = [
     {
       id: "ASPD",
       title: "ASPD (Asistensi Sosial Penyandang Disabilitas)",
@@ -310,9 +310,9 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
       isReceived: false,
     },
     {
-      id: "PKHT",
+      id: "PKH Plus",
       title: "PKH Plus (Program Keluarga Harapan Plus)",
-      match: familyScores.pkht,
+      match: familyScores.pkh_plus,
       desc: "Bantuan sosial bersyarat berupa dana tunai khusus bagi lanjut usia (lansia) berusia 70 tahun ke atas dari keluarga sangat miskin yang terdaftar dalam DTKS.",
       reason:
         "Analisis kriteria kesehatan dan pendidikan menunjukkan kelayakan tinggi.",
@@ -801,7 +801,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                         }}
                       >
                         Keluarga ini tidak memenuhi indikasi kelayakan untuk
-                        program ASPD, PKHT, atau KE.
+                        program ASPD, PKH+, atau KE.
                       </p>
                     </div>
                   ) : (

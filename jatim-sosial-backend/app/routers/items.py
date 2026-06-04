@@ -18,7 +18,9 @@ from app import models
 from app.security import get_current_user
 from app.config import MINIO_BUCKET, MINIO_ENDPOINT, s3_client, to_public_foto_url
 from app.schemas import item as item_schema
-from app.routers.asesmen import run_async_visual_validation, run_async_assessment
+from app.services.task_queue import run_async_visual_validation, run_async_assessment
+from app.utils.normalizer import fix_nik, safe_int, is_not_null, to_int
+from app.utils.scoring import hitung_skor_bantuan
 import httpx
 import logging
 
@@ -98,24 +100,18 @@ async def import_csv(
         "id_status_penguasaan_bangunan", "id_lantai_terluas", "id_dinding_terluas",
         "id_atap_terluas", "id_sumber_airminum", "id_sumberpenerangan", 
         "id_bb_utama", "id_fasilitas_bab", "id_jenis_kloset", "id_pembuangan_tinja",
-        "pbi"
+        "pbi", "desil_nasional_anggota", "desil_nasional_keluarga", "umur_2026",
+        "id_jenis_kelamin", "id_hub_kepala_keluarga", "id_disabilitas",
+        "id_status_perkawinan", "id_partisipasi_sekolah", "id_jenjang_pendidikan_dukcapil",
+        "membantu_bekerja", "id_lapangan_usaha_dari_usaha_utama", "id_status_kedudukan_pekerjaan_utama",
+        "id_kepemilikan_izin_usaha", "id_pekerjaan_utama", "id_omset_usaha_utama",
+        "id_kondisi_gizi", "id_penglihatan", "id_pendengaran", "id_berjalan_atau_naik_tangga",
+        "id_menggunakan_tangan_jari", "id_belajar_kemampuan_intelektual", "id_pengendalian_perilaku",
+        "id_berbicara_komunikasi", "id_mengurus_diri", "id_mengingat_berkonsentrasi",
+        "id_kesedihan_depresi", "id_penyakit_menahun", "id_status_keberadaan_keluarga",
+        "kpm_jawara", "putri_jawara", "aspd", "eks_ppks_jawara", "ppks_jawara",
+        "kemiskinan_ekstrem", "pkh_plus"
     }
-
-    def safe_int(v, default=0):
-        try:
-            return int(float(v)) if v and str(v).strip() not in ("", "nan") else default
-        except (ValueError, TypeError):
-            return default
-
-    def fix_nik(v):
-        """Konversi scientific notation '3.57301E+15' → '357301XXXXXXX'"""
-        if not v:
-            return None
-        try:
-            # Jika berupa scientific notation, konversi ke integer lalu string
-            return str(int(float(v)))
-        except (ValueError, TypeError):
-            return str(v).strip()
 
     # Mapping dari header CSV/Excel DTKS ke kolom Database
     MAPPING_DTKS = {
@@ -151,103 +147,11 @@ async def import_csv(
         "Foto_rumah_tampak_dalam": "foto_rumah_tampak_dalam",
         "Foto_Rumah_Tampak_Dalam": "foto_rumah_tampak_dalam",
         "FOTO_RUMAH_TAMPAK_DALAM": "foto_rumah_tampak_dalam",
+        "desil_nasional_keluarga": "desil_nasional_keluarga",
+        "desil_nasional_anggota": "desil_nasional_anggota",
+        "umur_2026": "umur_2026",
+        "cut_off_keluarga": "cut_off_keluarga"
     }
-
-    def is_not_null(value) -> bool:
-        return value is not None and str(value).strip() not in ("", "nan", "NaN", "None")
-
-    # [DITANGGUHKAN] Pengisian nilai kosong dinamis berbasis modus & average dari DB dinonaktifkan
-    # agar tidak menyebabkan data halu / tidak akurat.
-    # def build_defaults_from_db() -> dict:
-    #     defaults = {}
-    #     for col_name in kolom_sah:
-    #         if col_name in ("id", "no_kk", "nik"):
-    #             continue
-    #         col = getattr(models.Keluarga, col_name)
-    #
-    #         # Khusus: luas_lantai_bangunan pakai modus (nilai terbanyak)
-    #         if col_name == "luas_lantai_bangunan":
-    #             mode_row = (
-    #                 db.query(col, func.count(col).label("cnt"))
-    #                 .filter(col.isnot(None))
-    #                 .group_by(col)
-    #                 .order_by(func.count(col).desc())
-    #                 .first()
-    #             )
-    #             defaults[col_name] = int(mode_row[0]) if mode_row and mode_row[0] is not None else 0
-    #             continue
-    #
-    #         # Kolom numerik lain (int/aset) pakai average
-    #         if col_name in KOLOM_INT or col_name in KOLOM_ASET_INT:
-    #             avg_val = db.query(func.avg(col)).filter(col.isnot(None)).scalar()
-    #             defaults[col_name] = int(avg_val) if avg_val is not None else 0
-    #         else:
-    #             mode_row = (
-    #                 db.query(col, func.count(col).label("cnt"))
-    #                 .filter(col.isnot(None))
-    #                 .group_by(col)
-    #                 .order_by(func.count(col).desc())
-    #                 .first()
-    #             )
-    #             defaults[col_name] = mode_row[0] if mode_row else None
-    #     return defaults
-    #
-    # defaults_db = build_defaults_from_db()
-
-    def to_int(value, default=0):
-        try:
-            if not is_not_null(value):
-                return default
-            return int(float(value))
-        except (TypeError, ValueError):
-            return default
-
-    def hitung_skor_bantuan(row: dict) -> dict:
-        skor_pkh_plus = 0.0
-        skor_aspd = 0.0
-
-        desil = to_int(row.get("desil_nasional", 10), 10)
-        if desil in (1, 2):
-            skor_pkh_plus += 40.0
-        elif desil in (3, 4):
-            skor_pkh_plus += 20.0
-
-        lantai = to_int(row.get("id_lantai_terluas", 0), 0)
-        if lantai in (7, 8):
-            skor_pkh_plus += 20.0
-
-        atap = to_int(row.get("id_atap_terluas", 0), 0)
-        if atap in (5, 7):
-            skor_pkh_plus += 15.0
-
-        motor = to_int(row.get("aset_bergerak_sepeda_motor", 2), 2)
-        if motor == 1:
-            skor_pkh_plus -= 15.0
-
-        kolom_disabilitas = [
-            "id_penglihatan", "id_pendengaran", "id_berjalan_atau_naik_tangga",
-            "id_menggunakan_tangan_jari", "id_belajar_kemampuan_intelektual",
-            "id_pengendalian_perilaku", "id_berbicara_komunikasi",
-            "id_mengurus_diri", "id_mengingat_berkonsentrasi", "id_kesedihan_depresi"
-        ]
-
-        kondisi_terberat = 4
-        for col in kolom_disabilitas:
-            nilai = to_int(row.get(col, 4), 4)
-            if 0 < nilai < kondisi_terberat:
-                kondisi_terberat = nilai
-
-        if kondisi_terberat == 1:
-            skor_aspd += 95.0
-        elif kondisi_terberat == 2:
-            skor_aspd += 70.0
-        elif kondisi_terberat == 3:
-            skor_aspd += 30.0
-
-        return {
-            "skor_pkh_plus": max(0.0, min(100.0, float(skor_pkh_plus))),
-            "skor_aspd": max(0.0, min(100.0, float(skor_aspd)))
-        }
 
     async with httpx.AsyncClient() as client:
         for idx_row, raw_row in enumerate(reader):
@@ -296,6 +200,14 @@ async def import_csv(
 
                     else:
                         data_bersih[k] = v if v and str(v).strip() not in ("", "nan") else None
+
+                # Fallback untuk menyalin nama, desil_nasional, dan cut_off agar kompatibel dengan sistem
+                if "desil_nasional_keluarga" in data_bersih and not data_bersih.get("desil_nasional"):
+                    data_bersih["desil_nasional"] = data_bersih["desil_nasional_keluarga"]
+                if "cut_off_keluarga" in data_bersih and not data_bersih.get("cut_off"):
+                    data_bersih["cut_off"] = data_bersih["cut_off_keluarga"]
+                if "nama_kepala_keluarga" in data_bersih and not data_bersih.get("nama"):
+                    data_bersih["nama"] = data_bersih["nama_kepala_keluarga"]
 
                 # [DITANGGUHKAN] Langkah pengisian data kosong dari default database dikomentari
                 # for col_name, default_val in defaults_db.items():
@@ -355,8 +267,8 @@ async def import_csv(
                     )
                     db.add(hitung)
 
-                hitung.skor_aspd = skor.get("skor_aspd", 0.0)
-                hitung.skor_pkh_plus = skor.get("skor_pkh_plus", 0.0)
+                hitung.skor_aspd = skor.get("skor_aspd")
+                hitung.skor_pkh_plus = skor.get("skor_pkh_plus")
 
                 is_processing = hitung.status_validasi not in ("diterima", "ditolak")
                 if is_processing:

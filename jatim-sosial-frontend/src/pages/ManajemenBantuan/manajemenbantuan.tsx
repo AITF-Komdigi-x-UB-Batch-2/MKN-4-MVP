@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import LoadingState from "../../components/ui/LoadingState";
 import EmptyState from "../../components/ui/EmptyState";
-import { type Tahap, type AnalisisOutput } from "../../data/mockData";
+import type { Tahap, AnalisisOutput } from "../../data/mockData";
 import { apiFetch } from "../../services/api";
 import "./ManajemenBantuan.css";
 
@@ -32,8 +32,8 @@ export interface DataRow extends AnalisisOutput {
   kecamatan: string;
   desil: number;
   skorASPD: number;
-  skorPKHT: number;
-  skorPKHPlus?: number;
+  skorPKHPlus: number;
+  skorPKHT?: number;
 
   // Variabel dinamis DTKS untuk kolom dan filter
   kelurahan_desa?: string;
@@ -90,10 +90,10 @@ const COLUMNS: ColumnConfig[] = [
   { key: "kelurahan_desa", label: "Kelurahan / Desa", defaultVisible: false },
   { key: "desil", label: "Desil Ekonomi", defaultVisible: true },
   { key: "skor_aspd", label: "Skor ASPD", defaultVisible: true },
-  { key: "skor_pkh_plus", label: "Skor PKHT", defaultVisible: true },
+  { key: "skor_pkh_plus", label: "Skor PKH+", defaultVisible: true },
   { key: "tahap", label: "Status Tahap", defaultVisible: true },
   { key: "bantuan", label: "Bantuan", locked: true, defaultVisible: true },
-  
+
   // DTKS Extra fields
   { key: "jumlah_anggota_keluarga", label: "Jml Anggota Keluarga", defaultVisible: false },
   { key: "luas_lantai_bangunan", label: "Luas Lantai (m²)", defaultVisible: false },
@@ -116,7 +116,7 @@ const COLUMNS: ColumnConfig[] = [
   { key: "ppks_jawara", label: "PPKS Jawara", defaultVisible: false },
   { key: "kemiskinan_ekstrem", label: "Kemiskinan Ekstrem", defaultVisible: false },
   { key: "pkh_plus", label: "PKH Plus Flag", defaultVisible: false },
-  
+
   // Aset Extra fields
   { key: "aset_bergerak_tabung_gas", label: "Aset: Tabung Gas", defaultVisible: false },
   { key: "aset_bergerak_lemari_es", label: "Aset: Lemari Es", defaultVisible: false },
@@ -209,7 +209,7 @@ const getEmptyMessage = (tab: TabKey) => {
 
 const isNumericColumn = (key: string): boolean => {
   const numericPrefixes = ["id_", "aset_", "skor", "desil", "pbi", "kpm_", "putri_", "aspd", "pkh_plus", "kemiskinan_", "luas_", "jumlah_"];
-  return numericPrefixes.some(prefix => key.toLowerCase().startsWith(prefix)) || ["skorASPD", "skorPKHT", "desil"].includes(key);
+  return numericPrefixes.some(prefix => key.toLowerCase().startsWith(prefix)) || ["skorASPD", "skorPKHPlus", "desil"].includes(key);
 };
 
 /* ─── Component ──────────────────────────── */
@@ -360,7 +360,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
       result = result.filter((d) => d.kecamatan === filterKecamatan);
     }
     if (filterKelurahan !== "Semua") {
-      result = result.filter((d) => d.kelurahan_desa === filterKelurahan || (d as any).kelurahan === filterKelurahan);
+      result = result.filter((d) => d.kelurahan_desa === filterKelurahan || (d as DataRow & { kelurahan?: string }).kelurahan === filterKelurahan);
     }
 
 
@@ -369,13 +369,13 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     if (filterOverlap !== "Semua") {
       result = result.filter((d) => {
         const list = d.bantuan || [];
-        const hasPKHT = list.includes("PKHT");
+        const hasPKHPlus = list.includes("PKH+") || list.includes("PKH Plus") || list.includes("PKHT");
         const hasASPD = list.includes("ASPD");
 
-        if (filterOverlap === "HanyaPKHT") return hasPKHT && !hasASPD;
-        if (filterOverlap === "HanyaASPD") return hasASPD && !hasPKHT;
-        if (filterOverlap === "Keduanya") return hasPKHT && hasASPD;
-        if (filterOverlap === "BelumMenerima") return !hasPKHT && !hasASPD;
+        if (filterOverlap === "HanyaPKHPlus") return hasPKHPlus && !hasASPD;
+        if (filterOverlap === "HanyaASPD") return hasASPD && !hasPKHPlus;
+        if (filterOverlap === "Keduanya") return hasPKHPlus && hasASPD;
+        if (filterOverlap === "BelumMenerima") return !hasPKHPlus && !hasASPD;
         return true;
       });
     }
@@ -391,8 +391,8 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     // Generic Sort
     if (sortConfig) {
       result.sort((a, b) => {
-        let valA: any = a[sortConfig.key as keyof DataRow];
-        let valB: any = b[sortConfig.key as keyof DataRow];
+        let valA: string | number = "";
+        let valB: string | number = "";
 
         const tahapOrder: Record<string, number> = {
           proses: 0,
@@ -402,21 +402,27 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
           ditolak: 4,
         };
 
-        if (sortConfig.key === "id_keluarga") {
+        const key = sortConfig.key;
+        if (key === "id_keluarga") {
           valA = a.idLabel;
           valB = b.idLabel;
-        } else if (sortConfig.key === "bantuan") {
+        } else if (key === "bantuan") {
           valA = a.bantuan ? a.bantuan.join(", ") : "";
           valB = b.bantuan ? b.bantuan.join(", ") : "";
-        } else if (sortConfig.key === "tahap") {
+        } else if (key === "tahap") {
           valA = tahapOrder[a.tahap] || 99;
           valB = tahapOrder[b.tahap] || 99;
-        } else if (sortConfig.key === "skor_aspd") {
+        } else if (key === "skor_aspd") {
           valA = a.skorASPD ?? 0;
           valB = b.skorASPD ?? 0;
-        } else if (sortConfig.key === "skor_pkh_plus") {
+        } else if (key === "skor_pkh_plus") {
           valA = a.skorPKHPlus ?? a.skorPKHT ?? 0;
           valB = b.skorPKHPlus ?? b.skorPKHT ?? 0;
+        } else {
+          const rawValA = a[key as keyof DataRow];
+          const rawValB = b[key as keyof DataRow];
+          valA = typeof rawValA === "number" ? rawValA : String(rawValA ?? "");
+          valB = typeof rawValB === "number" ? rawValB : String(rawValB ?? "");
         }
 
         const isNum = isNumericColumn(sortConfig.key);
@@ -620,7 +626,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     data.forEach((d) => {
       if (filterKecamatan === "Semua" || d.kecamatan === filterKecamatan) {
         if (d.kelurahan_desa) set.add(d.kelurahan_desa);
-        else if ((d as any).kelurahan) set.add((d as any).kelurahan);
+        else if ((d as DataRow & { kelurahan?: string }).kelurahan) set.add((d as DataRow & { kelurahan?: string }).kelurahan as string);
       }
     });
     return Array.from(set).sort();
@@ -890,10 +896,10 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                 disabled={isLoading}
               >
                 <option value="Semua">Semua Penerima</option>
-                <option value="HanyaPKHT">Hanya PKHT</option>
+                <option value="HanyaPKHPlus">Hanya PKH+</option>
                 <option value="HanyaASPD">Hanya ASPD</option>
                 <option value="Keduanya">Menerima Keduanya (Overlap)</option>
-                <option value="BelumMenerima">Belum Menerima PKHT/ASPD</option>
+                <option value="BelumMenerima">Belum Menerima PKH+/ASPD</option>
               </select>
             </div>
 
@@ -912,7 +918,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                 <span>
                   {selectedDesils.length === 0
                     ? "Semua Desil"
-                    : `Desil: ${selectedDesils.sort((a,b)=>a-b).join(", ")}`}
+                    : `Desil: ${selectedDesils.sort((a, b) => a - b).join(", ")}`}
                 </span>
                 <ChevronDown size={14} />
               </button>
@@ -1092,7 +1098,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                 </div>
                               </td>
                             );
-                          case "nama":
+                          case "nama": {
                             const isNikColumnVisible = visibleColumns.has("nik");
                             return (
                               <td key={col.key} style={{ padding: "14px 16px" }}>
@@ -1113,7 +1119,8 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                 </div>
                               </td>
                             );
-                          case "wilayah":
+                          }
+                          case "wilayah": {
                             const isKecamatanVisible = visibleColumns.has("kecamatan");
                             const isKelurahanVisible = visibleColumns.has("kelurahan_desa");
                             const showWilayahSubtext = !isKecamatanVisible && !isKelurahanVisible;
@@ -1129,6 +1136,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                 </div>
                               </td>
                             );
+                          }
                           case "desil":
                             return (
                               <td key={col.key} style={{ padding: "14px 16px" }}>
@@ -1289,7 +1297,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                 </div>
                               </td>
                             );
-                          default:
+                          default: {
                             const val = row[col.key as keyof DataRow];
                             let displayVal = "—";
                             if (typeof val === "boolean") {
@@ -1304,6 +1312,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                 {displayVal}
                               </td>
                             );
+                          }
                         }
                       })}
                     </tr>

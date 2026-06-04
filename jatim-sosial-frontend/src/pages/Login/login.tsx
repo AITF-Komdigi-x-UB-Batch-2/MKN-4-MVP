@@ -60,8 +60,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       
       if (onLogin) onLogin();
       navigate('/dashboard');
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Login gagal, terjadi kesalahan sistem');
     } finally {
       setIsLoading(false);
     }

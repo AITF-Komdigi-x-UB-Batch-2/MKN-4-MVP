@@ -159,8 +159,62 @@ export const updateMyProfile = async (payload: UpdateProfilePayload): Promise<Us
   return res.json();
 };
 
+export interface KeluargaDetail {
+  id_keluarga: string;
+  nama_anggota_keluarga?: string;
+  nik?: string;
+  nomor_kartu_keluarga?: string;
+  desil_nasional?: number;
+  provinsi?: string;
+  kode_provinsi?: string;
+  kabupaten_kota?: string;
+  kode_kabupaten_kota?: string;
+  kecamatan?: string;
+  kode_kecamatan?: string;
+  kelurahan_desa?: string;
+  kode_kelurahan_desa?: string;
+  alamat?: string;
+  jumlah_anggota_keluarga?: number;
+  id_pelanggan_pln?: string;
+  pbi_nas?: boolean;
+  pbi_pemda?: boolean;
+  status_kepemilikan_rumah?: string;
+  luas_lantai?: number;
+  jenis_lantai_terluas?: string;
+  jenis_dinding_terluas?: string;
+  jenis_atap_terluas?: string;
+  sumber_air_minum_utama?: string;
+  sumber_penerangan_utama?: string;
+  daya_terpasang?: string;
+  bahan_bakar_utama_memasak?: string;
+  fasilitas_bab?: string;
+  jenis_kloset?: string;
+  pembuangan_akhir_tinja?: string;
+  aset_bergerak_tabung_gas?: boolean;
+  aset_bergerak_lemari_es?: boolean;
+  aset_bergerak_ac?: boolean;
+  aset_bergerak_pemanas_air?: boolean;
+  aset_bergerak_tv_datar?: boolean;
+  aset_bergerak_emas_perhiasan?: boolean;
+  aset_bergerak_komputer_laptop_tablet?: boolean;
+  aset_bergerak_sepeda_motor?: boolean;
+  aset_bergerak_sepeda?: boolean;
+  aset_bergerak_mobil?: boolean;
+  aset_bergerak_perahu?: boolean;
+  aset_bergerak_kapal_perahu_motor?: boolean;
+  aset_bergerak_smartphone?: boolean;
+  aset_bergerak_telepon_rumah?: boolean;
+  aset_tidak_bergerak_lahan_lainnya?: boolean;
+  aset_tidak_bergerak_rumah_lainnya?: boolean;
+  jumlah_ternak_sapi?: number;
+  jumlah_ternak_kerbau?: number;
+  jumlah_ternak_kuda?: number;
+  jumlah_ternak_babi?: number;
+  jumlah_ternak_kambing_domba?: number;
+}
+
 /** Ambil detail keluarga dari database */
-export const getKeluargaDetail = async (keluargaId: string): Promise<any> => {
+export const getKeluargaDetail = async (keluargaId: string): Promise<KeluargaDetail> => {
   const res = await apiFetch(`/api/v1/keluarga/${keluargaId}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

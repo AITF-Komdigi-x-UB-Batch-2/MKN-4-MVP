@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import './SideDrawer.css';
 
@@ -19,9 +19,9 @@ const SideDrawer: React.FC<SideDrawerProps> = ({
 }) => {
   const [render, setRender] = useState(isOpen);
 
-  useEffect(() => {
-    if (isOpen) setRender(true);
-  }, [isOpen]);
+  if (isOpen && !render) {
+    setRender(true);
+  }
 
   const handleAnimationEnd = () => {
     if (!isOpen) setRender(false);
