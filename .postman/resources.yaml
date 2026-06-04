@@ -1,7 +1,0 @@
-# Use this workspace to collaborate
-workspace:
-  id: f456b0e2-53bf-479c-91b8-4a7715344c46
-
-localResources:
-  docs:
-    - ..\jatim-sosial-frontend\README.md

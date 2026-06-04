@@ -31,6 +31,8 @@ jatim-sosial-frontend/*.local
 Juknis/
 df_sample_10_skor.csv
 df_sample_10_tanpa_skor.csv
+architecture.md
+
 
 # ─── 4. LOGS AND TEMPORARY FILES ─────────────────────────────────────────────
 logs
@@ -52,3 +54,7 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# ─── 6. POSTMAN SENSITIVE FILES ──────────────────────────────────────────────
+postman/
+.postman/
