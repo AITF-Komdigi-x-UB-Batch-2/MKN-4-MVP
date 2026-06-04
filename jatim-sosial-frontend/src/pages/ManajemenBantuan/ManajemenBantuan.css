@@ -1118,3 +1118,114 @@
     text-align: center;
   }
 }
+
+/* ── Status Eligible, Analisis, Visual Validator ───────────── */
+
+.mb-status-eligible-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mb-status-eligible-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background-color: #f1f5f9;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mb-analysis-dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #2563eb;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mb-analysis-dropdown-btn:hover {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.mb-visual-validator-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mb-visual-status-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.mb-visual-status-btn.approved {
+  background-color: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #16a34a;
+}
+
+.mb-visual-status-btn.approved:hover {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.mb-visual-status-btn.review {
+  background-color: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
+
+.mb-visual-status-btn.review:hover {
+  background-color: #ffedd5;
+  color: #9a3412;
+}
+
+.mb-file-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.mb-file-btn:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.mb-muted {
+  color: #94a3b8;
+}

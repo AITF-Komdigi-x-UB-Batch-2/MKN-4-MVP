@@ -92,7 +92,9 @@ const COLUMNS: ColumnConfig[] = [
   { key: "skor_aspd", label: "Skor ASPD", defaultVisible: true },
   { key: "skor_pkh_plus", label: "Skor PKHT", defaultVisible: true },
   { key: "tahap", label: "Status Tahap", defaultVisible: true },
-  { key: "bantuan", label: "Bantuan", locked: true, defaultVisible: true },
+  { key: "status_eligible", label: "Status Eligible", locked: true, defaultVisible: true },
+  { key: "analisis", label: "Analisis", locked: true, defaultVisible: true },
+  { key: "visual_validator", label: "Visual Validator", locked: true, defaultVisible: true },
   
   // DTKS Extra fields
   { key: "jumlah_anggota_keluarga", label: "Jml Anggota Keluarga", defaultVisible: false },
@@ -405,7 +407,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
         if (sortConfig.key === "id_keluarga") {
           valA = a.idLabel;
           valB = b.idLabel;
-        } else if (sortConfig.key === "bantuan") {
+        } else if (sortConfig.key === "status_eligible") {
           valA = a.bantuan ? a.bantuan.join(", ") : "";
           valB = b.bantuan ? b.bantuan.join(", ") : "";
         } else if (sortConfig.key === "tahap") {
@@ -1176,22 +1178,74 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                 </span>
                               </td>
                             );
-                          case "bantuan":
+                          case "status_eligible":
                             return (
                               <td key={col.key} style={{ padding: "14px 16px" }}>
                                 {row.bantuan && row.bantuan.length > 0 ? (
-                                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                                  <div className="mb-status-eligible-list">
                                     {row.bantuan.map((b) => (
-                                      <span key={b} className={`mb-pill-bantuan ${b.toLowerCase()}`} style={{ fontSize: "11px", fontWeight: "600", padding: "2px 8px", borderRadius: "4px", backgroundColor: b === "ASPD" ? "#eff6ff" : "#f5f3ff", color: b === "ASPD" ? "#1d4ed8" : "#6d28d9", border: `1px solid ${b === "ASPD" ? "#bfdbfe" : "#ddd6fe"}` }}>
+                                      <span key={b} className="mb-status-eligible-badge">
                                         {b}
                                       </span>
                                     ))}
                                   </div>
                                 ) : (
-                                  <span style={{ color: "#94a3b8", fontSize: "13px" }}>—</span>
+                                  <span className="mb-muted">—</span>
                                 )}
                               </td>
                             );
+
+                          case "analisis":
+                            return (
+                              <td key={col.key} style={{ padding: "14px 16px", textAlign: "center" }}>
+                                <button
+                                  className="mb-analysis-dropdown-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/detail-hasil/${row.id_keluarga}`, {
+                                      state: row,
+                                    });
+                                 }}
+                                >
+                                 Analisis
+                                <ChevronDown size={14} />
+                              </button>
+                            </td>
+                          );
+
+                        case "visual_validator": {
+                          const isVisualMismatch =
+                            (row as any).adaKetidaksesuaianVisual ||
+                            (row as any).ada_ketidaksesuaian_visual;
+
+                          return (
+                            <td key={col.key} style={{ padding: "14px 16px", textAlign: "center" }}>
+                              <div className="mb-visual-validator-cell">
+                                <button
+                                  className={`mb-visual-status-btn ${
+                                    isVisualMismatch ? "review" : "approved"
+                                  }`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {isVisualMismatch ? "Review" : "Approved"}
+                                  <ChevronDown size={14} />
+                                </button>
+
+                                <button
+                                  className="mb-file-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/detail-hasil/${row.id_keluarga}`, {
+                                      state: row,
+                                    });
+                                  }}
+                                >
+                                  File
+                                </button>
+                              </div>
+                            </td>
+                          );
+}
                           case "aksi":
                             return (
                               <td key={col.key} onClick={(e) => e.stopPropagation()} style={{ padding: "14px 16px", textAlign: "center" }}>
