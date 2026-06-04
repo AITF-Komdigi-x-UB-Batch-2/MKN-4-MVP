@@ -155,12 +155,24 @@ async def import_csv(
             if col_name in ("id", "no_kk", "nik"):
                 continue
             col = getattr(models.Keluarga, col_name)
+
+            # Khusus: luas_lantai_bangunan pakai modus (nilai terbanyak)
+            if col_name == "luas_lantai_bangunan":
+                mode_row = (
+                    db.query(col, func.count(col).label("cnt"))
+                    .filter(col.isnot(None))
+                    .group_by(col)
+                    .order_by(func.count(col).desc())
+                    .first()
+                )
+                defaults[col_name] = int(mode_row[0]) if mode_row and mode_row[0] is not None else 0
+                continue
+
+            # Kolom numerik lain (int/aset) pakai average
             if col_name in KOLOM_INT or col_name in KOLOM_ASET_INT:
                 avg_val = db.query(func.avg(col)).filter(col.isnot(None)).scalar()
                 defaults[col_name] = int(avg_val) if avg_val is not None else 0
             else:
-                # Setara dengan: SELECT * FROM keluarga WHERE <col_name> IS NULL
-                # (dipakai untuk identifikasi nilai kosong di database)
                 mode_row = (
                     db.query(col, func.count(col).label("cnt"))
                     .filter(col.isnot(None))
