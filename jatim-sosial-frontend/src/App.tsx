@@ -9,6 +9,7 @@ import BasisPengetahuan from './pages/BasisPengetahuan/basispengetahuan';
 import Pengaturan from './pages/Pengaturan/pengaturan';
 import DetailHasil from './pages/DetailHasil/detailhasil';
 import DetailKeluarga from './pages/DetailKeluarga/detailkeluarga';
+import CookieConsent from './components/ui/CookieConsent';
 import './App.css';
 
 interface ProtectedRouteProps {
@@ -66,6 +67,7 @@ function App() {
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <CookieConsent />
       </div>
     </BrowserRouter>
   );
