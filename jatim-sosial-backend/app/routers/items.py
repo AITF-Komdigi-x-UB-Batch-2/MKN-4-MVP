@@ -1,3 +1,10 @@
+"""
+FILE: app/routers/items.py
+DESKRIPSI:
+Mengelola data warga (keluarga), pengunggahan foto, sinkronisasi file CSV/Excel DTKS,
+dan integrasi detail data bantuan sosial serta validasi status keluarga.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -149,41 +156,43 @@ async def import_csv(
     def is_not_null(value) -> bool:
         return value is not None and str(value).strip() not in ("", "nan", "NaN", "None")
 
-    def build_defaults_from_db() -> dict:
-        defaults = {}
-        for col_name in kolom_sah:
-            if col_name in ("id", "no_kk", "nik"):
-                continue
-            col = getattr(models.Keluarga, col_name)
-
-            # Khusus: luas_lantai_bangunan pakai modus (nilai terbanyak)
-            if col_name == "luas_lantai_bangunan":
-                mode_row = (
-                    db.query(col, func.count(col).label("cnt"))
-                    .filter(col.isnot(None))
-                    .group_by(col)
-                    .order_by(func.count(col).desc())
-                    .first()
-                )
-                defaults[col_name] = int(mode_row[0]) if mode_row and mode_row[0] is not None else 0
-                continue
-
-            # Kolom numerik lain (int/aset) pakai average
-            if col_name in KOLOM_INT or col_name in KOLOM_ASET_INT:
-                avg_val = db.query(func.avg(col)).filter(col.isnot(None)).scalar()
-                defaults[col_name] = int(avg_val) if avg_val is not None else 0
-            else:
-                mode_row = (
-                    db.query(col, func.count(col).label("cnt"))
-                    .filter(col.isnot(None))
-                    .group_by(col)
-                    .order_by(func.count(col).desc())
-                    .first()
-                )
-                defaults[col_name] = mode_row[0] if mode_row else None
-        return defaults
-
-    defaults_db = build_defaults_from_db()
+    # [DITANGGUHKAN] Pengisian nilai kosong dinamis berbasis modus & average dari DB dinonaktifkan
+    # agar tidak menyebabkan data halu / tidak akurat.
+    # def build_defaults_from_db() -> dict:
+    #     defaults = {}
+    #     for col_name in kolom_sah:
+    #         if col_name in ("id", "no_kk", "nik"):
+    #             continue
+    #         col = getattr(models.Keluarga, col_name)
+    #
+    #         # Khusus: luas_lantai_bangunan pakai modus (nilai terbanyak)
+    #         if col_name == "luas_lantai_bangunan":
+    #             mode_row = (
+    #                 db.query(col, func.count(col).label("cnt"))
+    #                 .filter(col.isnot(None))
+    #                 .group_by(col)
+    #                 .order_by(func.count(col).desc())
+    #                 .first()
+    #             )
+    #             defaults[col_name] = int(mode_row[0]) if mode_row and mode_row[0] is not None else 0
+    #             continue
+    #
+    #         # Kolom numerik lain (int/aset) pakai average
+    #         if col_name in KOLOM_INT or col_name in KOLOM_ASET_INT:
+    #             avg_val = db.query(func.avg(col)).filter(col.isnot(None)).scalar()
+    #             defaults[col_name] = int(avg_val) if avg_val is not None else 0
+    #         else:
+    #             mode_row = (
+    #                 db.query(col, func.count(col).label("cnt"))
+    #                 .filter(col.isnot(None))
+    #                 .group_by(col)
+    #                 .order_by(func.count(col).desc())
+    #                 .first()
+    #             )
+    #             defaults[col_name] = mode_row[0] if mode_row else None
+    #     return defaults
+    #
+    # defaults_db = build_defaults_from_db()
 
     def to_int(value, default=0):
         try:
@@ -288,11 +297,11 @@ async def import_csv(
                     else:
                         data_bersih[k] = v if v and str(v).strip() not in ("", "nan") else None
 
-                # 1b. Isi data kosong dari default database
-                for col_name, default_val in defaults_db.items():
-                    if col_name in data_bersih and not is_not_null(data_bersih[col_name]):
-                        if default_val is not None:
-                            data_bersih[col_name] = default_val
+                # [DITANGGUHKAN] Langkah pengisian data kosong dari default database dikomentari
+                # for col_name, default_val in defaults_db.items():
+                #     if col_name in data_bersih and not is_not_null(data_bersih[col_name]):
+                #         if default_val is not None:
+                #             data_bersih[col_name] = default_val
 
                 # 2. Cek Idempotensi & History
                 keluarga_lama = db.query(models.Keluarga).filter(

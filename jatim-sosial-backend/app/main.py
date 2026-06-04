@@ -1,3 +1,10 @@
+"""
+FILE: app/main.py
+DESKRIPSI:
+Main application entry point FastAPI. Menginisialisasi server, setup CORS,
+menjalankan migrasi skema database otomatis (termasuk kolom NIK),
+memastikan bucket MinIO ada, dan mendaftarkan semua router API (Auth, Users, Items, Asesmen).
+"""
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

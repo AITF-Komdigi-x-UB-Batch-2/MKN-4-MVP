@@ -1,3 +1,12 @@
+"""
+FILE: app/models.py
+DESKRIPSI:
+Database Models (Entity) untuk menyimpan data Dukcapil (User) dan Keluarga.
+Menggunakan SQLAlchemy ORM.
+
+CATATAN: Kolom NIK telah ditambahkan ke tabel Keluarga sesuai revisi kebutuhan.
+"""
+
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, SmallInteger, JSON, DateTime, Text, Float

@@ -1,3 +1,10 @@
+"""
+FILE: app/config.py
+DESKRIPSI:
+Mengatur parameter konfigurasi utama aplikasi backend (seperti host, port, detail API AI),
+serta inisialisasi dan pengaturan policy bucket penyimpanan pihak ketiga MinIO S3.
+"""
+
 import os
 import boto3
 import json

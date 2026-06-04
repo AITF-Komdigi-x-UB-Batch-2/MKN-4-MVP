@@ -1,3 +1,10 @@
+"""
+FILE: app/routers/asesmen.py
+DESKRIPSI:
+Menyediakan API untuk penilaian kelayakan sosial menggunakan RAG AI (Qwen di RunPod)
+dan validasi kecocokan visual foto rumah warga (Tim 2).
+"""
+
 import os
 import httpx
 import logging
