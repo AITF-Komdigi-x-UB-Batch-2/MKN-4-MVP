@@ -58,31 +58,32 @@ def get_role_and_user_content(keluarga, skor_pkh, skor_aspd, konteks_aturan):
 
     user_content = f"""Profil Warga:
 - NIK              : {keluarga.nik or 'Tidak diketahui'}
-- Nama             : {keluarga.nama_kepala_keluarga}
-- Umur             : {getattr(keluarga, 'umur', 0)} tahun
-- Hub. Kepala KK   : {getattr(keluarga, 'id_hubungan_kepala_keluarga', 'Kepala Keluarga')}
+- Nama             : {keluarga.nama or 'Tidak diketahui'}
+- Umur             : {getattr(keluarga, 'umur_2026', 0)} tahun
+- Hub. Kepala KK   : {getattr(keluarga, 'id_hub_kepala_keluarga', 'Kepala Keluarga')}
 - Status Perkawinan: {getattr(keluarga, 'id_status_perkawinan', 'Tidak diketahui')}
-- Desil Nasional   : {keluarga.desil_nasional}
+- Desil Nasional (Anggota)  : {getattr(keluarga, 'desil_nasional_anggota', 'Tidak diketahui')}
+- Desil Nasional (Keluarga) : {getattr(keluarga, 'desil_nasional_keluarga', 'Tidak diketahui')}
 - Jml. Anggota KK  : {keluarga.jumlah_anggota_keluarga} orang
-- Penguasaan Bgn.  : {getattr(keluarga, 'id_status_kepemilikan_bangunan', 'Milik Sendiri')}
-- Luas Bangunan    : {getattr(keluarga, 'luas_lantai', 0.0)} m2
-- Kondisi Gizi     : Tidak diketahui
-- Penyakit Menahun : Tidak diketahui
+- Penguasaan Bgn.  : {getattr(keluarga, 'id_status_penguasaan_bangunan', 'Milik Sendiri')}
+- Luas Bangunan    : {getattr(keluarga, 'luas_lantai_bangunan', 0)} m2
+- Kondisi Gizi     : {getattr(keluarga, 'id_kondisi_gizi', 'Tidak diketahui')}
+- Penyakit Menahun : {getattr(keluarga, 'id_penyakit_menahun', 'Tidak diketahui')}
 - Penglihatan      : {keluarga.id_penglihatan or 'Tidak mengalami kesulitan'}
 - Pendengaran      : {getattr(keluarga, 'id_pendengaran', 'Tidak mengalami kesulitan')}
-- Berjalan/Tangga  : {keluarga.id_berjalan_atau_naik_tangga or 'Tidak mengalami kesulitan'}
-- Tangan/Jari      : {getattr(keluarga, 'id_penggunaan_tangan_dan_jari', 'Tidak mengalami kesulitan')}
-- Belajar/Intelektual: {getattr(keluarga, 'id_belajar_atau_intelektual', 'Tidak mengalami kesulitan')}
-- Pengendalian Perilaku: {getattr(keluarga, 'id_perilaku', 'Tidak mengalami kesulitan')}
-- Bicara/Komunikasi: {getattr(keluarga, 'id_berbicara_atau_komunikasi', 'Tidak mengalami kesulitan')}
-- Mengurus Diri    : {getattr(keluarga, 'id_mengurus_diri_sendiri', 'Tidak mengalami kesulitan')}
-- Memori/Konsentrasi: {getattr(keluarga, 'id_mengingat_atau_konsentrasi', 'Tidak mengalami kesulitan')}
-- Kesedihan/Depresi: {getattr(keluarga, 'id_sedih_atau_depresi', 'Tidak mengalami kesulitan')}
-- Status DTSEN     : DTSEN AKTIF
-- Wilayah          : Jawa Timur
-- Izin Usaha       : Tidak diketahui
-- Jml. Jenis Usaha : 0
-- Omset Usaha Utama: Tidak diketahui
+- Berjalan/Tangga  : {getattr(keluarga, 'id_berjalan_atau_naik_tangga', 'Tidak mengalami kesulitan')}
+- Tangan/Jari      : {getattr(keluarga, 'id_menggunakan_tangan_jari', 'Tidak mengalami kesulitan')}
+- Belajar/Intelektual: {getattr(keluarga, 'id_belajar_kemampuan_intelektual', 'Tidak mengalami kesulitan')}
+- Pengendalian Perilaku: {getattr(keluarga, 'id_pengendalian_perilaku', 'Tidak mengalami kesulitan')}
+- Bicara/Komunikasi: {getattr(keluarga, 'id_berbicara_komunikasi', 'Tidak mengalami kesulitan')}
+- Mengurus Diri    : {getattr(keluarga, 'id_mengurus_diri', 'Tidak mengalami kesulitan')}
+- Memori/Konsentrasi: {getattr(keluarga, 'id_mengingat_berkonsentrasi', 'Tidak mengalami kesulitan')}
+- Kesedihan/Depresi: {getattr(keluarga, 'id_kesedihan_depresi', 'Tidak mengalami kesulitan')}
+- Status DTSEN     : {getattr(keluarga, 'status_dtsen', 'Tidak diketahui')}
+- Wilayah (Kode Provinsi): {getattr(keluarga, 'kode_provinsi', 'Tidak diketahui')}
+- Izin Usaha       : {getattr(keluarga, 'id_kepemilikan_izin_usaha', 'Tidak diketahui')}
+- Jml. Jenis Usaha : {getattr(keluarga, 'jumlah_jenis_usaha', 0)}
+- Omset Usaha Utama: {getattr(keluarga, 'id_omset_usaha_utama', 'Tidak diketahui')}
 
 Skor Prioritas Bantuan (semakin mendekati 100 = semakin prioritas):
 - Skor PKH Plus    : {skor_pkh}
@@ -334,7 +335,8 @@ async def asesmen_sosial(
             ],
             "response_format": {"type": "json_object"},
             "temperature": 0.7,
-            "max_tokens": 1024
+            "max_tokens": 1024,
+            "keluarga_id": str(keluarga.id)  # Menambahkan ID keluarga untuk referensi di Runpod jika diperlukan
         }
         
         headers_runpod = {
@@ -345,7 +347,7 @@ async def asesmen_sosial(
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    AI_RUNPOD_URL,
+                    AI_BASE_URL,
                     headers=headers_runpod,
                     json=payload_llm,
                     timeout=60.0
@@ -353,9 +355,18 @@ async def asesmen_sosial(
                 response.raise_for_status()
                 hasil_mentah = response.json()
                 
-                # Parsing string JSON dari Runpod
-                string_json_ai = hasil_mentah["choices"][0]["message"]["content"]
-                hasil_final = json.loads(string_json_ai)
+                if "choices" in hasil_mentah:
+                    # Jika ada 'choices', berarti ini dari Runpod asli
+                    string_json_ai = hasil_mentah["choices"][0]["message"]["content"]
+                    hasil_final = json.loads(string_json_ai)
+                else:
+                    # Jika tidak ada 'choices', berarti ini dari Mock Beeceptor
+                    if "justifikasi_dokumen" in hasil_mentah:
+                        # Mengambil data dari script Beeceptor yang tadi kita buat
+                        hasil_final = hasil_mentah["justifikasi_dokumen"]
+                    else:
+                        # Jika masuk ke blok {{else}} yang error
+                        hasil_final = hasil_mentah
                 
             except Exception as e:
                 raise HTTPException(status_code=502, detail=f"Gagal mendapatkan analisis dari Runpod: {e}")

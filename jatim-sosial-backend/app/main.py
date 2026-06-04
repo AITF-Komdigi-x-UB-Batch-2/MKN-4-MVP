@@ -1,7 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, ensure_nik_columns, SessionLocal
+from app.database import engine, SessionLocal
 from app.security import get_password_hash
 from app import models
 from sqlalchemy import text
@@ -21,18 +21,14 @@ logging.basicConfig(
 # logging.info("Proses sinkronisasi CSV dimulai.")
 # logging.error("Gagal terhubung ke server Tim 2.")
 
-# 1. Jalankan migrasi kolom NIK dan pembuatan tabel database otomatis
-models.Base.metadata.create_all(bind=engine)
-ensure_nik_columns()
-
-# 2. Inisialisasi Aplikasi FastAPI
+# 1. Inisialisasi Aplikasi FastAPI
 app = FastAPI(
     title="API Pemetaan Kemiskinan Jatim",
     version="2.1",
     description="Backend MVP Tim 4 — Mengorkestrasi alur data dari Tim 1, 2, dan 3 (Versi Modular)."
 )
 
-# 3. Setup CORS Middleware
+# 2. Setup CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,6 +36,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 3. Init database & storage saat startup
+@app.on_event("startup")
+def init_app():
+    models.Base.metadata.create_all(bind=engine)
+    ensure_bucket_exists()
 
 # 4. Seeder Akun Admin Otomatis saat Aplikasi Menyala
 @app.on_event("startup")

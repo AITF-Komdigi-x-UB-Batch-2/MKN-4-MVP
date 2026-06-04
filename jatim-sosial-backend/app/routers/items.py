@@ -6,6 +6,8 @@ from uuid import UUID
 from datetime import datetime
 import csv
 import io
+import os
+import tempfile
 from app.database import get_db
 from app import models
 from app.security import get_current_user
@@ -14,6 +16,8 @@ from app.schemas import item as item_schema
 from app.routers.asesmen import run_async_visual_validation, run_async_assessment
 import httpx
 import logging
+import uuid
+import re
 
 
 logger = logging.getLogger(__name__)
@@ -34,35 +38,13 @@ async def import_csv(
     db: Session = Depends(get_db)
 ):
     contents = await file.read()
-    filename_lower = file.filename.lower()
+    temp_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.csv")
+    with open(temp_path, "wb") as f:
+        f.write(contents)
 
-    reader = []
-    if filename_lower.endswith(('.xlsx', '.xls')):
-        from openpyxl import load_workbook
-        wb = load_workbook(filename=io.BytesIO(contents), data_only=True)
-        sheet = wb.active
-
-        # Ambil header kolom (baris pertama)
-        headers = [cell.value for cell in sheet[1]]
-        # Ambil data dari baris kedua hingga akhir
-        for r in range(2, sheet.max_row + 1):
-            row_dict = {}
-            row_has_data = False
-            for col_idx, header in enumerate(headers):
-                if header:
-                    val = sheet.cell(row=r, column=col_idx + 1).value
-                    if val is not None:
-                        # Jika berupa float bernilai bulat (misal KK ending .0), bersihkan ke int
-                        if isinstance(val, float) and val.is_integer():
-                            val = int(val)
-                        row_dict[str(header)] = str(val).strip()
-                        row_has_data = True
-                    else:
-                        row_dict[str(header)] = ""
-            if row_has_data:
-                reader.append(row_dict)
-    else:
-        csv_reader = csv.DictReader(io.StringIO(contents.decode("utf-8")))
+    # PERBAIKAN: newline="" agar csv reader tidak error
+    with open(temp_path, "r", encoding="utf-8-sig", newline="") as csvfile:
+        csv_reader = csv.DictReader(csvfile)
         reader = list(csv_reader)
 
     kolom_sah = [c.name for c in models.Keluarga.__table__.columns]
@@ -81,42 +63,43 @@ async def import_csv(
         "aset_bergerak_perahu", "aset_bergerak_kapal_perahu_motor", "aset_bergerak_smartphone",
     }
 
-    # Kolom yang harus jadi INTEGER (Ditambahkan ID material rumah dan PBI)
+    # Kolom yang harus jadi INTEGER (sesuai kolom DB terbaru)
     KOLOM_INT = {
-        "desil_nasional", "jumlah_anggota_keluarga", "jumlah_jenis_usaha",
+        "umur_2026", "pkh_plus", "desil_nasional_anggota", "desil_nasional_keluarga",
+        "kemiskinan_ekstrem", "id_jenis_kelamin", "id_hub_kepala_keluarga",
+        "id_disabilitas", "pbi", "id_status_perkawinan", "id_partisipasi_sekolah",
+        "id_jenjang_pendidikan_dukcapil", "membantu_bekerja",
+        "id_lapangan_usaha_dari_usaha_utama", "id_status_kedudukan_pekerjaan_utama",
+        "id_kepemilikan_izin_usaha", "jumlah_jenis_usaha", "id_pekerjaan_utama",
         "jumlah_pekerja_dibayar", "jumlah_pekerja_tidak_dibayar",
-        "luas_lantai_bangunan", "id_dayapenerangan",
-        "lahan_tempat_lain", "rumah_tempat_lain",
-        "jml_sapi", "jml_kerbau", "jml_kuda", "jml_babi", "jml_kambing_domba",
-        "id_status_penguasaan_bangunan", "id_lantai_terluas", "id_dinding_terluas",
-        "id_atap_terluas", "id_sumber_airminum", "id_sumberpenerangan", 
-        "id_bb_utama", "id_fasilitas_bab", "id_jenis_kloset", "id_pembuangan_tinja",
-        "pbi"
+        "id_omset_usaha_utama", "id_kondisi_gizi", "id_penglihatan",
+        "id_pendengaran", "id_berjalan_atau_naik_tangga",
+        "id_menggunakan_tangan_jari", "id_belajar_kemampuan_intelektual",
+        "id_pengendalian_perilaku", "id_berbicara_komunikasi",
+        "id_mengurus_diri", "id_mengingat_berkonsentrasi",
+        "id_kesedihan_depresi", "id_penyakit_menahun",
+        "kpm_jawara", "putri_jawara", "aspd", "eks_ppks_jawara", "ppks_jawara",
+        "id_status_keberadaan_keluarga", "id_dayapenerangan",
+        "jumlah_anggota_keluarga", "id_status_penguasaan_bangunan",
+        "id_lantai_terluas", "luas_lantai_bangunan", "id_dinding_terluas",
+        "id_atap_terluas", "id_sumber_airminum", "id_sumberpenerangan",
+        "id_bb_utama", "id_fasilitas_bab", "id_jenis_kloset",
+        "id_pembuangan_tinja", "lahan_tempat_lain", "rumah_tempat_lain",
+        "jml_sapi", "jml_kerbau", "jml_kuda", "jml_babi", "jml_kambing_domba"
     }
-
-    def safe_int(v, default=0):
-        try:
-            return int(float(v)) if v and str(v).strip() not in ("", "nan") else default
-        except (ValueError, TypeError):
-            return default
-
-    def fix_nik(v):
-        """Konversi scientific notation '3.57301E+15' → '357301XXXXXXX'"""
-        if not v:
-            return None
-        try:
-            # Jika berupa scientific notation, konversi ke integer lalu string
-            return str(int(float(v)))
-        except (ValueError, TypeError):
-            return str(v).strip()
 
     # Mapping dari header CSV/Excel DTKS ke kolom Database
     MAPPING_DTKS = {
         "NIK": "nik",
         "Nik": "nik",
         "no_kk": "no_kk",
-        "nama": "nama_kepala_keluarga",
+        "nomor_kartu_keluarga": "no_kk",
+        "nama": "nama",
+        "nama_kepala_keluarga": "nama",
         "pbi": "pbi",
+        "desil_nasional": "desil_nasional_keluarga",
+        "desil_nasional_anggota": "desil_nasional_anggota",
+        "desil_nasional_keluarga": "desil_nasional_keluarga",
         "id_status_penguasaan_bangunan": "id_status_penguasaan_bangunan",
         "id_lantai_terluas": "id_lantai_terluas",
         "luas_lantai_bangunan": "luas_lantai_bangunan",
@@ -193,11 +176,19 @@ async def import_csv(
         except (TypeError, ValueError):
             return default
 
+    def safe_int(value, default=0):
+        try:
+            if value is None or value == "":
+                return default
+            return int(float(str(value).replace(",", ".")))
+        except Exception:
+            return default
+
     def hitung_skor_bantuan(row: dict) -> dict:
         skor_pkh_plus = 0.0
         skor_aspd = 0.0
 
-        desil = to_int(row.get("desil_nasional", 10), 10)
+        desil = to_int(row.get("desil_nasional_keluarga", 10), 10)
         if desil in (1, 2):
             skor_pkh_plus += 40.0
         elif desil in (3, 4):
@@ -346,8 +337,8 @@ async def import_csv(
                     )
                     db.add(hitung)
 
-                hitung.skor_aspd = skor.get("skor_aspd", 0.0)
-                hitung.skor_pkh_plus = skor.get("skor_pkh_plus", 0.0)
+                hitung.skor_aspd = skor.get("skor_aspd")
+                hitung.skor_pkh_plus = skor.get("skor_pkh_plus")
 
                 is_processing = hitung.status_validasi not in ("diterima", "ditolak")
                 if is_processing:
@@ -440,16 +431,17 @@ async def get_manajemen_bantuan(
         tahap_ui = p.status_validasi if p and p.status_validasi else "analisis"
         rekomendasi_list = p.rekomendasi_bantuan if p and p.rekomendasi_bantuan else []
         bantuan_list = rekomendasi_list if tahap_ui in ("validasi", "diterima", "ditolak") else []
-        
+        desil_val = k.desil_nasional_keluarga or k.desil_nasional_anggota or 0
+
         row = item_schema.ManajemenBantuanResponse(
             id_keluarga=str(k.id),
             idLabel=f"ANL-{str(k.id)[:5].upper()}",
             tanggal=datetime.now().strftime("%d %b %Y"),
-            nama=k.nama_kepala_keluarga or "-",
+            nama=k.nama or "-",
             nik=k.nik or k.no_kk or "-",
-            wilayah=k.kabupaten_kota or "-",
-            kecamatan=k.kecamatan or "-",
-            desil=k.desil_nasional or 0,
+            wilayah="-",
+            kecamatan="-",
+            desil=desil_val,
             skorASPD=p.skor_aspd if p and p.skor_aspd is not None else 0.0,
             skorPKHPlus=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
             tahap=tahap_ui,
@@ -459,7 +451,7 @@ async def get_manajemen_bantuan(
             aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI."
         )
         response_data.append(row)
-        
+
     return response_data
 
 @router.get(
@@ -491,23 +483,23 @@ async def get_detail_manajemen_bantuan(
         id_keluarga=str(k.id),
         idLabel=f"ANL-{str(k.id)[:5].upper()}",
         tanggal=datetime.now().strftime("%d %b %Y"),
-        nama=k.nama_kepala_keluarga or "-",
+        nama=k.nama or "-",
         nik=k.nik or k.no_kk or "-",
-        wilayah=k.kabupaten_kota or "-",
-        kecamatan=k.kecamatan or "-",
-        desil=k.desil_nasional or 0,
+        wilayah="-",
+        kecamatan="-",
+        desil=(k.desil_nasional_keluarga or k.desil_nasional_anggota or 0),
         skorASPD=p.skor_aspd if p and p.skor_aspd is not None else 0.0,
         skorPKHPlus=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
         tahap=tahap_ui,
         bantuan=bantuan_list,
         rekomendasiBantuan=rekomendasi_list,
         skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd is not None else 0.0),
-        atap=k.jenis_atap_terluas or 0,
-        dinding=k.jenis_dinding_terluas or 0,
-        lantai=k.jenis_lantai_terluas or 0,
+        atap=k.id_atap_terluas or 0,
+        dinding=k.id_dinding_terluas or 0,
+        lantai=k.id_lantai_terluas or 0,
         url_foto=f.url_foto if f else None,
         foto_urls=[foto.url_foto for foto in fotos if foto.url_foto],
-        visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian is not None else None,
+        visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaikan is not None else None,
         visual_reasoning=p.reasoning_tim2 if p else None,
         catatan=p.catatan_petugas if p else None,
         catatan_supervisor=p.catatan_supervisor if p else None,
@@ -615,3 +607,8 @@ async def get_histori(
             for log in logs
         ]
     }
+
+def fix_nik(value: str) -> str:
+    if value is None:
+        return ""
+    return re.sub(r"\D+", "", str(value))
