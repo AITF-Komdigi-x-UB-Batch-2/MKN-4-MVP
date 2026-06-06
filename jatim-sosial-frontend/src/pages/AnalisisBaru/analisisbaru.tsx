@@ -11,7 +11,7 @@ import {
   Loader,
 } from "lucide-react";
 import "./AnalisisBaru.css";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface AnalisisBaruProps {
   onLogout?: () => void;
@@ -28,6 +28,20 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
     type: "success" | "error";
     message: string;
   } | null>(null);
+
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const intervalRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      if (xhrRef.current) {
+        xhrRef.current.abort();
+      }
+    };
+  }, []);
 
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -67,9 +81,14 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
       let backendResult: any = null;
       let uploadErrorOccurred: Error | null = null;
 
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (xhrRef.current) xhrRef.current.abort();
+
       const progressInterval = setInterval(() => {
         if (uploadErrorOccurred) {
           clearInterval(progressInterval);
+          intervalRef.current = null;
+          xhrRef.current = null;
           setIsLoading(false);
           setUploadError(uploadErrorOccurred.message);
           showToast("error", uploadErrorOccurred.message);
@@ -82,6 +101,8 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
           if (currentProgress >= 100) {
             currentProgress = 100;
             clearInterval(progressInterval);
+            intervalRef.current = null;
+            xhrRef.current = null;
             setUploadProgress(100);
             setProgressStatus("Selesai! Data berhasil diimport.");
             
@@ -105,10 +126,13 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
         }
       }, 70);
 
+      intervalRef.current = progressInterval;
+
       // Start actual request
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/v1/import-csv", true);
       xhr.withCredentials = true;
+      xhr.timeout = 180000; // 3 minutes timeout
 
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -132,6 +156,11 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
         uploadErrorOccurred = new Error("Koneksi jaringan error. Upload gagal.");
       };
 
+      xhr.ontimeout = () => {
+        uploadErrorOccurred = new Error("Batas waktu pengunggahan terlampaui (Timeout). Silakan coba lagi.");
+      };
+
+      xhrRef.current = xhr;
       xhr.send(formData);
 
     } catch (error) {
@@ -176,17 +205,16 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
               {/* Upload Dropzone */}
               <div className={`upload-dropzone large ${isLoading ? "loading" : ""}`}>
                 {isLoading ? (
-                  <div className="upload-loading-container" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", padding: "20px 0" }}>
-                    <div className="upload-loading-spinner" style={{ position: "relative", width: "80px", height: "80px", marginBottom: "20px" }}>
-                      <Loader size={48} className="upload-spin" style={{ color: "#2563eb" }} />
-                      <UploadCloud size={24} style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", color: "#2563eb" }} />
+                  <div className="upload-loading-container">
+                    <div className="upload-loading-spinner">
+                      <Loader size={48} className="upload-spin" />
                     </div>
-                    <h4 style={{ marginBottom: "8px" }}>{progressStatus}</h4>
-                    <p style={{ marginBottom: "20px", fontSize: "14px", color: "#64748b" }}>
+                    <h4 className="upload-loading-title">{progressStatus}</h4>
+                    <p className="upload-loading-desc">
                       Mohon tunggu, jangan tutup halaman ini.
                     </p>
                     
-                    <div className="mb-upload-progress-wrapper" style={{ width: "80%", maxWidth: "400px", marginTop: 0 }}>
+                    <div className="mb-upload-progress-wrapper upload-progress-container">
                       <div className="mb-upload-progress-info">
                         <span>Status Progres</span>
                         <strong>{uploadProgress}%</strong>

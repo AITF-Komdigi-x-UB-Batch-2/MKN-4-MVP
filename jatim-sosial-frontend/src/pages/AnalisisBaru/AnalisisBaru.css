@@ -841,5 +841,40 @@
 
 .upload-spin {
   animation: spinner-spin 1.5s linear infinite;
+  color: #2563eb;
+}
+
+.upload-loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 20px 0;
+}
+
+.upload-loading-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  margin-bottom: 20px;
+}
+
+.upload-loading-title {
+  margin-bottom: 8px;
+}
+
+.upload-loading-desc {
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.upload-progress-container {
+  width: 80%;
+  max-width: 400px;
+  margin-top: 0;
 }
 
