@@ -28,6 +28,7 @@ import httpx
 import logging
 import uuid
 import re
+import pandas as pd
 
 
 logger = logging.getLogger(__name__)
@@ -48,14 +49,35 @@ async def import_csv(
     db: Session = Depends(get_db)
 ):
     contents = await file.read()
-    temp_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.csv")
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+    temp_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}{ext}")
     with open(temp_path, "wb") as f:
         f.write(contents)
 
-    # PERBAIKAN: newline="" agar csv reader tidak error
-    with open(temp_path, "r", encoding="utf-8-sig", newline="") as csvfile:
-        csv_reader = csv.DictReader(csvfile)
-        reader = list(csv_reader)
+    try:
+        if ext in (".xlsx", ".xls"):
+            df = pd.read_excel(temp_path)
+        else:
+            try:
+                df = pd.read_csv(temp_path, encoding="utf-8-sig")
+                if len(df.columns) <= 1:
+                    df = pd.read_csv(temp_path, encoding="utf-8-sig", sep=";")
+            except UnicodeDecodeError:
+                df = pd.read_csv(temp_path, encoding="latin1")
+                if len(df.columns) <= 1:
+                    df = pd.read_csv(temp_path, encoding="latin1", sep=";")
+        
+        df = df.fillna("")
+        reader = df.to_dict(orient="records")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal membaca berkas: {str(e)}")
+    finally:
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except Exception:
+            pass
 
     kolom_sah = [c.name for c in models.Keluarga.__table__.columns]
     sukses = 0
