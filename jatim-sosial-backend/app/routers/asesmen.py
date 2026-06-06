@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app import models
 from app.database import get_db
 from app.security import get_current_user
-from app.config import AI_BASE_URL, AI_RUNPOD_URL, AI_RUNPOD_TOKEN
+from app.config import AI_BASE_URL, AI_RUNPOD_URL, API_TIM_3_URL
 from app.schemas import item as item_schema
 
 # Import Services & Utils
@@ -64,41 +64,34 @@ async def asesmen_sosial(
             "max_tokens": 2048
         }
         
-        headers_runpod = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {AI_RUNPOD_TOKEN}"
-        }
-
-        # 1. Panggilan HTTP ke RunPod
+        # 1. Panggilan HTTP ke API Tim 3
         try:
             async with httpx.AsyncClient() as client:
+                # Langsung tembak ke endpoint Tim 3 secara pasti
+                url_target = f"{API_TIM_3_URL}/recommend"
+                
                 response = await client.post(
-                    AI_RUNPOD_URL,
-                    headers=headers_runpod,
-                    json=payload_llm,
+                    url_target, 
+                    json=payload_llm, 
                     timeout=60.0
                 )
                 response.raise_for_status()
                 hasil_mentah = response.json()
-        except httpx.HTTPError as he:
-            logger.error(f"[Manual Runpod HTTP Error] Gagal melakukan request ke Runpod: {he}", exc_info=True)
-            raise HTTPException(status_code=502, detail=f"Gagal memanggil Runpod (HTTP Error): {he}")
-
-        # 2. Ekstraksi string dari respon
-        try:
-            string_json_ai = hasil_mentah["choices"][0]["message"]["content"]
-            if string_json_ai.strip().startswith("```"):
-                string_json_ai = string_json_ai.strip().strip("```json").strip("```").strip()
-        except (KeyError, IndexError) as ke:
-            logger.error(f"[Manual Runpod Format Error] Struktur respon Runpod tidak sesuai: {ke}\nResponse: {hasil_mentah}", exc_info=True)
-            raise HTTPException(status_code=502, detail=f"Format respon dari Runpod tidak sesuai (KeyError/IndexError): {ke}")
-
-        # 3. Parsing string content ke JSON
-        try:
-            hasil_final = json.loads(string_json_ai)
-        except json.JSONDecodeError as jde:
-            logger.error(f"[Manual Runpod JSON Error] Gagal parsing JSON dari Runpod (kemungkinan terpotong karena max_tokens): {jde}\nRaw Content: {string_json_ai}", exc_info=True)
-            raise HTTPException(status_code=502, detail=f"Gagal parsing JSON dari Runpod (kemungkinan terpotong karena max_tokens): {jde}")
+                
+                # Fleksibilitas Ekstrak Balasan:
+                # Tetap dipertahankan untuk berjaga-jaga apakah Tim 3 mengembalikan 
+                # format raw OpenAI (choices) atau JSON yang sudah mereka rapikan.
+                if "choices" in hasil_mentah:
+                    string_json_ai = hasil_mentah["choices"][0]["message"]["content"]
+                    if string_json_ai.strip().startswith("```"):
+                        string_json_ai = string_json_ai.strip().strip("```json").strip("```").strip()
+                    hasil_final = json.loads(string_json_ai)
+                else:
+                    hasil_final = hasil_mentah.get("justifikasi_dokumen", hasil_mentah)
+                    
+        except Exception as e:
+            logger.error(f"Gagal memanggil API Tim 3 (Sosial): {e}")
+            raise HTTPException(status_code=502, detail=f"Gagal mendapatkan analisis dari Tim 3: {e}")
 
         rekomendasi_baru = extract_rekomendasi(hasil_final, keluarga)
         analisis_rag = json.dumps(hasil_final) 

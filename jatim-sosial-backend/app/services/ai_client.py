@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from app import models
 from app.database import get_db
-from app.config import AI_RUNPOD_URL, AI_RUNPOD_TOKEN
+from app.config import AI_RUNPOD_URL, API_TIM_3_URL
 
 logger = logging.getLogger(__name__)
 
@@ -198,39 +198,33 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
             "max_tokens": 2048
         }
         
-        headers_runpod = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {AI_RUNPOD_TOKEN}"
-        }
-
-        # 1. Panggilan HTTP ke RunPod
+        # 1. Panggilan HTTP ke API Tim 3
         try:
             async with httpx.AsyncClient() as client:
+                # Langsung tembak ke endpoint Tim 3 secara pasti
+                url_target = f"{API_TIM_3_URL}/recommend"
+                
                 response = await client.post(
-                    AI_RUNPOD_URL,
-                    headers=headers_runpod,
-                    json=payload_llm,
+                    url_target, 
+                    json=payload_llm, 
                     timeout=60.0
                 )
                 response.raise_for_status()
                 hasil_mentah = response.json()
-        except httpx.HTTPError as he:
-            logger.error(f"[Asinkron Runpod HTTP Error] Gagal melakukan request ke Runpod: {he}", exc_info=True)
-            if hitung:
-                hitung.status_validasi = "analisis"
-                db.commit()
-            return
-
-        # 2. Parsing Output Tim 3
-        try:
-            choices = hasil_mentah.get("choices", [])
-            if not choices:
-                raise ValueError("JSON Runpod tidak memiliki field 'choices'")
-            
-            raw_text = choices[0]["message"]["content"]
-            hasil_final = json.loads(raw_text)
-        except Exception as pe:
-            logger.error(f"[Asinkron Parse Error] Gagal parsing output AI JSON: {pe}. Output Mentah: {hasil_mentah}", exc_info=True)
+                
+                # Fleksibilitas Ekstrak Balasan:
+                # Tetap dipertahankan untuk berjaga-jaga apakah Tim 3 mengembalikan 
+                # format raw OpenAI (choices) atau JSON yang sudah mereka rapikan.
+                if "choices" in hasil_mentah:
+                    string_json_ai = hasil_mentah["choices"][0]["message"]["content"]
+                    if string_json_ai.strip().startswith("```"):
+                        string_json_ai = string_json_ai.strip().strip("```json").strip("```").strip()
+                    hasil_final = json.loads(string_json_ai)
+                else:
+                    hasil_final = hasil_mentah.get("justifikasi_dokumen", hasil_mentah)
+                    
+        except Exception as e:
+            logger.error(f"[Asinkron] Gagal memanggil API Tim 3 (Sosial): {e}", exc_info=True)
             if hitung:
                 hitung.status_validasi = "analisis"
                 db.commit()
