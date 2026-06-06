@@ -378,7 +378,11 @@ async def get_manajemen_bantuan(
 ):
     query = db.query(models.Keluarga, models.Perhitungan).outerjoin(
         models.Perhitungan, models.Perhitungan.keluarga_id == models.Keluarga.id
-    )
+    ).filter(or_(
+        models.Perhitungan.id.is_(None),
+        models.Perhitungan.rekomendasi_bantuan.is_(None),
+        func.jsonb_array_length(models.Perhitungan.rekomendasi_bantuan) > 0
+    ))
 
     if tahap and tahap != "semua":
         if tahap == "analisis":
@@ -513,7 +517,11 @@ async def get_manajemen_bantuan(
         func.count(models.Keluarga.id)
     ).outerjoin(
         models.Perhitungan, models.Perhitungan.keluarga_id == models.Keluarga.id
-    ).group_by(func.coalesce(models.Perhitungan.status_validasi, "analisis")).all()
+    ).filter(or_(
+        models.Perhitungan.id.is_(None),
+        models.Perhitungan.rekomendasi_bantuan.is_(None),
+        func.jsonb_array_length(models.Perhitungan.rekomendasi_bantuan) > 0
+    )).group_by(func.coalesce(models.Perhitungan.status_validasi, "analisis")).all()
     counts = {
         "semua": sum(count for _, count in raw_counts),
         "proses": 0,
