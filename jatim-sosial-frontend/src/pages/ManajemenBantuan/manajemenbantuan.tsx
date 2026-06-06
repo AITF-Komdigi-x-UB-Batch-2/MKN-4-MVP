@@ -250,6 +250,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   // State
   const [activeTab, setActiveTab] = useState<TabKey>("semua");
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchColumn, setSearchColumn] = useState("");
 
   // New filters states
   const [filterKecamatan, setFilterKecamatan] = useState("Semua");
@@ -861,7 +862,11 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     1 + // checkbox
     COLUMNS.filter((c) => visibleColumns.has(c.key) || c.locked).length;
 
-  return (
+const filteredColumns = COLUMNS.filter((col) =>
+  col.label.toLowerCase().includes(searchColumn.toLowerCase())
+);
+
+return (
     <AdminLayout title="Manajemen Bantuan" onLogout={onLogout}>
       <div className="mb-page-wrapper">
         {/* ── Header ────────────────────────── */}
@@ -885,20 +890,45 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
               onClick={handleAnalisisAll}
               disabled={
                 isBatchAnalyzing ||
-                data.filter((d) => d.tahap === "analisis").length === 0
-              }
-              style={{
-                opacity:
-                  data.filter((d) => d.tahap === "analisis").length === 0
-                    ? 0.5
-                    : 1,
-              }}
-            >
-              <BrainCircuit size={16} /> Analisis Semua (
-              {data.filter((d) => d.tahap === "analisis").length})
-            </button>
+                data.filter((d) => d.tahap === "analisis").length === 0 
+             }
+             style={{
+               opacity:
+                 data.filter((d) => d.tahap === "analisis").length === 0
+                   ? 0.5
+                   : 1,
+             }}
+           > 
+             {isBatchAnalyzing ? (
+               <>
+                 <Loader2 size={16} className="mb-spin" />
+                Mengirim... {batchProgress}%
+              </>
+            ) : (
+              <>
+                <BrainCircuit size={16} />
+                Analisis Semua ({data.filter((d) => d.tahap === "analisis").length})
+              </>
+            )}
+          </button>
           </div>
         </div>
+
+        {isBatchAnalyzing && (
+          <div className="mb-upload-progress-wrapper">
+            <div className="mb-upload-progress-info">
+              <span>Mengirim data ke backend...</span>
+              <strong>{batchProgress}%</strong>
+            </div>
+
+            <div className="mb-upload-progress-track">
+              <div
+                className="mb-upload-progress-fill"
+                style={{ width: `${batchProgress}%` }}
+              />
+            </div>
+           </div>
+         )}
 
         {/* ── Tab Navigation ────────────────── */}
         <div className="mb-tabs">
@@ -949,8 +979,18 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
               {showColumnDropdown && (
                 <div className="mb-popover-menu" onClick={(e) => e.stopPropagation()} style={{ position: "absolute", zIndex: 100, right: 0, marginTop: "8px" }}>
                   <div className="mb-popover-header">Visibilitas Kolom</div>
+
+                  <div className="mb-column-search">
+                    <input
+                      type="text"
+                      placeholder="Cari kolom..."
+                      value={searchColumn}
+                      onChange={(e) => setSearchColumn(e.target.value)}
+                    />
+                  </div>
+
                   <div className="mb-popover-list" style={{ maxHeight: "300px", overflowY: "auto" }}>
-                    {COLUMNS.map((col) => {
+                    {filteredColumns.map((col) => {
                       const isLocked = col.locked;
                       const isChecked = visibleColumns.has(col.key) || isLocked;
                       return (
@@ -1391,7 +1431,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
               >
                 {isBatchAnalyzing ? (
                   <>
-                    <Loader2 size={16} className="mb-spin" /> Menganalisis... {batchProgress}%
+                    <Loader2 size={16} className="mb-spin" /> Mengirim... {batchProgress}%
                   </>
                 ) : (
                   <>

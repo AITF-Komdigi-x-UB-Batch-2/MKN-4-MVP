@@ -55,6 +55,39 @@
   white-space: nowrap;
 }
 
+.mb-upload-progress-wrapper {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background-color: #eff6ff;
+}
+
+.mb-upload-progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  color: #1e40af;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mb-upload-progress-track {
+  width: 100%;
+  height: 8px;
+  background-color: #dbeafe;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.mb-upload-progress-fill {
+  height: 100%;
+  background-color: #2563eb;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
 .mb-btn-secondary {
   display: flex;
   align-items: center;
@@ -959,6 +992,32 @@
   border-bottom: 1px solid #f1f5f9;
   padding-bottom: 8px;
   margin-bottom: 4px;
+}
+
+.mb-column-search {
+  padding: 4px 0 8px 0;
+}
+
+.mb-column-search input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background-color: #f8fafc;
+  color: #334155;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.mb-column-search input::placeholder {
+  color: #94a3b8;
+}
+
+.mb-column-search input:focus {
+  border-color: #2563eb;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
 .mb-popover-title {
