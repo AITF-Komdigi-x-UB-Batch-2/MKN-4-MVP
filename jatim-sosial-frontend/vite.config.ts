@@ -1,6 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import fs from "fs";
+
+// Detect if running inside a Docker container to choose the correct backend host
+const isDocker = fs.existsSync("/.dockerenv");
+const target = isDocker ? "http://backend:8000" : "http://127.0.0.1:8000";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -12,11 +17,11 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: target,
         changeOrigin: true,
       },
       '/auth': {
-        target: 'http://127.0.0.1:8000/api/v1/auth',
+        target: `${target}/api/v1/auth`,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/auth/, '')
       },

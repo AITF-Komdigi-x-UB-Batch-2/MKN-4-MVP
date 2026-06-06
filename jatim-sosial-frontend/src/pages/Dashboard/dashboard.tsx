@@ -20,17 +20,21 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const [data, setData] = React.useState<any[]>([]);
+  const latestRequestRef = React.useRef(0);
 
   React.useEffect(() => {
+    const requestId = ++latestRequestRef.current;
     const fetchData = async () => {
       try {
         const res = await apiFetch('/api/v1/manajemen-bantuan');
-        if (res.ok) {
+        if (res.ok && requestId === latestRequestRef.current) {
           const json = await res.json();
           setData(json);
         }
       } catch (err) {
-        console.error('Failed to fetch dashboard data', err);
+        if (requestId === latestRequestRef.current) {
+          console.error('Failed to fetch dashboard data', err);
+        }
       }
     };
     fetchData();
@@ -83,7 +87,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
               <Users size={32} color="#3b82f6" />
             </div>
             <div>
-              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Data Input</p>
+              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Data Keluarga</p>
               <p style={{ margin: '4px 0 0 0', fontSize: '32px', fontWeight: 'bold', color: '#111827', lineHeight: 1 }}>{totalData}</p>
             </div>
           </div>

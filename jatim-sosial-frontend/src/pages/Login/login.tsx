@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { User, Lock, EyeOff, Eye, LogIn, ShieldAlert } from 'lucide-react';
 import './Login.css';
 import logoJatim from '../../assets/Lambang_Provinsi_Jawa_Timur.svg';
@@ -13,8 +13,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [infoMsg, setInfoMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('reason') === 'expired') {
+      setInfoMsg('Sesi Anda telah berakhir demi keamanan. Silakan masuk kembali.');
+    }
+  }, [location]);
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -45,8 +54,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         throw new Error(data.detail || 'Login gagal, periksa kembali kredensial Anda');
       }
       
-      // Simpan JWT token
-      localStorage.setItem('access_token', data.access_token);
+      // Simpan info non-sensitif untuk keperluan tampilan UI
       localStorage.setItem('username', data.username);
       localStorage.setItem('role', data.role || 'ANALIS');
       
@@ -86,6 +94,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         {/* Login Form */}
         <form className="login-form" onSubmit={handleLogin}>
+          {infoMsg && (
+            <div style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px', fontWeight: 500, border: '1px solid #bfdbfe' }}>
+              {infoMsg}
+            </div>
+          )}
           {errorMsg && (
             <div style={{ backgroundColor: '#fef2f2', color: '#ef4444', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px', fontWeight: 500, border: '1px solid #fca5a5' }}>
               {errorMsg}

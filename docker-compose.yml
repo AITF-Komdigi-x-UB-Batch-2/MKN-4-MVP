@@ -13,6 +13,8 @@ services:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - net_internal
 
   # --- 2. MINIO (GUDANG FOTO TIPE S3) ---
   minio:
@@ -28,6 +30,9 @@ services:
       - "9001:9001"
     volumes:
       - miniodata:/data
+    networks:
+      - net_internal
+      - net_public
 
   # --- 3. MOCK AI SERVICE ---
   mock_ai:
@@ -36,13 +41,17 @@ services:
       dockerfile: Dockerfile
     container_name: mkn_mock_ai
     restart: always
-    command: uvicorn mock_ai:app --host 0.0.0.0 --port 8001
+    command: uvicorn mock_ai:app --host 0.0.0.0 --port 8001 --reload
     ports:
       - "8001:8001"
     environment:
       - PORT=8001
+    volumes:
+      - ./jatim-sosial-backend:/app
     depends_on:
       - db
+    networks:
+      - net_internal
 
   # --- 4. BACKEND API SERVICE ---
   backend:
@@ -51,6 +60,7 @@ services:
       dockerfile: Dockerfile
     container_name: mkn_backend
     restart: always
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     environment:
@@ -61,10 +71,16 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - AI_BASE_URL=http://mock_ai:8001
+      - MINIO_PUBLIC_ENDPOINT=localhost:9000
+    volumes:
+      - ./jatim-sosial-backend:/app
     depends_on:
       - db
       - minio
       - mock_ai
+    networks:
+      - net_public
+      - net_internal
     develop:
       watch:
         - path: ./jatim-sosial-backend
@@ -91,6 +107,8 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+    networks:
+      - net_public
     develop:
       watch:
         - path: ./jatim-sosial-frontend/src
@@ -110,3 +128,10 @@ services:
 volumes:
   pgdata:
   miniodata:
+
+# --- NETWORK SEGMENTATION ---
+networks:
+  net_public:
+    driver: bridge
+  net_internal:
+    driver: bridge

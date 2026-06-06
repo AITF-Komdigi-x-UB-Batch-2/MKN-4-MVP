@@ -289,6 +289,8 @@ async def asesmen_sosial(
 
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
+        hitung.skor_aspd = hasil_final.get("skor_aspd", 0.0)
+        hitung.skor_pkht = hasil_final.get("skor_pkh_plus", hasil_final.get("skor_pkht", 0.0))
 
         log = models.LogHistori(
             keluarga_id=keluarga.id, user_id=current_user.id,

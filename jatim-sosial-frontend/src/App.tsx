@@ -9,6 +9,7 @@ import BasisPengetahuan from './pages/BasisPengetahuan/basispengetahuan';
 import Pengaturan from './pages/Pengaturan/pengaturan';
 import DetailHasil from './pages/DetailHasil/detailhasil';
 import DetailKeluarga from './pages/DetailKeluarga/detailkeluarga';
+import CookieConsent from './components/ui/CookieConsent';
 import './App.css';
 
 interface ProtectedRouteProps {
@@ -25,7 +26,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, isLoggedIn })
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return !!localStorage.getItem('access_token');
+    return !!localStorage.getItem('username');
   });
 
   const protectedPage = (component: React.ReactNode) => (
@@ -34,8 +35,13 @@ function App() {
     </ProtectedRoute>
   );
 
-  const logout = () => {
-    localStorage.removeItem('access_token');
+  const logout = async () => {
+    try {
+      await fetch('/auth/logout', { method: 'POST' });
+    } catch (e) {
+      console.error('Gagal memanggil API logout:', e);
+    }
+    localStorage.removeItem('access_token'); // Bersihkan sisa token lama jika ada
     localStorage.removeItem('username');
     localStorage.removeItem('role');
     setIsLoggedIn(false);
@@ -61,6 +67,7 @@ function App() {
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <CookieConsent />
       </div>
     </BrowserRouter>
   );

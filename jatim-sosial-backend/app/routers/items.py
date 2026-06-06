@@ -9,7 +9,7 @@ import io
 from app.database import get_db
 from app import models
 from app.security import get_current_user
-from app.config import MINIO_BUCKET, MINIO_ENDPOINT, s3_client
+from app.config import MINIO_BUCKET, MINIO_ENDPOINT, s3_client, to_public_foto_url
 from app.schemas import item as item_schema
 from app.routers.asesmen import run_async_visual_validation, run_async_assessment
 import httpx
@@ -444,7 +444,45 @@ async def get_manajemen_bantuan(
             bantuan=bantuan_list,
             rekomendasiBantuan=rekomendasi_list,
             skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd is not None else 0.0),
-            aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI."
+            aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI.",
+            
+            # Mapping variabel dinamis dari database keluarga
+            kelurahan_desa=k.kelurahan_desa,
+            jumlah_anggota_keluarga=k.jumlah_anggota_keluarga,
+            luas_lantai_bangunan=k.luas_lantai_bangunan,
+            id_lantai_terluas=k.id_lantai_terluas,
+            id_dinding_terluas=k.id_dinding_terluas,
+            id_atap_terluas=k.id_atap_terluas,
+            id_sumber_airminum=k.id_sumber_airminum,
+            id_sumberpenerangan=k.id_sumberpenerangan,
+            id_bb_utama=k.id_bb_utama,
+            id_fasilitas_bab=k.id_fasilitas_bab,
+            id_jenis_kloset=k.id_jenis_kloset,
+            id_pembuangan_tinja=k.id_pembuangan_tinja,
+            id_disabilitas=k.id_disabilitas,
+            tingkat_disabilitas=k.tingkat_disabilitas,
+            pbi=k.pbi,
+            kpm_jawara=k.kpm_jawara,
+            putri_jawara=k.putri_jawara,
+            aspd=k.aspd,
+            eks_ppks_jawara=k.eks_ppks_jawara,
+            ppks_jawara=k.ppks_jawara,
+            kemiskinan_ekstrem=k.kemiskinan_ekstrem,
+            pkh_plus=k.pkh_plus,
+            aset_bergerak_tabung_gas=k.aset_bergerak_tabung_gas,
+            aset_bergerak_lemari_es=k.aset_bergerak_lemari_es,
+            aset_bergerak_ac=k.aset_bergerak_ac,
+            aset_bergerak_pemanas_air=k.aset_bergerak_pemanas_air,
+            aset_bergerak_telepon_rumah=k.aset_bergerak_telepon_rumah,
+            aset_bergerak_tv_datar=k.aset_bergerak_tv_datar,
+            aset_bergerak_emas_perhiasan=k.aset_bergerak_emas_perhiasan,
+            aset_bergerak_komputer_laptop_tablet=k.aset_bergerak_komputer_laptop_tablet,
+            aset_bergerak_sepeda_motor=k.aset_bergerak_sepeda_motor,
+            aset_bergerak_sepeda=k.aset_bergerak_sepeda,
+            aset_bergerak_mobil=k.aset_bergerak_mobil,
+            aset_bergerak_perahu=k.aset_bergerak_perahu,
+            aset_bergerak_kapal_perahu_motor=k.aset_bergerak_kapal_perahu_motor,
+            aset_bergerak_smartphone=k.aset_bergerak_smartphone
         )
         response_data.append(row)
         
@@ -490,12 +528,12 @@ async def get_detail_manajemen_bantuan(
         bantuan=bantuan_list,
         rekomendasiBantuan=rekomendasi_list,
         skorKesejahteraan=100.0 - (p.skor_aspd if p and p.skor_aspd is not None else 0.0),
-        atap=k.jenis_atap_terluas or 0,
-        dinding=k.jenis_dinding_terluas or 0,
-        lantai=k.jenis_lantai_terluas or 0,
-        url_foto=f.url_foto if f else None,
-        foto_urls=[foto.url_foto for foto in fotos if foto.url_foto],
-        visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian is not None else None,
+        atap=k.id_atap_terluas or 0,
+        dinding=k.id_dinding_terluas or 0,
+        lantai=k.id_lantai_terluas or 0,
+        url_foto=to_public_foto_url(f.url_foto) if f else None,
+        foto_urls=[to_public_foto_url(foto.url_foto) for foto in fotos if foto.url_foto],
+        visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian_visual is not None else None,
         visual_reasoning=p.reasoning_tim2 if p else None,
         catatan=p.catatan_petugas if p else None,
         catatan_supervisor=p.catatan_supervisor if p else None,

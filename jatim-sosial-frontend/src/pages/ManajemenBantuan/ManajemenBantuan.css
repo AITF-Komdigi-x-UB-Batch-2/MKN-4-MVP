@@ -922,6 +922,169 @@
   cursor: not-allowed;
 }
 
+/* ── Popover Dropdowns (Column Manager & Desil Multi-select) ── */
+.mb-popover-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.mb-popover-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  z-index: 100;
+  width: 280px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: mb-fade-in 0.15s ease-out;
+}
+
+@keyframes mb-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.mb-popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.mb-popover-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mb-popover-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mb-popover-btn-link {
+  font-size: 11px;
+  font-weight: 600;
+  color: #2563eb;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.mb-popover-btn-link:hover {
+  color: #1d4ed8;
+}
+
+.mb-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.mb-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #334155;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.mb-popover-item:hover:not(.disabled) {
+  background-color: #f1f5f9;
+}
+
+.mb-popover-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mb-popover-item input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* Overlap Checkbox/Badge Group */
+.mb-badge-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.mb-badge-btn {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mb-badge-btn:hover {
+  background-color: #e2e8f0;
+}
+
+.mb-badge-btn.active {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+/* Custom Multiselect Box */
+.mb-multiselect-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #374151;
+  background-color: #f8fafc;
+  cursor: pointer;
+  min-height: 41px;
+}
+
+.mb-multiselect-box:hover {
+  border-color: #cbd5e1;
+}
+
+.mb-multiselect-placeholder {
+  color: #9ca3af;
+}
+
+.mb-multiselect-value {
+  font-weight: 500;
+}
+
+/* Locked Column style */
+.mb-column-locked {
+  background-color: #f8fafc;
+  font-weight: 600;
+}
+
 /* ── Responsive ─────────────────────────── */
 @media (max-width: 768px) {
   .mb-header {

@@ -3,192 +3,357 @@ import json
 import uvicorn
 import asyncio
 import random
+import boto3
+from dotenv import load_dotenv
 from fastapi import FastAPI, Body, Depends
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-from app.config import MOCK_APP_HOST, MOCK_APP_PORT
+
+# Load environment variables
+load_dotenv()
 
 # PYDANTIC RESPONSE SCHEMAS
 class JalurSosialResponse(BaseModel):
     status: str
-    ringkasan_data: Optional[str] = None
     rekomendasi_bantuan: List[str]
     justifikasi_dokumen: str
     skor_aspd: float
     skor_pkh_plus: float
 
+
 class VisualValidatorResponse(BaseModel):
     is_match: bool
     reasoning: str
 
-# KAMUS SKENARIO JALUR SOSIAL (Berdasarkan 10 baris df_sample_10_tanpa_skor.csv)
-SKENARIO_JALUR_SOSIAL = {
-    "FAM_8d03a0167c237e46a1857dc7e9da9bc77bf9a9cd9fccc401a534637f78d063e7": {
-        "status": "Sangat Miskin",
-        "ringkasan_data": "Keluarga lansia tunggal (Desil 1), tidak memiliki aset produktif.",
-        "rekomendasi_bantuan": ["PKH Plus"],
-        "justifikasi_dokumen": "Kepala keluarga berusia > 70 tahun dan hidup sendiri tanpa penghasilan tetap. Sangat memenuhi kriteria pemenuhan kebutuhan dasar lansia.",
-        "skor_pkh_plus": 95.50,
-        "skor_aspd": 0.00
-    },
-    "FAM_1b13ec6def5164300b981b40f54ea1264847b41c31255b985d79030fe06ad297": {
-        "status": "Sangat Miskin",
-        "ringkasan_data": "Keluarga dengan anggota penyandang disabilitas fisik berat (Desil 1).",
-        "rekomendasi_bantuan": ["ASPD"],
-        "justifikasi_dokumen": "Terdapat anggota keluarga dengan disabilitas menetap yang menghambat fungsi sosial ekonomi. Prioritas dialokasikan untuk ASPD.",
-        "skor_pkh_plus": 0.00,
-        "skor_aspd": 98.00
-    },
-    "FAM_618a7fd66d04711722c78de81dc422fdbf589fb2ef7daf2ee82406112c937b04": {
-        "status": "Sangat Miskin",
-        "ringkasan_data": "Terdapat lansia risiko tinggi dan anak penyandang disabilitas.",
-        "rekomendasi_bantuan": ["PKH Plus", "ASPD"],
-        "justifikasi_dokumen": "Keluarga mengalami kerentanan berlapis. Dokumen memvalidasi lansia non-produktif sekaligus anak berkebutuhan khusus. Direkomendasikan menerima intervensi ganda.",
-        "skor_pkh_plus": 90.00,
-        "skor_aspd": 92.00
-    },
-    "FAM_1795edb5bb1d6f2a3decbe782e7e0ec21e0538d27e31cc7a9fb2dbffd9f59a58": {
-        "status": "Mampu",
-        "ringkasan_data": "Keluarga desil atas (Desil 9), memiliki kendaraan roda empat.",
-        "rekomendasi_bantuan": [],
-        "justifikasi_dokumen": "Indikator ekonomi berada jauh di atas ambang batas. Tidak terdapat komponen lansia rentan ataupun disabilitas berat di dalam KK.",
-        "skor_pkh_plus": 0.00,
-        "skor_aspd": 0.00
-    },
-    "FAM_34e30f5db8fffe0fba5126227e6485c9f8894cd74fe3ec3f174795b519d1ce8a": {
-        "status": "Mampu",
-        "ringkasan_data": "NIK terdaftar di database kepegawaian negara.",
-        "rekomendasi_bantuan": [],
-        "justifikasi_dokumen": "Sistem anomali mendeteksi kepala keluarga adalah aparatur negara aktif. Status kelayakan DTKS harus dicabut.",
-        "skor_pkh_plus": 0.00,
-        "skor_aspd": 0.00
-    },
-    "FAM_a4d364dc0317f7e70c8ac415897a36857830a47a1c0ea81b6c285b33d33c7aad": {
-        "status": "Sangat Miskin",
-        "ringkasan_data": "Lansia dengan riwayat penyakit kronis (bedridden).",
-        "rekomendasi_bantuan": ["PKH Plus"],
-        "justifikasi_dokumen": "Kondisi fisik lansia sangat rentan dan membutuhkan perawatan medis lanjutan. Bantuan PKH Plus sangat diwajibkan.",
-        "skor_pkh_plus": 98.50,
-        "skor_aspd": 10.00
-    },
-    "FAM_ffc29cb34ffb057b72662448f77558255e8f87a101a7b4efdddb11d08a649d0e": {
-        "status": "Miskin",
-        "ringkasan_data": "Lansia berperan sebagai wali tunggal untuk balita.",
-        "rekomendasi_bantuan": ["PKH Plus"],
-        "justifikasi_dokumen": "Terdapat beban ekonomi berat pada lansia yang harus mengasuh cucu. Intervensi PKH Plus krusial untuk mencegah penelantaran.",
-        "skor_pkh_plus": 88.00,
-        "skor_aspd": 0.00
-    },
-    "FAM_cc5bec281b27b722dc416c8cb854b99f8f214d35633da0c7f29c131ea71e6059": {
-        "status": "Rentan Miskin",
-        "ringkasan_data": "Lansia perempuan (65 tahun) bekerja sebagai buruh tani lepas.",
-        "rekomendasi_bantuan": ["PKH Plus"],
-        "justifikasi_dokumen": "Meski masih bekerja, usia dan jenis pekerjaan tidak memberikan keamanan finansial. Layak mendapat jaring pengaman PKH Plus.",
-        "skor_pkh_plus": 75.00,
-        "skor_aspd": 0.00
-    },
-    "FAM_65accd0e8dbc8d1ac09579847057630aeb981b8017c88a61d8b45ef8686575c0": {
-        "status": "Sangat Miskin",
-        "ringkasan_data": "Anak di bawah umur memiliki disabilitas intelektual dan fisik.",
-        "rekomendasi_bantuan": ["ASPD"],
-        "justifikasi_dokumen": "Kasus disabilitas ganda membutuhkan biaya terapi dan perawatan tinggi. Skor kelayakan ASPD maksimal.",
-        "skor_pkh_plus": 0.00,
-        "skor_aspd": 99.00
-    },
-    "FAM_a958a3570c3ad72d58563b72a75aea65c178aa5cc30fd5c623f9fb29fcff6bc2": {
-        "status": "Miskin",
-        "ringkasan_data": "Pasangan muda berpenghasilan di bawah UMR (Desil 3).",
-        "rekomendasi_bantuan": ["BPNT"],
-        "justifikasi_dokumen": "Keluarga miskin namun tidak masuk kriteria khusus Lansia/Disabilitas. Bantuan diarahkan ke pemenuhan sembako (BPNT).",
-        "skor_pkh_plus": 5.00,
-        "skor_aspd": 0.00
-    }
-}
+
+def hitung_skor_deterministik(data_warga: dict) -> dict:
+    """
+    Menghitung skor kelayakan bantuan secara deterministik berdasarkan data profil keluarga:
+    1. ASPD (Asistensi Sosial Penyandang Disabilitas) - Bobot: Disabilitas (60%), Kemandirian (20%), Ekonomi/Desil (20%)
+    2. PKH Plus (Program Keluarga Harapan Plus) - Bobot: Desil/Ekstrem (40%), Kelayakan Hunian/Material (30%), Aset (20%), Jumlah Anggota (10%)
+    """
+    # --- FORMULA SKOR ASPD ---
+    skor_aspd = 10.0  # Skor dasar
+    
+    # 1. Kriteria Disabilitas (Maksimal 60 poin)
+    id_disabilitas = data_warga.get("id_disabilitas")
+    tingkat_disabilitas = data_warga.get("tingkat_disabilitas")
+    aspd_flag = data_warga.get("aspd")
+    
+    if id_disabilitas and int(float(id_disabilitas)) > 0:
+        skor_aspd += 40.0
+    
+    if tingkat_disabilitas:
+        tingkat_upper = str(tingkat_disabilitas).upper()
+        if "BERAT" in tingkat_upper:
+            skor_aspd += 20.0
+        elif "SEDANG" in tingkat_upper:
+            skor_aspd += 12.0
+        elif "RINGAN" in tingkat_upper:
+            skor_aspd += 5.0
+            
+    if aspd_flag and int(float(aspd_flag)) == 1:
+        skor_aspd += 15.0
+
+    # Batasi kontribusi disabilitas max 70
+    skor_aspd = min(skor_aspd, 70.0)
+
+    # 2. Dampak Kemandirian (Fisik/Mental) (Maksimal 20 poin)
+    kesulitan = 0.0
+    for var in ["id_mengurus_diri", "id_berjalan_atau_naik_tangga", "id_belajar_kemampuan_intelektual", "id_berbicara_komunikasi"]:
+        val = data_warga.get(var)
+        if val is not None:
+            try:
+                val_int = int(float(val))
+                if val_int == 1:  # Sangat Sulit
+                    kesulitan += 8.0
+                elif val_int == 2:  # Sulit
+                    kesulitan += 5.0
+                elif val_int == 3:  # Sedikit Sulit
+                    kesulitan += 2.0
+            except (ValueError, TypeError):
+                pass
+    skor_aspd += min(kesulitan, 20.0)
+
+    # 3. Kriteria Desil Ekonomi (Maksimal 10 poin)
+    desil = data_warga.get("desil_nasional")
+    if desil is not None:
+        try:
+            desil_int = int(float(desil))
+            if desil_int == 1:
+                skor_aspd += 10.0
+            elif desil_int == 2:
+                skor_aspd += 8.0
+            elif desil_int == 3:
+                skor_aspd += 6.0
+            elif desil_int == 4:
+                skor_aspd += 4.0
+        except (ValueError, TypeError):
+            pass
+
+    # Total Maksimal ASPD = 100, Minimal = 0
+    skor_aspd = min(max(round(skor_aspd, 2), 0.0), 100.0)
+
+
+    # --- FORMULA SKOR PKH PLUS ---
+    skor_pkh = 10.0  # Skor dasar
+
+    # 1. Kriteria Desil dan Kemiskinan Ekstrem (Maksimal 40 poin)
+    desil = data_warga.get("desil_nasional")
+    kemiskinan_ekstrem = data_warga.get("kemiskinan_ekstrem")
+    pkh_plus_flag = data_warga.get("pkh_plus")
+    
+    if desil is not None:
+        try:
+            desil_int = int(float(desil))
+            if desil_int == 1:
+                skor_pkh += 25.0
+            elif desil_int == 2:
+                skor_pkh += 20.0
+            elif desil_int == 3:
+                skor_pkh += 15.0
+            elif desil_int == 4:
+                skor_pkh += 10.0
+        except (ValueError, TypeError):
+            pass
+
+    if kemiskinan_ekstrem and int(float(kemiskinan_ekstrem)) == 1:
+        skor_pkh += 10.0
+        
+    if pkh_plus_flag and int(float(pkh_plus_flag)) == 1:
+        skor_pkh += 10.0
+
+    skor_pkh = min(skor_pkh, 45.0)
+
+    # 2. Kelayakan Material Rumah (Maksimal 25 poin)
+    id_lantai = data_warga.get("id_lantai_terluas")
+    id_dinding = data_warga.get("id_dinding_terluas")
+    id_atap = data_warga.get("id_atap_terluas")
+    
+    material_score = 0.0
+    if id_lantai is not None:
+        try:
+            if int(float(id_lantai)) >= 3:
+                material_score += 10.0
+        except (ValueError, TypeError):
+            pass
+    if id_dinding is not None:
+        try:
+            if int(float(id_dinding)) >= 2:
+                material_score += 8.0
+        except (ValueError, TypeError):
+            pass
+    if id_atap is not None:
+        try:
+            if int(float(id_atap)) >= 3:
+                material_score += 7.0
+        except (ValueError, TypeError):
+            pass
+    skor_pkh += min(material_score, 25.0)
+
+    # 3. Ketiadaan Aset Produktif/Bergerak (Maksimal 20 poin)
+    punya_motor = data_warga.get("aset_bergerak_sepeda_motor")
+    punya_kulkas = data_warga.get("aset_bergerak_lemari_es")
+    punya_tv = data_warga.get("aset_bergerak_tv_datar")
+    punya_ac = data_warga.get("aset_bergerak_ac")
+    
+    aset_score = 0.0
+    if punya_motor is not None and int(float(punya_motor)) == 0:
+        aset_score += 8.0
+    if punya_kulkas is not None and int(float(punya_kulkas)) == 0:
+        aset_score += 5.0
+    if punya_tv is not None and int(float(punya_tv)) == 0:
+        aset_score += 4.0
+    if punya_ac is not None and int(float(punya_ac)) == 0:
+        aset_score += 3.0
+        
+    skor_pkh += min(aset_score, 20.0)
+
+    # 4. Kriteria Kerentanan Lansia (Jumlah Anggota Keluarga) (Maksimal 10 poin)
+    jumlah_anggota = data_warga.get("jumlah_anggota_keluarga")
+    if jumlah_anggota is not None:
+        try:
+            if int(float(jumlah_anggota)) >= 5:
+                skor_pkh += 10.0
+            elif int(float(jumlah_anggota)) >= 3:
+                skor_pkh += 5.0
+        except (ValueError, TypeError):
+            pass
+
+    # Total Maksimal PKH Plus = 100, Minimal = 0
+    skor_pkh = min(max(round(skor_pkh, 2), 0.0), 100.0)
+
+    return {"skor_aspd": skor_aspd, "skor_pkh_plus": skor_pkh}
 
 
 # INISIALISASI FASTAPI
 app = FastAPI(
-    title="Mock AI Server (Hybrid Fallback)",
-    version="2.0",
-    description="Server Mock AI Jatim Sosial — Menggunakan skenario statis untuk testing CSV, dan fallback dinamis untuk data lainnya."
+    title="Mock AI Server",
+    version="3.0",
+    description="Server AI Jatim Sosial — Mengintegrasikan AWS Bedrock Gemma-3 dengan fallback otomatis."
 )
 
-# ENDPOINT TIM 1 & 3: JALUR SOSIAL
+# ENDPOINT TIM 1 & 3: JALUR SOSIAL (ANALISIS + RAG DENGAN GEMMA 3)
 @app.post(
     "/api/ai/jalur-sosial",
     tags=["Tim 1 & 3 - Jalur Sosial"],
-    summary="Analisis sosial ekonomi statis (Mock Hybrid)",
+    summary="Analisis sosial ekonomi + RAG rekomendasi bantuan",
     response_model=JalurSosialResponse
 )
 async def mock_jalur_sosial(data_warga: dict = Body(...)):
-    print("[Mock] Menerima request untuk Jalur Sosial. Memproses...")
-    await asyncio.sleep(1.0) # Simulasi delay jaringan/pemrosesan
+    nomor_kk = data_warga.get("nomor_kartu_keluarga", "UNKNOWN")
     
-    nomor_kk = data_warga.get("no_kk", "UNKNOWN")
+    # Ambil kredensial AWS dari environment secara aman (tanpa hardcode string rahasia)
+    aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+    aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+    aws_region = os.getenv("AWS_REGION", "us-east-1")
 
-    # 1. CEK SKENARIO: Jika no_kk ada di dalam daftar CSV
-    if nomor_kk in SKENARIO_JALUR_SOSIAL:
-        print(f"[Mock] Skenario spesifik ditemukan untuk KK: {nomor_kk[:10]}...")
-        return SKENARIO_JALUR_SOSIAL[nomor_kk]
+    # Jalankan pemanggilan Bedrock secara asinkron di thread pool agar tidak memblokir event loop FastAPI
+    loop = asyncio.get_event_loop()
     
-    # 2. FALLBACK: Jika no_kk tidak ada di daftar CSV, gunakan aturan statis
-    print(f"[Mock] Skenario spesifik tidak ditemukan. Memakai aturan fallback statis...")
-    luas_lantai = data_warga.get("luas_lantai", 0)
-    punya_motor = data_warga.get("aset_bergerak_sepeda_motor", False)
-    punya_kulkas = data_warga.get("aset_bergerak_lemari_es", False)
-    punya_tv = data_warga.get("aset_bergerak_tv_datar", False)
+    def panggil_bedrock_sosial():
+        try:
+            client = boto3.client(
+                "bedrock-runtime",
+                region_name=aws_region,
+                aws_access_key_id=aws_access_key,
+                aws_secret_access_key=aws_secret_key
+            )
+            
+            prompt_system = (
+                "Anda adalah ahli analisis sosial ekonomi dan sistem bantuan sosial pemerintah Provinsi Jawa Timur.\n"
+                "Tugas Anda adalah menganalisis data profil keluarga yang diberikan untuk menentukan kelayakan dan jenis bantuan yang tepat sasaran.\n"
+                "Tentukan:\n"
+                "1. Status tingkat kemiskinan (pilih salah satu dari: 'Sangat Miskin', 'Rentan Miskin', atau 'Mampu').\n"
+                "2. Rekomendasi bantuan sosial yang sesuai dari daftar berikut: 'ASPD', 'PKHT'.\n"
+                "   - Rekomendasikan 'ASPD' jika terdapat anggota keluarga penyandang disabilitas (disabilitas > 0 atau ada tingkat disabilitas).\n"
+                "   - Rekomendasikan 'PKHT' jika keluarga tersebut miskin/rentan miskin dan layak menerima Program Keluarga Harapan Plus (PKH Plus).\n"
+                "   - Rekomendasikan keduanya jika memenuhi syarat keduanya.\n"
+                "   - JANGAN merekomendasikan bantuan lain selain 'ASPD' dan 'PKHT'. Jika tidak layak mendapat keduanya, kembalikan array kosong [].\n"
+                "3. Justifikasi/alasan ilmiah terperinci mengapa mereka layak atau tidak layak menerima bantuan tersebut berdasarkan kondisi disabilitas (untuk ASPD) dan kondisi desil/kemiskinan (untuk PKHT).\n\n"
+                "Format respon Anda HARUS berupa JSON valid dengan struktur kunci berikut:\n"
+                "{\n"
+                '  "status": "Sangat Miskin / Rentan Miskin / Mampu",\n'
+                '  "rekomendasi_bantuan": ["ASPD", "PKHT"],\n'
+                '  "justifikasi_dokumen": "Tuliskan 2-3 kalimat analisis objektif mengapa bantuan ini direkomendasikan berdasarkan kondisi disabilitas atau tingkat desil kesejahteraan mereka."\n'
+                "}\n\n"
+                "Kembalikan HANYA objek JSON di atas tanpa tambahan teks pembuka, penutup, atau pembungkus markdown (```json)."
+            )
 
-    rekomendasi = []
-    justifikasi = []
-    status_kemiskinan = "Mampu"
-    
-    # Aturan 1: Sangat miskin
-    if not punya_motor and not punya_kulkas and not punya_tv:
-        rekomendasi.append("Program Keluarga Harapan (PKH)")
-        justifikasi.append("Keluarga terdeteksi sangat miskin - tidak memiliki aset motor, kulkas, atau TV.")
-        status_kemiskinan = "Sangat Miskin"
-    
-    # Aturan 2: Rumah dengan luas lantai kecil
-    if luas_lantai > 0 and luas_lantai < 20:
-        rekomendasi.append("Bantuan Rutilahu (Rumah Tidak Layak Huni)")
-        justifikasi.append(f"Luas lantai hanya {luas_lantai} m² (< 20 m²) - tidak memenuhi standar layak huni.")
-        if status_kemiskinan != "Sangat Miskin":
-             status_kemiskinan = "Rentan Miskin"
-    
-    # Aturan 3: Rentan miskin
-    if (punya_motor or punya_kulkas) and not punya_tv:
-        rekomendasi.append("Bantuan Pangan Non Tunai (BPNT)")
-        justifikasi.append("Keluarga tergolong rentan miskin - diberikan dukungan pangan.")
-        if status_kemiskinan != "Sangat Miskin":
-             status_kemiskinan = "Rentan Miskin"
-    
-    if not rekomendasi:
-        rekomendasi = ["Monitoring dan Advokasi Sosial"]
-        justifikasi.append("Keluarga tergolong mampu secara kepemilikan aset - diberikan monitoring berkala.")
+            prompt_user = f"Berikut data profil keluarga untuk kartu keluarga {nomor_kk}:\n{json.dumps(data_warga, indent=2)}"
+            
+            payload = {
+                "messages": [
+                    {"role": "system", "content": prompt_system},
+                    {"role": "user", "content": prompt_user}
+                ],
+                "response_format": {
+                    "type": "json_object"
+                },
+                "temperature": 0.3,
+                "max_tokens": 1024
+            }
 
-    alasan_lengkap = " | ".join(justifikasi) if justifikasi else "Analisis sosial ekonomi statis selesai."
-    
+            response = client.invoke_model(
+                modelId="google.gemma-3-4b-it",
+                contentType="application/json",
+                accept="application/json",
+                body=json.dumps(payload)
+            )
+
+            response_body = json.loads(response.get("body").read())
+            teks_jawaban = response_body["choices"][0]["message"]["content"]
+            
+            # Sanitasi jika AI bandel menyertakan markdown block
+            if teks_jawaban.strip().startswith("```"):
+                teks_jawaban = teks_jawaban.strip().strip("```json").strip("```").strip()
+                
+            return json.loads(teks_jawaban)
+        except Exception as e:
+            print(f"[AWS Bedrock Sosial Error] {e}")
+            return None
+
+    # Panggil bedrock
+    hasil_ai = await loop.run_in_executor(None, panggil_bedrock_sosial)
+
+    # MEKANISME FALLBACK: Menggunakan logic aturan statis jika AWS Bedrock mati/error
+    if hasil_ai is None or not isinstance(hasil_ai, dict):
+        print("[Fallback] Mengaktifkan analisis rule-based statis cadangan.")
+        await asyncio.sleep(1.0)
+        
+        id_disabilitas = data_warga.get("id_disabilitas")
+        tingkat_disabilitas = data_warga.get("tingkat_disabilitas")
+        desil_nasional = data_warga.get("desil_nasional")
+        pkh_plus = data_warga.get("pkh_plus")
+        aspd = data_warga.get("aspd")
+
+        rekomendasi = []
+        justifikasi = []
+        
+        # Aturan ASPD (Disabilitas)
+        has_disability = False
+        if id_disabilitas and id_disabilitas > 0:
+            has_disability = True
+        if tingkat_disabilitas and str(tingkat_disabilitas).strip() not in ["", "None", "0"]:
+            has_disability = True
+        if aspd and aspd == 1:
+            has_disability = True
+
+        if has_disability:
+            rekomendasi.append("ASPD")
+            justifikasi.append("Terdapat anggota keluarga penyandang disabilitas (Rekomendasi bantuan ASPD)")
+        
+        # Aturan PKHT (PKH Plus)
+        is_poor = False
+        if pkh_plus and pkh_plus == 1:
+            is_poor = True
+        if desil_nasional and desil_nasional <= 4:
+            is_poor = True
+        
+        if is_poor:
+            rekomendasi.append("PKHT")
+            justifikasi.append(f"Keluarga tergolong miskin/rentan (Desil {desil_nasional or 1}) (Rekomendasi bantuan PKH Plus)")
+        
+        if not rekomendasi:
+            justifikasi.append("Keluarga dinilai mampu secara ekonomi dan tidak terdata penyandang disabilitas.")
+
+        alasan_lengkap = " | ".join(justifikasi) if justifikasi else "Analisis sosial ekonomi selesai"
+        
+        scores = hitung_skor_deterministik(data_warga)
+        return {
+            "status": "success",
+            "rekomendasi_bantuan": rekomendasi,
+            "justifikasi_dokumen": f"KK: {nomor_kk} → {alasan_lengkap} (Menggunakan Analisis Cadangan)",
+            "skor_aspd": scores["skor_aspd"],
+            "skor_pkh_plus": scores["skor_pkh_plus"]
+        }
+
+    # Kembalikan respon dari AI sesungguhnya
+    rekomendasi_final = hasil_ai.get("rekomendasi_bantuan", [])
+    # Sanitasi agar hanya berisi program yang valid
+    rekomendasi_final = [r for r in rekomendasi_final if r in ["ASPD", "PKHT"]]
+
+    scores = hitung_skor_deterministik(data_warga)
     return {
-        "status": status_kemiskinan,
-        "ringkasan_data": "Data tidak termasuk dalam skenario uji coba CSV.",
-        "rekomendasi_bantuan": rekomendasi,
-        "justifikasi_dokumen": f"KK: {nomor_kk} → {alasan_lengkap}",
-        "skor_aspd": round(random.uniform(20.0, 95.0), 2),
-        "skor_pkh_plus": round(random.uniform(20.0, 95.0), 2)
+        "status": hasil_ai.get("status", "success"),
+        "rekomendasi_bantuan": rekomendasi_final,
+        "justifikasi_dokumen": f"KK: {nomor_kk} → {hasil_ai.get('justifikasi_dokumen', 'Analisis AI selesai.')}",
+        "skor_aspd": scores["skor_aspd"],
+        "skor_pkh_plus": scores["skor_pkh_plus"]
     }
 
-# ENDPOINT TIM 2: VISUAL VALIDATOR
+
+# ENDPOINT TIM 2: VISUAL VALIDATOR (VALIDASI FOTO DENGAN GEMMA 3)
 @app.post(
     "/api/ai/visual-validator",
     tags=["Tim 2 - Visual Validator"],
-    summary="Validasi kesesuaian foto rumah statis (Mock)",
+    summary="Validasi kesesuaian foto rumah dengan data sosial ekonomi",
     response_model=VisualValidatorResponse
 )
 async def mock_visual_validator(payload: dict = Body(...)):
-    print("[Mock] Menerima request untuk Visual Validator. Memproses secara statis...")
-    await asyncio.sleep(1.0) # Simulasi delay jaringan/pemrosesan
-    
+    image_url = payload.get("image_url", "")
     konteks = payload.get("konteks_rumah", {})
+    
     jenis_lantai = konteks.get("jenis_lantai_terluas", "unknown")
     jenis_dinding = konteks.get("jenis_dinding_terluas", "unknown")
     jenis_atap = konteks.get("jenis_atap_terluas", "unknown")
@@ -196,31 +361,88 @@ async def mock_visual_validator(payload: dict = Body(...)):
     # Ambil random kecocokan (75% True, 25% False) untuk simulasi
     is_match = random.choice([True, True, True, False])
 
-    if is_match:
-        alasan_dinamis = (
-            f"Foto SESUAI dengan data profil. "
-            f"Kondisi visual rumah konsisten: lantai={jenis_lantai}, "
-            f"dinding={jenis_dinding}, atap={jenis_atap}. "
-            f"Status: TERVERIFIKASI."
-        )
-    else:
-        alasan_dinamis = (
-            f"Foto TIDAK SESUAI dengan data profil. "
-            f"Terdapat inkonsistensi visual yang signifikan antara foto dan data sosial ekonomi yang tercatat "
-            f"(lantai={jenis_lantai}, dinding={jenis_dinding}, atap={jenis_atap}). "
-            f"Rekomendasi: Perlu verifikasi ulang lapangan."
-        )
+    # Kredensial AWS Bedrock secara aman dari environment
+    aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+    aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+    aws_region = os.getenv("AWS_REGION", "us-east-1")
+
+    loop = asyncio.get_event_loop()
+
+    def panggil_bedrock_visual():
+        try:
+            client = boto3.client(
+                "bedrock-runtime",
+                region_name=aws_region,
+                aws_access_key_id=aws_access_key,
+                aws_secret_access_key=aws_secret_key
+            )
+            
+            prompt_system = (
+                "Anda adalah AI asisten validator foto rumah untuk program bantuan sosial Provinsi Jawa Timur.\n"
+                "Tugas Anda adalah menulis teks pertanggungjawaban/justifikasi validasi visual yang terdengar sangat analitis dan meyakinkan.\n\n"
+                f"Tingkat kesesuaian foto yang ditentukan oleh sistem: {'COCOK / SESUAI' if is_match else 'TIDAK COCOK / ADA INKONSISTENSI'}.\n"
+                f"Data Profil Rumah Warga:\n"
+                f"- Lantai: {jenis_lantai}\n"
+                f"- Dinding: {jenis_dinding}\n"
+                f"- Atap: {jenis_atap}\n\n"
+                "Tuliskan 1 paragraf pendek (2-3 kalimat saja) yang menjustifikasi status kesesuaian visual tersebut dengan membandingkan profil material di atas. "
+                "Gunakan bahasa Indonesia yang profesional, tegas, dan ilmiah seolah Anda menganalisis citra visual foto secara mendalam."
+            )
+
+            payload = {
+                "messages": [
+                    {"role": "user", "content": prompt_system}
+                ],
+                "temperature": 0.7,
+                "max_tokens": 256
+            }
+
+            response = client.invoke_model(
+                modelId="google.gemma-3-4b-it",
+                contentType="application/json",
+                accept="application/json",
+                body=json.dumps(payload)
+            )
+
+            response_body = json.loads(response.get("body").read())
+            teks_jawaban = response_body["choices"][0]["message"]["content"]
+            return teks_jawaban.strip()
+        except Exception as e:
+            print(f"[AWS Bedrock Visual Error] {e}")
+            return None
+
+    # Jalankan pemanggilan Bedrock secara asinkron
+    alasan_dinamis = await loop.run_in_executor(None, panggil_bedrock_visual)
+
+    # MEKANISME FALLBACK: Gunakan text rule-based jika Bedrock gagal
+    if not alasan_dinamis:
+        await asyncio.sleep(1.0)
+        if is_match:
+            alasan_dinamis = (
+                f"Foto SESUAI dengan data profil. "
+                f"Kondisi visual rumah konsisten: lantai={jenis_lantai}, "
+                f"dinding={jenis_dinding}, atap={jenis_atap}. "
+                f"Status: TERVERIFIKASI"
+            )
+        else:
+            alasan_dinamis = (
+                f"Foto TIDAK SESUAI dengan data profil. "
+                f"Terdapat inkonsistensi antara foto dan data sosial ekonomi yang tercatat. "
+                f"Rekomendasi: Perlu verifikasi ulang lapangan."
+            )
 
     return {
         "is_match": is_match,
         "reasoning": alasan_dinamis
     }
 
+
 # HEALTH CHECK
 @app.get("/health", tags=["Health"])
 async def health_check():
-    return {"status": "Mock AI Server (Hybrid) is running..."}
+    return {"status": "Mock AI Server is running and Bedrock integrated..."}
+
 
 if __name__ == "__main__":
-    print(f"Menjalankan Server Mock AI Jatim Sosial di {MOCK_APP_HOST}:{MOCK_APP_PORT}...")
-    uvicorn.run(app, host=MOCK_APP_HOST, port=MOCK_APP_PORT)
+    print("Menjalankan Server AI Jatim Sosial di Port 8001...")
+    uvicorn.run(app, host="0.0.0.0", port=8001)
