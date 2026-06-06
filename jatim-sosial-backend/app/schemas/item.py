@@ -198,6 +198,17 @@ class ManajemenBantuanResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class ManajemenBantuanPaginationMeta(BaseModel):
+    page: int
+    limit: int
+    total: int
+    totalPages: int
+    counts: dict[str, int]
+
+class ManajemenBantuanPaginatedResponse(BaseModel):
+    data: list[ManajemenBantuanResponse]
+    meta: ManajemenBantuanPaginationMeta
+
 class DetailKeluargaResponse(BaseModel):
     id_keluarga: str
     idLabel: str

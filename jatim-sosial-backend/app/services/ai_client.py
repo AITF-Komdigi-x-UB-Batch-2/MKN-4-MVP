@@ -97,28 +97,80 @@ Kamu harus merujuk pada aturan berikut sebagai konteks kebijakan:
 """
     return role_content, user_content
 
-def extract_rekomendasi(hasil_final: dict) -> list:
-    """Fungsi aman untuk mengekstrak array rekomendasi bantuan dari format JSON Tim 3"""
+def determine_eligibility(keluarga) -> list:
+    """Fungsi pembantu untuk menyeleksi kelayakan program berdasarkan aturan Juknis Dinsos Jatim secara deterministik"""
     rekomendasi = []
-    if not isinstance(hasil_final, dict):
-        return rekomendasi
     try:
-        kesimpulan = hasil_final.get("laporan_evaluasi", {}).get("kesimpulan", {})
-        
-        # Cek PKH Plus (Pastikan tulisannya LAYAK dan bukan TIDAK LAYAK)
-        status_pkh = str(kesimpulan.get("pkh_plus", {}).get("status_kelayakan", "")).upper().strip()
-        if status_pkh == "LAYAK":
-            rekomendasi.append("PKH Plus")
+        # 1. Hitung Umur
+        umur = keluarga.umur_2026
+        if umur is None and keluarga.tanggal_lahir:
+            try:
+                tahun_lahir_str = str(keluarga.tanggal_lahir).split("-")[0].strip()
+                if tahun_lahir_str.isdigit():
+                    tahun_lahir = int(tahun_lahir_str)
+                    import datetime
+                    tahun_sekarang = datetime.datetime.now().year
+                    umur = tahun_sekarang - tahun_lahir
+            except Exception:
+                pass
+        if umur is None:
+            umur = 0
             
-        # Cek ASPD
-        status_aspd = str(kesimpulan.get("aspd", {}).get("status_kelayakan", "")).upper().strip()
-        if status_aspd == "LAYAK":
+        # 2. Cek NIK Jawa Timur (BPS Code: 35)
+        nik_str = str(keluarga.nik or "").strip()
+        is_jatim = (
+            nik_str.startswith("35") or
+            (keluarga.provinsi and "JAWA TIMUR" in keluarga.provinsi.upper()) or
+            (keluarga.kode_provinsi and str(keluarga.kode_provinsi).startswith("35"))
+        )
+        
+        # 3. Cek Disabilitas
+        has_disability = False
+        if keluarga.id_disabilitas and keluarga.id_disabilitas > 0:
+            has_disability = True
+        if keluarga.tingkat_disabilitas and str(keluarga.tingkat_disabilitas).strip().upper() not in ("", "NONE", "0"):
+            has_disability = True
+        if keluarga.aspd == 1:
+            has_disability = True
+            
+        kolom_disabilitas = [
+            "id_penglihatan", "id_pendengaran", "id_berjalan_atau_naik_tangga",
+            "id_menggunakan_tangan_jari", "id_belajar_kemampuan_intelektual",
+            "id_pengendalian_perilaku", "id_berbicara_komunikasi",
+            "id_mengurus_diri", "id_mengingat_berkonsentrasi", "id_kesedihan_depresi"
+        ]
+        for col in kolom_disabilitas:
+            val = getattr(keluarga, col, None)
+            if val is not None:
+                try:
+                    val_int = int(float(val))
+                    if 1 <= val_int <= 3:
+                        has_disability = True
+                except (ValueError, TypeError):
+                    pass
+                    
+        # 4. Evaluasi Kelayakan PKH Plus
+        # Kriteria: (a) lansia >= 70 tahun, (b) desil 1-4, (c) NIK Jawa Timur
+        desil = keluarga.desil_nasional
+        pkh_plus_eligible = (umur >= 70) and (desil is not None and 1 <= desil <= 4) and is_jatim
+        
+        # 5. Evaluasi Kelayakan ASPD
+        # Kriteria: (1) NIK Jawa Timur, (2) usia 6 bulan - 60 tahun (0.5 <= umur <= 60), (3) disabilitas/bed ridden
+        aspd_eligible = is_jatim and (0.5 <= umur <= 60) and has_disability
+        
+        if pkh_plus_eligible:
+            rekomendasi.append("PKH Plus")
+        if aspd_eligible:
             rekomendasi.append("ASPD")
             
     except Exception as e:
-        logger.error(f"Gagal mengekstrak rekomendasi dari JSON AI: {e}")
-    
+        logger.error(f"Gagal menentukan kelayakan program: {e}")
+        
     return rekomendasi
+
+def extract_rekomendasi(hasil_final: dict, keluarga) -> list:
+    """Fungsi aman untuk mengekstrak array rekomendasi bantuan dari format JSON Tim 3 dengan validasi aturan seleksi ketat (deterministic selector)"""
+    return determine_eligibility(keluarga)
 
 async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, db: Session):
     keluarga = db.query(models.Keluarga).filter(models.Keluarga.id == keluarga_id).first()
@@ -185,7 +237,7 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
             return
 
         # 3. Simpan Rekomendasi Program & Detail Analisis
-        rekomendasi_baru = extract_rekomendasi(hasil_final)
+        rekomendasi_baru = extract_rekomendasi(hasil_final, keluarga)
         
         try:
             analisis_rag = hasil_final.get("laporan_evaluasi", {}).get("analisis", {})

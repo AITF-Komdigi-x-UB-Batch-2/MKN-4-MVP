@@ -9,13 +9,13 @@ import {
   CheckCircle,
   ChevronUp,
   ChevronDown,
-  ChevronsUpDown,
   Loader2,
   ShieldCheck,
   BrainCircuit,
   CheckSquare,
   Square,
   XCircle,
+  Filter,
 } from "lucide-react";
 import LoadingState from "../../components/ui/LoadingState";
 import EmptyState from "../../components/ui/EmptyState";
@@ -81,18 +81,29 @@ interface ColumnConfig {
   defaultVisible?: boolean;
 }
 
+interface PaginatedManajemenBantuanResponse {
+  data: DataRow[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    counts: Record<string, number>;
+  };
+}
+
 const COLUMNS: ColumnConfig[] = [
   { key: "id_keluarga", label: "ID / Tanggal", defaultVisible: true },
+  { key: "tahap", label: "Status Tahap", defaultVisible: true },
+  { key: "skor_aspd", label: "Skor ASPD", defaultVisible: true },
+  { key: "skor_pkh_plus", label: "Skor PKH+", defaultVisible: true },
   { key: "nama", label: "Nama Penerima", locked: true, defaultVisible: true },
   { key: "nik", label: "NIK", defaultVisible: true },
   { key: "wilayah", label: "Wilayah / Kota", defaultVisible: true },
   { key: "kecamatan", label: "Kecamatan", defaultVisible: true },
   { key: "kelurahan_desa", label: "Kelurahan / Desa", defaultVisible: false },
   { key: "desil", label: "Desil Ekonomi", defaultVisible: true },
-  { key: "skor_aspd", label: "Skor ASPD", defaultVisible: true },
-  { key: "skor_pkh_plus", label: "Skor PKH+", defaultVisible: true },
-  { key: "tahap", label: "Status Tahap", defaultVisible: true },
-  { key: "bantuan", label: "Bantuan", locked: true, defaultVisible: true },
+  { key: "bantuan", label: "Bantuan Eligible", locked: true, defaultVisible: true },
 
   // DTKS Extra fields
   { key: "jumlah_anggota_keluarga", label: "Jml Anggota Keluarga", defaultVisible: false },
@@ -212,6 +223,25 @@ const isNumericColumn = (key: string): boolean => {
   return numericPrefixes.some(prefix => key.toLowerCase().startsWith(prefix)) || ["skorASPD", "skorPKHPlus", "desil"].includes(key);
 };
 
+const getColValue = (row: DataRow, key: string): string => {
+  switch (key) {
+    case 'id_keluarga': return row.idLabel;
+    case 'tahap': return getStageBadgeLabel(row.tahap);
+    case 'bantuan': return (row.bantuan || []).join(', ') || '—';
+    case 'skor_aspd': return String((row.skorASPD ?? 0).toFixed(1));
+    case 'skor_pkh_plus': return String((row.skorPKHPlus ?? row.skorPKHT ?? 0).toFixed(1));
+    case 'desil': return String(row.desil ?? '—');
+    default: { const v = row[key as keyof DataRow]; return v !== undefined && v !== null ? String(v) : '—'; }
+  }
+};
+
+// Kolom yang nilai uniknya sangat banyak (tidak boleh pakai checkbox — akan crash browser)
+// Gunakan text search sebagai gantinya
+const HIGH_CARDINALITY_COLS = new Set(['id_keluarga', 'nama', 'nik']);
+
+// Batas maksimal unique values yang ditampilkan sebagai checkbox
+const MAX_CHECKBOX_VALUES = 300;
+
 /* ─── Component ──────────────────────────── */
 
 const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
@@ -229,7 +259,13 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
   // Popovers state
   const [showColumnDropdown, setShowColumnDropdown] = useState(false);
-  const [showDesilDropdown, setShowDesilDropdown] = useState(false);
+  const [, setShowDesilDropdown] = useState(false);
+  const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
+  const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
+  const [textColumnFilters, setTextColumnFilters] = useState<Record<string, string>>({});
+  const [pendingFilter, setPendingFilter] = useState<Set<string>>(new Set());
+  const [pendingTextFilter, setPendingTextFilter] = useState('');  
+  const [filterDropdownSearch, setFilterDropdownSearch] = useState('');
 
   // Column visibility state loaded from localStorage
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
@@ -260,6 +296,9 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
         setShowColumnDropdown(false);
         setShowDesilDropdown(false);
       }
+      if (!target.closest(".excel-filter-th")) {
+        setOpenFilterCol(null);
+      }
     };
     document.addEventListener("click", handleOutsideClick);
     return () => document.removeEventListener("click", handleOutsideClick);
@@ -274,6 +313,16 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   const [data, setData] = useState<DataRow[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
+  const [serverTotalItems, setServerTotalItems] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(1);
+  const [serverTabCounts, setServerTabCounts] = useState<Record<TabKey, number>>({
+    semua: 0,
+    proses: 0,
+    analisis: 0,
+    validasi: 0,
+    diterima: 0,
+    ditolak: 0,
+  });
 
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
@@ -285,10 +334,37 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     const requestId = ++latestRequestRef.current;
     try {
       if (showLoading) setIsLoading(true);
-      const res = await apiFetch("/api/v1/manajemen-bantuan");
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(ITEMS_PER_PAGE),
+      });
+      if (activeTab !== "semua") params.set("tahap", activeTab);
+      if (searchTerm.trim()) params.set("search", searchTerm.trim());
+      if (filterKecamatan !== "Semua") params.set("kecamatan", filterKecamatan);
+      if (filterKelurahan !== "Semua") params.set("kelurahan_desa", filterKelurahan);
+      if (filterOverlap !== "Semua") params.set("overlap", filterOverlap);
+      if (selectedDesils.length > 0) params.set("desils", selectedDesils.join(","));
+
+      const res = await apiFetch(`/api/v1/manajemen-bantuan?${params.toString()}`);
       if (res.ok && requestId === latestRequestRef.current) {
-        const json = await res.json();
-        setData(json);
+        const json = (await res.json()) as PaginatedManajemenBantuanResponse | DataRow[];
+        if (Array.isArray(json)) {
+          setData(json);
+          setServerTotalItems(json.length);
+          setServerTotalPages(Math.max(1, Math.ceil(json.length / ITEMS_PER_PAGE)));
+        } else {
+          setData(json.data);
+          setServerTotalItems(json.meta.total);
+          setServerTotalPages(json.meta.totalPages);
+          setServerTabCounts({
+            semua: json.meta.counts.semua || 0,
+            proses: json.meta.counts.proses || 0,
+            analisis: json.meta.counts.analisis || 0,
+            validasi: json.meta.counts.validasi || 0,
+            diterima: json.meta.counts.diterima || 0,
+            ditolak: json.meta.counts.ditolak || 0,
+          });
+        }
       }
     } catch (e) {
       if (requestId === latestRequestRef.current) {
@@ -299,7 +375,21 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
         setIsLoading(false);
       }
     }
-  }, []);
+  }, [
+    activeTab,
+    currentPage,
+    filterKecamatan,
+    filterKelurahan,
+    filterOverlap,
+    searchTerm,
+    selectedDesils,
+  ]);
+
+  useEffect(() => {
+    if (currentPage > serverTotalPages) {
+      setCurrentPage(serverTotalPages);
+    }
+  }, [currentPage, serverTotalPages]);
 
   useEffect(() => {
     fetchData(true);
@@ -324,15 +414,8 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
   // Counts per tab (before search/filter)
   const tabCounts = useMemo(
-    () => ({
-      semua: data.length,
-      proses: data.filter((d) => d.tahap === "proses").length,
-      analisis: data.filter((d) => d.tahap === "analisis").length,
-      validasi: data.filter((d) => d.tahap === "validasi").length,
-      diterima: data.filter((d) => d.tahap === "diterima").length,
-      ditolak: data.filter((d) => d.tahap === "ditolak").length,
-    }),
-    [data],
+    () => serverTabCounts,
+    [serverTabCounts],
   );
 
   // Filtered data
@@ -385,6 +468,19 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
       result = result.filter((d) => selectedDesils.includes(d.desil));
     }
 
+    // Column value filters — checkbox (categorical)
+    Object.entries(columnFilters).forEach(([key, allowed]) => {
+      if (allowed.size > 0) result = result.filter(row => allowed.has(getColValue(row, key)));
+    });
+
+    // Column text filters — text search (high-cardinality: NIK, Nama, ID)
+    Object.entries(textColumnFilters).forEach(([key, text]) => {
+      if (text.trim()) {
+        const lower = text.toLowerCase();
+        result = result.filter(row => getColValue(row, key).toLowerCase().includes(lower));
+      }
+    });
+
     // Sort ascending by skorKesejahteraan to show lowest welfare first
     result.sort((a, b) => a.skorKesejahteraan - b.skorKesejahteraan);
 
@@ -395,30 +491,16 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
         let valB: string | number = "";
 
         const tahapOrder: Record<string, number> = {
-          proses: 0,
-          analisis: 1,
-          validasi: 2,
-          diterima: 3,
-          ditolak: 4,
+          proses: 0, analisis: 1, validasi: 2, diterima: 3, ditolak: 4,
         };
 
         const key = sortConfig.key;
-        if (key === "id_keluarga") {
-          valA = a.idLabel;
-          valB = b.idLabel;
-        } else if (key === "bantuan") {
-          valA = a.bantuan ? a.bantuan.join(", ") : "";
-          valB = b.bantuan ? b.bantuan.join(", ") : "";
-        } else if (key === "tahap") {
-          valA = tahapOrder[a.tahap] || 99;
-          valB = tahapOrder[b.tahap] || 99;
-        } else if (key === "skor_aspd") {
-          valA = a.skorASPD ?? 0;
-          valB = b.skorASPD ?? 0;
-        } else if (key === "skor_pkh_plus") {
-          valA = a.skorPKHPlus ?? a.skorPKHT ?? 0;
-          valB = b.skorPKHPlus ?? b.skorPKHT ?? 0;
-        } else {
+        if (key === "id_keluarga") { valA = a.idLabel; valB = b.idLabel; }
+        else if (key === "bantuan") { valA = a.bantuan ? a.bantuan.join(", ") : ""; valB = b.bantuan ? b.bantuan.join(", ") : ""; }
+        else if (key === "tahap") { valA = tahapOrder[a.tahap] || 99; valB = tahapOrder[b.tahap] || 99; }
+        else if (key === "skor_aspd") { valA = a.skorASPD ?? 0; valB = b.skorASPD ?? 0; }
+        else if (key === "skor_pkh_plus") { valA = a.skorPKHPlus ?? a.skorPKHT ?? 0; valB = b.skorPKHPlus ?? b.skorPKHT ?? 0; }
+        else {
           const rawValA = a[key as keyof DataRow];
           const rawValB = b[key as keyof DataRow];
           valA = typeof rawValA === "number" ? rawValA : String(rawValA ?? "");
@@ -430,46 +512,27 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
         if (valB === undefined || valB === null) valB = isNum ? 0 : "";
 
         if (typeof valA === "string" && typeof valB === "string") {
-          return sortConfig.direction === "asc"
-            ? valA.localeCompare(valB)
-            : valB.localeCompare(valA);
+          return sortConfig.direction === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
         } else {
           return sortConfig.direction === "asc"
-            ? valA > valB
-              ? 1
-              : valA < valB
-                ? -1
-                : 0
-            : valB > valA
-              ? 1
-              : valB < valA
-                ? -1
-                : 0;
+            ? valA > valB ? 1 : valA < valB ? -1 : 0
+            : valB > valA ? 1 : valB < valA ? -1 : 0;
         }
       });
     }
 
     return result;
   }, [
-    data,
-    activeTab,
-    searchTerm,
-    filterKecamatan,
-    filterKelurahan,
-    filterOverlap,
-    selectedDesils,
-    sortConfig,
+    data, activeTab, searchTerm, filterKecamatan, filterKelurahan,
+    filterOverlap, selectedDesils, sortConfig, columnFilters, textColumnFilters,
   ]);
 
   // Pagination
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredData.length / ITEMS_PER_PAGE),
+    serverTotalPages,
   );
-  const paginatedData = filteredData.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
-  );
+  const paginatedData = filteredData;
 
   const getPageNumbers = () => {
     const pages: (number | "...")[] = [];
@@ -489,10 +552,9 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
   // Actions
   const runAnalisisAndAdvance = async (id: string) => {
-    const res = await apiFetch("/api/v1/asesmen/sosial", {
+    const res = await apiFetch(`/api/v1/asesmen/komprehensif/${id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ keluarga_id: id }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -500,8 +562,8 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     }
 
     const hasil = await res.json().catch(() => ({}));
-    const bantuan = Array.isArray(hasil?.hasil_rekomendasi_final)
-      ? hasil.hasil_rekomendasi_final
+    const bantuan = Array.isArray(hasil?.hasil_analisis_sosial_tim3?.hasil_rekomendasi_final)
+      ? hasil.hasil_analisis_sosial_tim3.hasil_rekomendasi_final
       : [];
 
     const resUpdate = await apiFetch(`/api/v1/manajemen-bantuan/${id}/status`, {
@@ -612,26 +674,6 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     setBatchProgress(0);
   };
 
-  // Dynamic lists for filters
-  const kecamatanList = useMemo(() => {
-    const set = new Set<string>();
-    data.forEach((d) => {
-      if (d.kecamatan) set.add(d.kecamatan);
-    });
-    return Array.from(set).sort();
-  }, [data]);
-
-  const kelurahanList = useMemo(() => {
-    const set = new Set<string>();
-    data.forEach((d) => {
-      if (filterKecamatan === "Semua" || d.kecamatan === filterKecamatan) {
-        if (d.kelurahan_desa) set.add(d.kelurahan_desa);
-        else if ((d as DataRow & { kelurahan?: string }).kelurahan) set.add((d as DataRow & { kelurahan?: string }).kelurahan as string);
-      }
-    });
-    return Array.from(set).sort();
-  }, [data, filterKecamatan]);
-
   const resetFilters = () => {
     setSearchTerm("");
     setFilterKecamatan("Semua");
@@ -639,77 +681,178 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     setSelectedDesils([]);
     setFilterOverlap("Semua");
     setSortConfig(null);
+    setColumnFilters({});
+    setTextColumnFilters({});
   };
 
   const resetColumns = () => {
     setVisibleColumns(new Set(COLUMNS.filter(c => c.defaultVisible || c.locked).map(c => c.key)));
   };
 
-  const handleSort = (key: SortKey) => {
-    let direction: "asc" | "desc" = "asc";
-    if (sortConfig && sortConfig.key === key) {
-      direction = sortConfig.direction === "asc" ? "desc" : "asc";
+  const uniqueColumnValues = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    COLUMNS.forEach(col => {
+      if (col.key === 'aksi') return;
+      const set = new Set<string>();
+      data.forEach(row => set.add(getColValue(row, col.key)));
+      result[col.key] = Array.from(set).sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+      );
+    });
+    return result;
+  }, [data]);
+
+  const openFilter = (colKey: string) => {
+    const isHighCard = HIGH_CARDINALITY_COLS.has(colKey);
+    if (isHighCard) {
+      setPendingTextFilter(textColumnFilters[colKey] || '');
+    } else {
+      const allVals = uniqueColumnValues[colKey] || [];
+      const existing = columnFilters[colKey];
+      setPendingFilter(existing && existing.size > 0 ? new Set(existing) : new Set(allVals));
     }
-    setSortConfig({ key, direction });
+    setFilterDropdownSearch('');
+    setOpenFilterCol(prev => prev === colKey ? null : colKey);
   };
 
-  const renderSortHeader = (label: string, sortKey: SortKey) => {
-    const isActive = sortConfig?.key === sortKey;
-    const isNum = isNumericColumn(sortKey);
-
-    let sortBadgeText = "";
-    if (isActive) {
-      if (isNum) {
-        sortBadgeText = sortConfig.direction === "asc" ? "Terkecil - Terbesar" : "Terbesar - Terkecil";
-      } else {
-        sortBadgeText = sortConfig.direction === "asc" ? "A-Z" : "Z-A";
-      }
+  const applyFilter = (colKey: string) => {
+    const isHighCard = HIGH_CARDINALITY_COLS.has(colKey);
+    if (isHighCard) {
+      setTextColumnFilters(prev => {
+        const next = { ...prev };
+        if (!pendingTextFilter.trim()) delete next[colKey];
+        else next[colKey] = pendingTextFilter.trim();
+        return next;
+      });
+    } else {
+      const allVals = uniqueColumnValues[colKey] || [];
+      setColumnFilters(prev => {
+        const next = { ...prev };
+        if (pendingFilter.size === 0 || pendingFilter.size >= allVals.length) { delete next[colKey]; }
+        else { next[colKey] = new Set(pendingFilter); }
+        return next;
+      });
     }
+    setOpenFilterCol(null);
+  };
+
+  const renderExcelHeader = (label: string, colKey: string) => {
+    const isOpen = openFilterCol === colKey;
+    const isHighCard = HIGH_CARDINALITY_COLS.has(colKey);
+    const hasTextFilter = !!(textColumnFilters[colKey]?.trim());
+    const hasCheckboxFilter = !!(columnFilters[colKey] && columnFilters[colKey].size > 0);
+    const hasFilter = isHighCard ? hasTextFilter : hasCheckboxFilter;
+    const isSortActive = sortConfig?.key === colKey;
+    const isNum = isNumericColumn(colKey);
+    const allVals = uniqueColumnValues[colKey] || [];
+    const filteredVals = filterDropdownSearch
+      ? allVals.filter(v => v.toLowerCase().includes(filterDropdownSearch.toLowerCase()))
+      : allVals;
+    const displayVals = filteredVals.slice(0, MAX_CHECKBOX_VALUES);
+    const allPendingSelected = displayVals.length > 0 && displayVals.every(v => pendingFilter.has(v));
 
     return (
-      <th
-        className="mb-th-sortable"
-        onClick={() => handleSort(sortKey)}
-        title={`Klik untuk mengurutkan berdasarkan ${label.toLowerCase()}`}
-        style={{
-          cursor: "pointer",
-          padding: "14px 16px",
-          color: isActive ? "#2563eb" : "#475569",
-          backgroundColor: isActive ? "#f8fafc" : "transparent",
-          transition: "all 0.2s ease"
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "nowrap" }}>
-          <span style={{ fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>{label}</span>
-          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            <span className={`mb-sort-icon ${isActive ? "active" : ""}`} style={{ color: isActive ? "#2563eb" : "#cbd5e1" }}>
-              {isActive && sortConfig.direction === "asc" ? (
-                <ChevronUp size={14} />
-              ) : isActive && sortConfig.direction === "desc" ? (
-                <ChevronDown size={14} />
-              ) : (
-                <ChevronsUpDown size={14} />
-              )}
-            </span>
-            {isActive && sortBadgeText && (
-              <span
-                style={{
-                  fontSize: "9px",
-                  fontWeight: 600,
-                  backgroundColor: "#eff6ff",
-                  color: "#2563eb",
-                  padding: "1px 6px",
-                  borderRadius: "4px",
-                  border: "1px solid #bfdbfe",
-                  whiteSpace: "nowrap",
-                  textTransform: "none"
-                }}
-              >
-                {sortBadgeText}
-              </span>
-            )}
+      <th key={colKey} className={`excel-filter-th${isSortActive ? ' sort-active' : ''}`} style={{ position: 'relative', padding: 0, minWidth: '120px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 8px 12px 14px', gap: '4px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: hasFilter || isSortActive ? '#2563eb' : '#475569', whiteSpace: 'nowrap' }}>
+            {label}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+            {isSortActive && <span style={{ color: '#2563eb', display: 'flex' }}>{sortConfig?.direction === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />}</span>}
+            <button
+              onClick={(e) => { e.stopPropagation(); openFilter(colKey); }}
+              style={{ background: hasFilter ? '#eff6ff' : 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center', borderRadius: '3px', color: hasFilter ? '#2563eb' : '#94a3b8' }}
+              title={hasFilter ? 'Filter aktif' : 'Filter kolom'}
+            >
+              <Filter size={11} />
+            </button>
           </div>
         </div>
+        {isOpen && (
+          <div className="excel-filter-dropdown" onClick={e => e.stopPropagation()}>
+            {/* Sort section — selalu tampil */}
+            <div className="efd-sort-section">
+              <button className={`efd-sort-btn${isSortActive && sortConfig?.direction === 'asc' ? ' active' : ''}`}
+                onClick={() => setSortConfig({ key: colKey, direction: 'asc' })}>
+                {isNum ? '↑ Terkecil ke Terbesar' : '↑ A ke Z'}
+              </button>
+              <button className={`efd-sort-btn${isSortActive && sortConfig?.direction === 'desc' ? ' active' : ''}`}
+                onClick={() => setSortConfig({ key: colKey, direction: 'desc' })}>
+                {isNum ? '↓ Terbesar ke Terkecil' : '↓ Z ke A'}
+              </button>
+              {isSortActive && (
+                <button className="efd-sort-btn efd-clear-sort" onClick={() => setSortConfig(null)}>✕ Hapus Urutan</button>
+              )}
+            </div>
+            <div className="efd-divider" />
+
+            {isHighCard ? (
+              /* ── Mode Text Search untuk kolom high-cardinality (NIK, Nama, ID) ── */
+              <>
+                <div className="efd-highcard-label">Cari (mengandung teks):</div>
+                <div className="efd-search" style={{ borderBottom: 'none', paddingBottom: '4px' }}>
+                  <Search size={11} />
+                  <input
+                    placeholder={`Ketik ${label}...`}
+                    value={pendingTextFilter}
+                    onChange={e => setPendingTextFilter(e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    onKeyDown={e => e.key === 'Enter' && applyFilter(colKey)}
+                    autoFocus
+                  />
+                  {pendingTextFilter && (
+                    <button onClick={() => setPendingTextFilter('')}
+                      style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0 2px', display: 'flex' }}>
+                      <XCircle size={11} />
+                    </button>
+                  )}
+                </div>
+                {hasTextFilter && (
+                  <div style={{ padding: '2px 12px 6px', fontSize: '11px', color: '#60a5fa' }}>
+                    Filter aktif: "{textColumnFilters[colKey]}"
+                  </div>
+                )}
+              </>
+            ) : (
+              /* ── Mode Checkbox untuk kolom kategorikal ── */
+              <>
+                <div className="efd-search">
+                  <Search size={11} />
+                  <input placeholder="Cari nilai..." value={filterDropdownSearch}
+                    onChange={e => setFilterDropdownSearch(e.target.value)}
+                    onClick={e => e.stopPropagation()} autoFocus />
+                </div>
+                <div className="efd-list">
+                  <label className="efd-item efd-select-all">
+                    <input type="checkbox" checked={allPendingSelected}
+                      onChange={() => {
+                        if (allPendingSelected) setPendingFilter(prev => { const n = new Set(prev); displayVals.forEach(v => n.delete(v)); return n; });
+                        else setPendingFilter(prev => new Set([...prev, ...displayVals]));
+                      }} />
+                    <span>(Pilih Semua{filteredVals.length > MAX_CHECKBOX_VALUES ? ` — ${MAX_CHECKBOX_VALUES} dari ${filteredVals.length}` : ''})</span>
+                  </label>
+                  {displayVals.map(v => (
+                    <label key={v} className="efd-item">
+                      <input type="checkbox" checked={pendingFilter.has(v)}
+                        onChange={() => setPendingFilter(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; })} />
+                      <span>{v}</span>
+                    </label>
+                  ))}
+                  {filteredVals.length > MAX_CHECKBOX_VALUES && (
+                    <div style={{ padding: '6px 12px', fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>
+                      +{filteredVals.length - MAX_CHECKBOX_VALUES} nilai lainnya tidak ditampilkan
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className="efd-actions">
+              <button className="efd-btn-ok" onClick={() => applyFilter(colKey)}>OK</button>
+              <button className="efd-btn-cancel" onClick={() => setOpenFilterCol(null)}>Batal</button>
+            </div>
+          </div>
+        )}
       </th>
     );
   };
@@ -726,7 +869,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
           <div className="mb-title-area">
             <h3>Manajemen Bantuan</h3>
             <p>
-              Kelola seluruh rekomendasi bantuan sosial mulai dari tahap
+              Kelola seluruh eligible bantuan sosial mulai dari tahap
               analisis, validasi, hingga penetapan diterima/ditolak.
             </p>
           </div>
@@ -851,107 +994,6 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
             >
               Reset Kolom
             </button>
-          </div>
-
-          {/* Baris Kedua: Advanced Filters */}
-          <div style={{ display: "flex", width: "100%", gap: "16px", flexWrap: "wrap", alignItems: "center", borderTop: "1px solid #f1f5f9", paddingTop: "16px" }}>
-            <div className="mb-filter-group" style={{ minWidth: "160px" }}>
-              <label>KECAMATAN</label>
-              <select
-                value={filterKecamatan}
-                onChange={(e) => {
-                  setFilterKecamatan(e.target.value);
-                  setFilterKelurahan("Semua");
-                }}
-                disabled={isLoading}
-              >
-                <option value="Semua">Semua Kecamatan</option>
-                {kecamatanList.map((kec) => (
-                  <option key={kec} value={kec}>{kec}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="mb-filter-group" style={{ minWidth: "160px" }}>
-              <label>KELURAHAN / DESA</label>
-              <select
-                value={filterKelurahan}
-                onChange={(e) => setFilterKelurahan(e.target.value)}
-                disabled={isLoading || filterKecamatan === "Semua"}
-              >
-                <option value="Semua">Semua Kelurahan/Desa</option>
-                {kelurahanList.map((kel) => (
-                  <option key={kel} value={kel}>{kel}</option>
-                ))}
-              </select>
-            </div>
-
-
-
-            <div className="mb-filter-group" style={{ minWidth: "180px" }}>
-              <label>INTERSEKSI BANTUAN</label>
-              <select
-                value={filterOverlap}
-                onChange={(e) => setFilterOverlap(e.target.value)}
-                disabled={isLoading}
-              >
-                <option value="Semua">Semua Penerima</option>
-                <option value="HanyaPKHPlus">Hanya PKH+</option>
-                <option value="HanyaASPD">Hanya ASPD</option>
-                <option value="Keduanya">Menerima Keduanya (Overlap)</option>
-                <option value="BelumMenerima">Belum Menerima PKH+/ASPD</option>
-              </select>
-            </div>
-
-            {/* Desil Multi-Select Dropdown */}
-            <div className="mb-filter-group mb-popover-wrapper" style={{ position: "relative", minWidth: "160px" }}>
-              <label>DESIL EKONOMI</label>
-              <button
-                className="mb-multiselect-box"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowDesilDropdown(!showDesilDropdown);
-                  setShowColumnDropdown(false);
-                }}
-                style={{ width: "100%", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", height: "42px" }}
-              >
-                <span>
-                  {selectedDesils.length === 0
-                    ? "Semua Desil"
-                    : `Desil: ${selectedDesils.sort((a, b) => a - b).join(", ")}`}
-                </span>
-                <ChevronDown size={14} />
-              </button>
-              {showDesilDropdown && (
-                <div className="mb-popover-menu" onClick={(e) => e.stopPropagation()} style={{ position: "absolute", zIndex: 100, left: 0, marginTop: "8px", width: "180px" }}>
-                  <div className="mb-popover-header">Pilih Desil</div>
-                  <div className="mb-popover-list" style={{ maxHeight: "200px", overflowY: "auto" }}>
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((desil) => {
-                      const isChecked = selectedDesils.includes(desil);
-                      return (
-                        <label key={desil} className="mb-popover-item" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px", cursor: "pointer" }}>
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {
-                              setSelectedDesils((prev) => {
-                                if (prev.includes(desil)) {
-                                  return prev.filter((d) => d !== desil);
-                                } else {
-                                  return [...prev, desil];
-                                }
-                              });
-                            }}
-                          />
-                          <span>Desil {desil}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
             <button
               className="mb-btn-reset"
               onClick={resetFilters}
@@ -1009,7 +1051,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                     if (col.key === "aksi") {
                       return <th key={col.key} style={{ padding: "14px 16px", color: "#475569", fontSize: "12px", fontWeight: "600", textTransform: "uppercase", textAlign: "center" }}>{col.label}</th>;
                     }
-                    return renderSortHeader(col.label.toUpperCase(), col.key);
+                    return renderExcelHeader(col.label, col.key);
                   })}
                 </tr>
               </thead>
@@ -1166,13 +1208,17 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                           case "skor_aspd":
                             return (
                               <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#2563eb" }}>
-                                {(row.skorASPD ?? 0).toFixed(1)}
+                                {row.tahap === "proses" || row.tahap === "analisis"
+                                  ? "—"
+                                  : (row.skorASPD ?? 0).toFixed(1)}
                               </td>
                             );
                           case "skor_pkh_plus":
                             return (
                               <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#7c3aed" }}>
-                                {(row.skorPKHPlus ?? row.skorPKHT ?? 0).toFixed(1)}
+                                {row.tahap === "proses" || row.tahap === "analisis"
+                                  ? "—"
+                                  : (row.skorPKHPlus ?? row.skorPKHT ?? 0).toFixed(1)}
                               </td>
                             );
                           case "tahap":
@@ -1363,9 +1409,9 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                 Menampilkan{" "}
                 <strong>
                   {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
-                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, serverTotalItems)}
                 </strong>{" "}
-                dari <strong>{filteredData.length}</strong> data keluarga
+                dari <strong>{serverTotalItems}</strong> data keluarga
               </div>
               <div className="mb-pagination-controls" style={{ display: "flex", gap: "6px" }}>
                 <button

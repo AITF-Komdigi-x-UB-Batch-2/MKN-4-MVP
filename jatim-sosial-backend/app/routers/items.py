@@ -5,10 +5,10 @@ Mengelola data warga (keluarga), pengunggahan foto, sinkronisasi file CSV/Excel 
 dan integrasi detail data bantuan sosial serta validasi status keluarga.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from typing import List
+from sqlalchemy import func, or_
+from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 import csv
@@ -19,6 +19,7 @@ from app.security import get_current_user
 from app.config import MINIO_BUCKET, MINIO_ENDPOINT, s3_client, to_public_foto_url
 from app.schemas import item as item_schema
 from app.services.task_queue import run_async_visual_validation, run_async_assessment
+from app.services.ai_client import determine_eligibility
 from app.utils.normalizer import fix_nik, safe_int, is_not_null, to_int
 from app.utils.scoring import hitung_skor_bantuan
 import httpx
@@ -269,6 +270,7 @@ async def import_csv(
 
                 hitung.skor_aspd = skor.get("skor_aspd")
                 hitung.skor_pkh_plus = skor.get("skor_pkh_plus")
+                hitung.rekomendasi_bantuan = determine_eligibility(keluarga_diproses)
 
                 is_processing = hitung.status_validasi not in ("diterima", "ditolak")
                 if is_processing:
@@ -346,21 +348,90 @@ async def import_csv(
 @router.get(
     "/manajemen-bantuan",
     summary="Ambil data gabungan Keluarga dan Perhitungan AI untuk tabel Manajemen Bantuan",
-    response_model=List[item_schema.ManajemenBantuanResponse]
 )
 async def get_manajemen_bantuan(
+    page: Optional[int] = Query(None, ge=1),
+    limit: Optional[int] = Query(None, ge=1, le=100),
+    tahap: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    kecamatan: Optional[str] = Query(None),
+    kelurahan_desa: Optional[str] = Query(None),
+    desils: Optional[str] = Query(None),
+    overlap: Optional[str] = Query(None),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    results = db.query(models.Keluarga, models.Perhitungan).outerjoin(
+    query = db.query(models.Keluarga, models.Perhitungan).outerjoin(
         models.Perhitungan, models.Perhitungan.keluarga_id == models.Keluarga.id
-    ).all()
+    )
+
+    if tahap and tahap != "semua":
+        if tahap == "analisis":
+            query = query.filter(or_(
+                models.Perhitungan.status_validasi == "analisis",
+                models.Perhitungan.status_validasi.is_(None)
+            ))
+        else:
+            query = query.filter(models.Perhitungan.status_validasi == tahap)
+
+    if search:
+        search_term = f"%{search.strip()}%"
+        query = query.filter(or_(
+            models.Keluarga.nama_kepala_keluarga.ilike(search_term),
+            models.Keluarga.nik.ilike(search_term),
+            models.Keluarga.no_kk.ilike(search_term)
+        ))
+
+    if kecamatan and kecamatan != "Semua":
+        query = query.filter(models.Keluarga.kecamatan == kecamatan)
+
+    if kelurahan_desa and kelurahan_desa != "Semua":
+        query = query.filter(models.Keluarga.kelurahan_desa == kelurahan_desa)
+
+    if desils:
+        desil_values = [safe_int(value) for value in desils.split(",")]
+        desil_values = [value for value in desil_values if value is not None]
+        if desil_values:
+            query = query.filter(models.Keluarga.desil_nasional.in_(desil_values))
+
+    if overlap and overlap != "Semua":
+        if overlap == "HanyaPKHPlus":
+            query = query.filter(
+                models.Perhitungan.rekomendasi_bantuan.contains(["PKHT"]),
+                ~models.Perhitungan.rekomendasi_bantuan.contains(["ASPD"])
+            )
+        elif overlap == "HanyaASPD":
+            query = query.filter(
+                models.Perhitungan.rekomendasi_bantuan.contains(["ASPD"]),
+                ~models.Perhitungan.rekomendasi_bantuan.contains(["PKHT"])
+            )
+        elif overlap == "Keduanya":
+            query = query.filter(
+                models.Perhitungan.rekomendasi_bantuan.contains(["ASPD"]),
+                models.Perhitungan.rekomendasi_bantuan.contains(["PKHT"])
+            )
+        elif overlap == "BelumMenerima":
+            query = query.filter(or_(
+                models.Perhitungan.rekomendasi_bantuan.is_(None),
+                models.Perhitungan.rekomendasi_bantuan == []
+            ))
+
+    total = query.count()
+    paginated = page is not None or limit is not None
+    page_value = page or 1
+    limit_value = limit or 10
+
+    query = query.order_by(models.Keluarga.id.asc())
+    if paginated:
+        query = query.offset((page_value - 1) * limit_value).limit(limit_value)
+
+    results = query.all()
     print(f"[DEBUG] Jumlah keluarga yang di-query untuk manajemen bantuan: {len(results)}")
     response_data = []
     for k, p in results:
         tahap_ui = p.status_validasi if p and p.status_validasi else "analisis"
         rekomendasi_list = p.rekomendasi_bantuan if p and p.rekomendasi_bantuan else []
-        bantuan_list = rekomendasi_list if tahap_ui in ("validasi", "diterima", "ditolak") else []
+        bantuan_list = rekomendasi_list if tahap_ui in ("analisis", "validasi", "diterima", "ditolak") else []
         
         row = item_schema.ManajemenBantuanResponse(
             id_keluarga=str(k.id),
@@ -418,8 +489,38 @@ async def get_manajemen_bantuan(
             aset_bergerak_smartphone=k.aset_bergerak_smartphone
         )
         response_data.append(row)
-        
-    return response_data
+
+    if not paginated:
+        return response_data
+
+    raw_counts = db.query(
+        func.coalesce(models.Perhitungan.status_validasi, "analisis"),
+        func.count(models.Keluarga.id)
+    ).outerjoin(
+        models.Perhitungan, models.Perhitungan.keluarga_id == models.Keluarga.id
+    ).group_by(func.coalesce(models.Perhitungan.status_validasi, "analisis")).all()
+    counts = {
+        "semua": sum(count for _, count in raw_counts),
+        "proses": 0,
+        "analisis": 0,
+        "validasi": 0,
+        "diterima": 0,
+        "ditolak": 0,
+    }
+    for status, count in raw_counts:
+        if status in counts:
+            counts[status] = count
+
+    return item_schema.ManajemenBantuanPaginatedResponse(
+        data=response_data,
+        meta=item_schema.ManajemenBantuanPaginationMeta(
+            page=page_value,
+            limit=limit_value,
+            total=total,
+            totalPages=max(1, (total + limit_value - 1) // limit_value),
+            counts=counts,
+        )
+    )
 
 @router.get(
     "/manajemen-bantuan/{id_keluarga}",

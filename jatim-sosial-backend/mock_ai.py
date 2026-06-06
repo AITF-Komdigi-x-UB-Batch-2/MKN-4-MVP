@@ -297,7 +297,7 @@ async def mock_jalur_sosial(data_warga: dict = Body(...)):
         rekomendasi = []
         justifikasi = []
         
-        # Aturan ASPD (Disabilitas)
+        # 1. Cek Disabilitas
         has_disability = False
         if id_disabilitas and id_disabilitas > 0:
             has_disability = True
@@ -306,23 +306,40 @@ async def mock_jalur_sosial(data_warga: dict = Body(...)):
         if aspd and aspd == 1:
             has_disability = True
 
-        if has_disability:
-            rekomendasi.append("ASPD")
-            justifikasi.append("Terdapat anggota keluarga penyandang disabilitas (Rekomendasi bantuan ASPD)")
-        
-        # Aturan PKHT (PKH Plus)
+        # 2. Cek Kemiskinan
         is_poor = False
         if pkh_plus and pkh_plus == 1:
             is_poor = True
         if desil_nasional and desil_nasional <= 4:
             is_poor = True
-        
-        if is_poor:
+
+        # 3. Ambil Umur
+        umur = data_warga.get("umur_2026") or data_warga.get("umur")
+        if umur is None:
+            tgl = data_warga.get("tanggal_lahir")
+            if tgl:
+                try:
+                    tahun_lahir = int(str(tgl).split("-")[0].strip())
+                    import datetime
+                    umur = datetime.datetime.now().year - tahun_lahir
+                except Exception:
+                    pass
+        if umur is None:
+            umur = 0
+
+        # 4. Filter Aturan Seleksi Ketat (Mutual Exclusive Usia)
+        # PKH Plus: lansia >= 70 tahun
+        if is_poor and umur >= 70:
             rekomendasi.append("PKHT")
-            justifikasi.append(f"Keluarga tergolong miskin/rentan (Desil {desil_nasional or 1}) (Rekomendasi bantuan PKH Plus)")
+            justifikasi.append(f"Keluarga tergolong miskin/rentan (Desil {desil_nasional or 1}) dan usia memenuhi syarat lansia ({umur} tahun >= 70)")
+        
+        # ASPD: usia 6 bulan - 60 tahun (0.5 <= umur <= 60)
+        if has_disability and (0.5 <= umur <= 60):
+            rekomendasi.append("ASPD")
+            justifikasi.append(f"Terdapat disabilitas/bed ridden dan usia memenuhi syarat ASPD ({umur} tahun berada di rentang 6 bulan - 60 tahun)")
         
         if not rekomendasi:
-            justifikasi.append("Keluarga dinilai mampu secara ekonomi dan tidak terdata penyandang disabilitas.")
+            justifikasi.append(f"Keluarga tidak memenuhi syarat seleksi (Umur: {umur} tahun, Desil: {desil_nasional or 10}, Disabilitas: {has_disability})")
 
         alasan_lengkap = " | ".join(justifikasi) if justifikasi else "Analisis sosial ekonomi selesai"
         
@@ -530,6 +547,7 @@ async def chat_completions(req: ChatCompletionRequest):
             
     # Ekstrak data warga dari prompt
     data = extract_from_prompt(user_content)
+    umur = data.get("umur", 0)
     
     # 1. Cek Kelayakan Disabilitas (ASPD)
     has_disability = False
@@ -549,6 +567,10 @@ async def chat_completions(req: ChatCompletionRequest):
     for field, name in disab_fields.items():
         v = data.get(field)
         if v and "kesulitan" not in v.lower() and "tidak" not in v.lower() and "unknown" not in v.lower() and "ditanyakan" not in v.lower():
+            # Hindari mendeteksi nilai numerik 4 atau 0 (Tidak ada kesulitan/default)
+            v_clean = v.strip().lower()
+            if v_clean in ("4", "0", "4.0", "0.0"):
+                continue
             has_disability = True
             disab_reasons.append(f"Hambatan pada fungsi {name} ({v})")
             
@@ -569,9 +591,27 @@ async def chat_completions(req: ChatCompletionRequest):
         is_poor = True
         pkh_reasons.append(f"Skor prioritas PKH Plus terhitung cukup tinggi ({skor_pkh})")
 
-    status_pkh_str = "LAYAK" if is_poor else "TIDAK LAYAK"
-    status_aspd_str = "LAYAK" if has_disability else "TIDAK LAYAK"
-    
+    # --- ATURAN SELEKSI KETAT & SALING SILANG (MUTUAL EXCLUSIVE USIA) ---
+    # PKH Plus: lansia >= 70 tahun
+    if is_poor and umur >= 70:
+        status_pkh_str = "LAYAK"
+        pkh_reasons.append(f"Usia lansia memenuhi syarat ({umur} tahun >= 70)")
+    else:
+        status_pkh_str = "TIDAK LAYAK"
+        if is_poor and umur < 70:
+            pkh_reasons.append(f"Usia lansia tidak memenuhi syarat ({umur} tahun < 70)")
+        is_poor = False
+
+    # ASPD: usia 6 bulan - 60 tahun (0.5 <= umur <= 60)
+    if has_disability and (0.5 <= umur <= 60):
+        status_aspd_str = "LAYAK"
+        disab_reasons.append(f"Usia memenuhi rentang penerima ASPD ({umur} tahun berada di rentang 6 bulan - 60 tahun)")
+    else:
+        status_aspd_str = "TIDAK LAYAK"
+        if has_disability and not (0.5 <= umur <= 60):
+            disab_reasons.append(f"Usia tidak memenuhi rentang penerima ASPD ({umur} tahun tidak di rentang 6 bulan - 60 tahun)")
+        has_disability = False
+
     justifikasi_pkh = " | ".join(pkh_reasons) if pkh_reasons else "Tidak memenuhi kriteria desil rendah untuk PKH Plus."
     justifikasi_aspd = " | ".join(disab_reasons) if disab_reasons else "Tidak terdeteksi hambatan disabilitas yang signifikan untuk ASPD."
     justifikasi_analisis = f"Analisis kelayakan untuk kepala keluarga {data.get('nama', 'Warga')}. Kelayakan PKH Plus: {status_pkh_str} ({justifikasi_pkh}). Kelayakan ASPD: {status_aspd_str} ({justifikasi_aspd})."
@@ -582,7 +622,7 @@ async def chat_completions(req: ChatCompletionRequest):
             "profil_warga": {
                 "nik": data.get("nik", "Tidak diketahui"),
                 "nama": data.get("nama", "Tidak diketahui"),
-                "umur": f"{data.get('umur', 0)} tahun"
+                "umur": f"{umur} tahun"
             },
             "analisis": {
                 "justifikasi": justifikasi_analisis

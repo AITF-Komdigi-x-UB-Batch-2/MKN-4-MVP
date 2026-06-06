@@ -100,7 +100,7 @@ async def asesmen_sosial(
             logger.error(f"[Manual Runpod JSON Error] Gagal parsing JSON dari Runpod (kemungkinan terpotong karena max_tokens): {jde}\nRaw Content: {string_json_ai}", exc_info=True)
             raise HTTPException(status_code=502, detail=f"Gagal parsing JSON dari Runpod (kemungkinan terpotong karena max_tokens): {jde}")
 
-        rekomendasi_baru = extract_rekomendasi(hasil_final)
+        rekomendasi_baru = extract_rekomendasi(hasil_final, keluarga)
         analisis_rag = json.dumps(hasil_final) 
 
         bantuan_lama = None

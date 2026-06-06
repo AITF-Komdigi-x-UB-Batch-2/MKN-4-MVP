@@ -5,7 +5,6 @@ import type { Tahap } from "../../data/mockData";
 import AdminLayout from "../../components/layout/AdminLayout";
 import { RecommendationCard, type RecommendationData } from "../../components/cards/RecommendationCard";
 import {
-  FileText,
   User,
   Home,
   CheckCircle,
@@ -105,7 +104,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   );
   const [isConfirming, setIsConfirming] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
-  const [isAssistanceConfirmed, setIsAssistanceConfirmed] = useState(false);
+  const [isAssistanceConfirmed, setIsAssistanceConfirmed] = useState(true);
   const [catatanInput, setCatatanInput] = useState("");
   const [catatanSupInput, setCatatanSupInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -214,8 +213,8 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
         setIsProcessing(false);
 
         setStageState(data.tahap);
-        setSelectedPrograms(data.tahap !== "analisis" ? data.bantuan : []);
-        setIsAssistanceConfirmed(data.tahap !== "analisis");
+        setSelectedPrograms(data.bantuan && data.bantuan.length > 0 ? data.bantuan : (data.rekomendasiBantuan || []));
+        setIsAssistanceConfirmed(true);
         if (data.catatan) setCatatanInput(data.catatan);
         if (data.catatan_supervisor)
           setCatatanSupInput(data.catatan_supervisor);
@@ -324,10 +323,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
   const filteredRecommendations = recommendations.filter((rec) => {
     return familyRecs.includes(rec.id);
-  });
-
-  const otherRecommendations = recommendations.filter((rec) => {
-    return !familyRecs.includes(rec.id);
   });
 
   const handleToggleProgram = (id: string) => {
@@ -479,7 +474,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
             {/* Validator / Validasi Section */}
             <div className="detail-card-section">
               <div className="detail-card-header">
-                <Home size={18} className="text-blue" />
                 <h4>Validator / Validasi</h4>
               </div>
               <div className="detail-card-body">
@@ -740,7 +734,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
             {/* AI Summary Section (mkn3 reasoning) */}
             <div className="detail-card-section">
               <div className="detail-card-header">
-                <FileText size={18} className="text-blue" />
                 <h4>Ringkasan Singkat & Rekomendasi</h4>
               </div>
               <div
@@ -760,166 +753,60 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
             {/* Smart Recommendations Section */}
             {currentTahap !== "diterima" && (
-              <div className="recommendations-container">
-                <h3 className="section-title-large">
-                  Rekomendasi Utama (Analisis AI)
-                </h3>
-                <div
-                  className="recommendation-cards-grid"
-                  style={{ marginBottom: "28px" }}
-                >
-                  {filteredRecommendations.length === 0 ? (
-                    <div
-                      style={{
-                        gridColumn: "1 / -1",
-                        padding: "32px 24px",
-                        backgroundColor: "#f8fafc",
-                        border: "1px dashed #cbd5e1",
-                        borderRadius: "12px",
-                        textAlign: "center",
-                        color: "#64748b",
-                      }}
-                    >
-                      <AlertCircle
-                        size={32}
-                        style={{ margin: "0 auto 8px", color: "#94a3b8" }}
-                      />
-                      <p
+              <div className="detail-card-section">
+                <div className="detail-card-header">
+                  <h4>Bantuan yang Eligible (Analisis AI)</h4>
+                </div>
+                <div className="detail-card-body">
+                  <div className="recommendation-cards-grid">
+                    {filteredRecommendations.length === 0 ? (
+                      <div
                         style={{
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          color: "#334155",
-                        }}
-                      >
-                        Tidak Ada Rekomendasi Program Bantuan
-                      </p>
-                      <p
-                        style={{
-                          fontSize: "12px",
-                          marginTop: "4px",
+                          gridColumn: "1 / -1",
+                          padding: "32px 24px",
+                          backgroundColor: "#f8fafc",
+                          border: "1px dashed #cbd5e1",
+                          borderRadius: "12px",
+                          textAlign: "center",
                           color: "#64748b",
                         }}
                       >
-                        Keluarga ini tidak memenuhi indikasi kelayakan untuk
-                        program ASPD, PKH+, atau KE.
-                      </p>
-                    </div>
-                  ) : (
-                    filteredRecommendations.map((rec) => (
-                      <RecommendationCard
-                        key={rec.id}
-                        data={rec}
-                        isSelected={selectedPrograms.includes(rec.id)}
-                        isLocked={isFinalized || isAssistanceConfirmed}
-                        onToggle={handleToggleProgram}
-                      />
-                    ))
-                  )}
-                </div>
-
-                <h3
-                  className="section-title-large"
-                  style={{ marginTop: "28px" }}
-                >
-                  Program Bantuan Lainnya (Pilihan Alternatif)
-                </h3>
-                <div className="recommendation-cards-grid">
-                  {otherRecommendations.length === 0 ? (
-                    <p style={{ color: "#94a3b8", fontSize: "13px" }}>
-                      Tidak ada pilihan program bantuan lainnya.
-                    </p>
-                  ) : (
-                    otherRecommendations.map((rec) => (
-                      <RecommendationCard
-                        key={rec.id}
-                        data={{
-                          ...rec,
-                          match: 0, // Menjamin kartu putih premium
-                        }}
-                        isSelected={selectedPrograms.includes(rec.id)}
-                        isLocked={isFinalized || isAssistanceConfirmed}
-                        onToggle={handleToggleProgram}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Selected Assistance Confirmation Area */}
-            {selectedPrograms.length > 0 && currentTahap !== "diterima" && (
-              <div
-                className={`selected-assistance-section ${isFinalized ? "finalized" : isAssistanceConfirmed ? "finalized" : ""}`}
-                style={
-                  isAssistanceConfirmed && !isFinalized
-                    ? { borderColor: "#bbf7d0", backgroundColor: "#f0fdf4" }
-                    : {}
-                }
-              >
-                <div className="flex-between max-w-full">
-                  <div>
-                    <h4>
-                      {isFinalized
-                        ? "Bantuan yang Akan Diterima (Disetujui)"
-                        : isAssistanceConfirmed
-                          ? "Bantuan Terkonfirmasi (Belum Dikirim)"
-                          : "Bantuan yang Akan Diterima"}
-                    </h4>
-                    <p>
-                      Program yang dipilih:{" "}
-                      {selectedPrograms
-                        .map(
-                          (id) =>
-                            recommendations.find((r) => r.id === id)?.title ||
-                            id,
-                        )
-                        .join(", ")}
-                    </p>
-                  </div>
-                  {!isFinalized && (
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      {isAssistanceConfirmed ? (
-                        <>
-                          <span
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "4px",
-                              color: "#16a34a",
-                              fontWeight: 600,
-                              fontSize: "13px",
-                              background: "#dcfce7",
-                              padding: "6px 12px",
-                              borderRadius: "6px",
-                              border: "1px solid #bbf7d0",
-                            }}
-                          >
-                            <CheckCircle size={14} /> Terkonfirmasi
-                          </span>
-                          <button
-                            className="btn-outline"
-                            onClick={() => setIsAssistanceConfirmed(false)}
-                            style={{ padding: "6px 12px", fontSize: "13px" }}
-                          >
-                            Ubah Bantuan
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          className="btn-confirm-assistance"
-                          onClick={() => setIsAssistanceConfirmed(true)}
-                          style={{ padding: "8px 16px", fontSize: "13px" }}
+                        <AlertCircle
+                          size={32}
+                          style={{ margin: "0 auto 8px", color: "#94a3b8" }}
+                        />
+                        <p
+                          style={{
+                            fontWeight: 600,
+                            fontSize: "14px",
+                            color: "#334155",
+                          }}
                         >
-                          Konfirmasi Bantuan
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {isFinalized && (
-                    <span className="badge-final">
-                      <CheckCircle size={16} /> Final Decision
-                    </span>
-                  )}
+                          Tidak Ada Rekomendasi Program Bantuan
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "12px",
+                            marginTop: "4px",
+                            color: "#64748b",
+                          }}
+                        >
+                          Keluarga ini tidak memenuhi indikasi kelayakan untuk
+                          program ASPD, PKH+, atau KE.
+                        </p>
+                      </div>
+                    ) : (
+                      filteredRecommendations.map((rec) => (
+                        <RecommendationCard
+                          key={rec.id}
+                          data={rec}
+                          isSelected={selectedPrograms.includes(rec.id)}
+                          isLocked={isFinalized || isAssistanceConfirmed}
+                          onToggle={handleToggleProgram}
+                        />
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -952,14 +839,14 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                       className="btn-action approve w-full"
                       style={{ justifyContent: "center" }}
                       onClick={handleConfirmAssistance}
-                      disabled={!isAssistanceConfirmed || isConfirming}
+                      disabled={selectedPrograms.length === 0 || isConfirming}
                     >
                       <CheckCircle size={18} />{" "}
                       {isConfirming
                         ? "Memproses..."
                         : "Kirim ke Tahap Validasi"}
                     </button>
-                    {!isAssistanceConfirmed && (
+                    {selectedPrograms.length === 0 && (
                       <p
                         style={{
                           fontSize: "12px",
@@ -969,9 +856,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                           fontWeight: 500,
                         }}
                       >
-                        {!selectedPrograms.length
-                          ? "Pilih minimal satu program terlebih dahulu."
-                          : "Konfirmasikan program pilihan Anda di bawah terlebih dahulu."}
+                        Tidak ada bantuan eligible untuk warga ini.
                       </p>
                     )}
                   </div>
