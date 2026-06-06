@@ -1,3 +1,10 @@
+/**
+ * FILE: src/App.tsx
+ * DESKRIPSI:
+ * Entry point utama aplikasi frontend React, mengatur router halaman (Routing),
+ * status login pengguna, perlindungan rute (ProtectedRoute), dan cookie consent.
+ */
+
 import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Landing from './pages/Landing/Landing';

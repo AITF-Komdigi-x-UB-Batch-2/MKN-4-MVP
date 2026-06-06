@@ -11,7 +11,7 @@ import {
   Loader2,
   ArrowLeft,
 } from "lucide-react";
-import { getKeluargaDetail } from "../../services/api";
+import { getKeluargaDetail, type KeluargaDetail } from "../../services/api";
 import "./DetailKeluarga.css";
 
 interface DetailKeluargaProps {
@@ -21,7 +21,7 @@ interface DetailKeluargaProps {
 const DetailKeluarga: React.FC<DetailKeluargaProps> = ({ onLogout }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<KeluargaDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const latestRequestRef = React.useRef(0);
 
@@ -78,18 +78,20 @@ const DetailKeluarga: React.FC<DetailKeluargaProps> = ({ onLogout }) => {
   }
 
   const desilColor =
-    data.desil_nasional <= 3
-      ? "#ef4444"
-      : data.desil_nasional <= 6
-        ? "#f97316"
-        : "#22c55e";
+    data.desil_nasional === undefined
+      ? "#64748b"
+      : data.desil_nasional <= 3
+        ? "#ef4444"
+        : data.desil_nasional <= 6
+          ? "#f97316"
+          : "#22c55e";
 
   const InfoRow = ({
     label,
     value,
   }: {
     label: string;
-    value: string | number;
+    value: string | number | undefined | null;
   }) => (
     <div className="dk-info-row">
       <span className="dk-info-label">{label}</span>

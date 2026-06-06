@@ -1,3 +1,12 @@
+"""
+FILE: app/models.py
+DESKRIPSI:
+Database Models (Entity) untuk menyimpan data Dukcapil (User) dan Keluarga.
+Menggunakan SQLAlchemy ORM.
+
+CATATAN: Kolom NIK telah ditambahkan ke tabel Keluarga sesuai revisi kebutuhan.
+"""
+
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, SmallInteger, JSON, DateTime, Text, Float
@@ -58,7 +67,11 @@ class Keluarga(Base):
     id_penyakit_menahun = Column(Integer, nullable=True)
     status_dtsen = Column(String(100), nullable=True)
     cut_off = Column(String(50), nullable=True)
+    cut_off_keluarga = Column(String(50), nullable=True)
     desil_nasional = Column(Integer, nullable=True)
+    desil_nasional_anggota = Column(Integer, nullable=True)
+    desil_nasional_keluarga = Column(Integer, nullable=True)
+    umur_2026 = Column(Integer, nullable=True)
     kpm_jawara = Column(Integer, nullable=True)
     putri_jawara = Column(Integer, nullable=True)
     aspd = Column(Integer, nullable=True)
@@ -156,7 +169,11 @@ class KeluargaHistory(Base):
     id_penyakit_menahun = Column(Integer, nullable=True)
     status_dtsen = Column(String(100), nullable=True)
     cut_off = Column(String(50), nullable=True)
+    cut_off_keluarga = Column(String(50), nullable=True)
     desil_nasional = Column(Integer, nullable=True)
+    desil_nasional_anggota = Column(Integer, nullable=True)
+    desil_nasional_keluarga = Column(Integer, nullable=True)
+    umur_2026 = Column(Integer, nullable=True)
     kpm_jawara = Column(Integer, nullable=True)
     putri_jawara = Column(Integer, nullable=True)
     aspd = Column(Integer, nullable=True)

@@ -1,3 +1,10 @@
+/**
+ * FILE: src/components/ui/CookieConsent.tsx
+ * DESKRIPSI:
+ * Komponen banner persetujuan penggunaan cookie esensial (autentikasi/keamanan)
+ * sesuai kepatuhan regulasi privasi UU PDP Indonesia.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Cookie } from 'lucide-react';
 

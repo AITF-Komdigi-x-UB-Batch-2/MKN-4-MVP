@@ -1,3 +1,16 @@
+"""
+FILE: app/routers/users.py
+DESKRIPSI:
+Modul Manajemen User untuk CRUD dan Profil Pengguna. Meliputi:
+- Profil Sendiri (Get/Update)
+- Daftar User (Admin Only)
+- Create User (Admin Only, hanya role ANALIS)
+- Delete User (Admin Only)
+- Update Status/Role User (Admin Only)
+
+CATATAN: Role ADMIN tidak dapat ditambahkan via API untuk keamanan.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List

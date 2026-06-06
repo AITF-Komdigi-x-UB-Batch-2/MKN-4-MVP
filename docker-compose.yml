@@ -72,6 +72,8 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - AI_BASE_URL=http://mock_ai:8001
       - MINIO_PUBLIC_ENDPOINT=localhost:9000
+      - AI_RUNPOD_URL=${AI_RUNPOD_URL}
+      - AI_RUNPOD_TOKEN=${AI_RUNPOD_TOKEN}
     volumes:
       - ./jatim-sosial-backend:/app
     depends_on:

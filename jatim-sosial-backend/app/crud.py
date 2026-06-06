@@ -1,3 +1,13 @@
+"""
+ * FILE: app/crud.py
+ * DESKRIPSI:
+ * Centralized Database Operations (CRUD) untuk entitas Users, Keluarga, dan Perhitungan.
+ * Menangani logic bisnis dasar seperti hashing password, pengecekan duplikasi KK,
+ * dan pengambilan relasi (foto, riwayat). 
+ * 
+ * CATATAN: Dibuat setelah kolom nik ditambahkan ke model Keluarga.
+"""
+
 from sqlalchemy.orm import Session
 from uuid import UUID
 from app import models

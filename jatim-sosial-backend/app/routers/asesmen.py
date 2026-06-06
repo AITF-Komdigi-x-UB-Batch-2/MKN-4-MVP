@@ -1,15 +1,26 @@
+"""
+FILE: app/routers/asesmen.py
+DESKRIPSI:
+Menyediakan API untuk penilaian kelayakan sosial menggunakan RAG AI (Qwen di RunPod)
+dan validasi kecocokan visual foto rumah warga (Tim 2).
+"""
+
 import httpx
 import logging
 import json
-import asyncio
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from uuid import UUID
-from app.database import get_db
+
 from app import models
+from app.database import get_db
 from app.security import get_current_user
-from app.config import AI_BASE_URL
+from app.config import AI_BASE_URL, AI_RUNPOD_URL, AI_RUNPOD_TOKEN
 from app.schemas import item as item_schema
+
+# Import Services & Utils
+from app.services.task_queue import asesmen_queue
+from app.services.ai_client import mock_qdrant_retriever, get_role_and_user_content, extract_rekomendasi
 
 logger = logging.getLogger(__name__)
 
@@ -17,215 +28,6 @@ router = APIRouter(
     prefix="/api/v1/asesmen",
     tags=["4. Asesmen AI"]
 )
-
-# ==========================================
-# FUNGSI SIMULASI RETRIEVER (QDRANT - TIM 3)
-# ==========================================
-async def mock_qdrant_retriever(query_text: str) -> str:
-    """
-    Simulasi pemanggilan database vektor Qdrant milik Tim 3.
-    """
-    return """
-    [Konteks Kebijakan Sosial Jawa Timur]
-    - PKH Plus: (a) lansia >= 70 tahun, (b) desil 1-4 DTSEN, (c) memiliki NIK Jawa Timur.
-    - ASPD: (1) NIK Jawa Timur, (2) usia 6 bulan - 60 tahun, (3) penyandang disabilitas/bed ridden, (4) prioritas desil 1-5.
-    """
-
-# ==========================================
-# FUNGSI BACKGROUND (ASINKRON) UNTUK AI
-# ==========================================
-
-async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, db: Session):
-    keluarga = db.query(models.Keluarga).filter(models.Keluarga.id == keluarga_id).first()
-    if not keluarga:
-        print(f"[Asinkron] Keluarga {keluarga_id} tidak ditemukan.")
-        return
-    
-    hitung = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == keluarga.id).first()
-    skor_pkh = hitung.skor_pkh_plus if hitung and hitung.skor_pkh_plus else 0.0
-    skor_aspd = hitung.skor_aspd if hitung and hitung.skor_aspd else 0.0
-
-    try:
-        # 1. Tarik Konteks Qdrant
-        konteks_aturan = await mock_qdrant_retriever("syarat penerima bansos")
-
-        # 2. Rakit Prompt (Role & User Content)
-        role_content = (
-            "Anda adalah AI Auditor resmi Dinas Sosial Provinsi Jawa Timur yang bertugas "
-            "melakukan verifikasi kelayakan penerima manfaat PKH Plus dan ASPD. "
-            "Balas HANYA dengan JSON valid berisi: status_kelayakan, urgensi, rekomendasi_bantuan (array), dan reasoning."
-        )
-
-        user_content = f"""
-        Profil Warga:
-        - NIK: {keluarga.nik or 'Tidak diketahui'}
-        - Nama: {keluarga.nama_kepala_keluarga}
-        - Desil Nasional: {keluarga.desil_nasional}
-        - Penglihatan: {keluarga.id_penglihatan}
-        - Mobilitas: {keluarga.id_berjalan_atau_naik_tangga}
-
-        Skor Prioritas:
-        - Skor PKH Plus: {skor_pkh}
-        - Skor ASPD: {skor_aspd}
-
-        Evaluasi kelayakan berdasarkan kebijakan berikut:
-        <hasil_retrieval>
-        {konteks_aturan}
-        </hasil_retrieval>
-        """
-
-        # Ini adalah payload yang akan dikirim ke Beeceptor / AI Tim 3
-        payload_llm = {
-            "messages": [
-                {"role": "system", "content": role_content},
-                {"role": "user", "content": user_content}
-            ],
-            "desil": keluarga.desil_nasional, 
-            "skor_aspd": skor_aspd,           
-            "skor_pkh": skor_pkh              # <--- Sudah ditambahkan di sini
-        }
-
-        # 3. Eksekusi ke URL AI (Beeceptor / Tim 3)
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(
-                    f"{AI_BASE_URL}/api/chat", # <-- Memanggil URL di .env
-                    json=payload_llm,
-                    timeout=30.0
-                )
-                response.raise_for_status()
-                hasil_final = response.json()
-            except Exception as e:
-                print(f"[Asinkron AI Error] Gagal mendapatkan analisis: {e}")
-                return
-
-        rekomendasi_baru = hasil_final.get("rekomendasi_bantuan", [])
-        analisis_rag = json.dumps(hasil_final) # Simpan semua response sebagai reasoning
-
-        bantuan_lama = None
-
-        if not hitung:
-            hitung = models.Perhitungan(keluarga_id=keluarga.id, user_id=user_id)
-            db.add(hitung)
-        else:
-            bantuan_lama = hitung.rekomendasi_bantuan
-
-        hitung.rekomendasi_bantuan = rekomendasi_baru
-        hitung.reasoning_tim3 = analisis_rag
-        hitung.status_validasi = "analisis"
-
-        log = models.LogHistori(
-            keluarga_id=keluarga.id,
-            user_id=user_id,
-            desil_lama=None,
-            desil_baru=None,
-            bantuan_lama=bantuan_lama,
-            bantuan_baru=rekomendasi_baru
-        )
-        db.add(log)
-        db.commit()
-        print(f"[Asinkron] Asesmen sukses untuk KK {keluarga.no_kk}")
-    except Exception as e:
-        db.rollback()
-        print(f"[Asinkron DB Error] {e}")
-
-# Fungsi wrapper untuk BackgroundTasks
-def run_async_assessment(keluarga_id: UUID, user_id: UUID):
-    db_gen = get_db()
-    db = next(db_gen)
-    try:
-        # Panggil versi async di dalam thread sinkron
-        asyncio.run(execute_asesmen_sosial_logic_async(keluarga_id, user_id, db))
-    finally:
-        db.close()
-
-
-async def perform_visual_validation(keluarga_id: UUID, user_id: UUID, db: Session):
-    keluarga = db.query(models.Keluarga).filter(models.Keluarga.id == keluarga_id).first()
-    if not keluarga:
-        raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
-
-    foto_tampak_luar = db.query(models.Foto).filter(
-        models.Foto.keluarga_id == keluarga_id,
-        models.Foto.tampak_dalam == False
-    ).order_by(models.Foto.diunggah_pada.desc()).first()
-
-    foto_tampak_dalam = db.query(models.Foto).filter(
-        models.Foto.keluarga_id == keluarga_id,
-        models.Foto.tampak_dalam == True
-    ).order_by(models.Foto.diunggah_pada.desc()).first()
-
-    foto_utama = foto_tampak_luar if foto_tampak_luar else db.query(models.Foto).filter(
-        models.Foto.keluarga_id == keluarga_id
-    ).order_by(models.Foto.diunggah_pada.desc()).first()
-
-    if not foto_utama:
-        raise HTTPException(status_code=400, detail="Foto rumah tidak ditemukan untuk keluarga ini.")
-
-    url_foto_luar = foto_tampak_luar.url_foto if foto_tampak_luar else foto_utama.url_foto
-    url_foto_dalam = foto_tampak_dalam.url_foto if foto_tampak_dalam else None
-
-    payload_ke_tim2 = {
-        "image_url": url_foto_luar,
-        "foto_rumah_tampak_dalam": url_foto_dalam,
-        "konteks_rumah": {
-            "jenis_lantai_terluas": keluarga.id_lantai_terluas,
-            "jenis_dinding_terluas": keluarga.id_dinding_terluas,
-            "jenis_atap_terluas": keluarga.id_atap_terluas,
-        }
-    }
-
-    try:
-        async with httpx.AsyncClient() as client:
-            res_ai = await client.post(
-                f"{AI_BASE_URL}/api/ai/visual-validator",
-                json=payload_ke_tim2,
-                timeout=30.0
-            )
-            res_ai.raise_for_status()
-            hasil_validator = res_ai.json()
-
-        is_match = hasil_validator.get("is_match", True)
-        reasoning = hasil_validator.get("reasoning", "Validasi visual selesai.")
-
-        hitung = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == keluarga.id).first()
-
-        if not hitung:
-            hitung = models.Perhitungan(keluarga_id=keluarga.id, user_id=user_id)
-            db.add(hitung)
-
-        hitung.ada_ketidaksesuaian_visual = not is_match
-        hitung.reasoning_tim2 = reasoning
-        hitung.foto_id_digunakan = foto_utama.id
-
-        db.commit()
-
-        return {
-            "status": "Sukses",
-            "validation": {
-                "is_match": is_match,
-                "reasoning": reasoning
-            },
-            "url_foto_divalidasi": foto_utama.url_foto,
-            "hasil_tim2": hasil_validator
-        }
-    except Exception as e:
-        logger.error("Gagal terhubung ke server Tim 2.", exc_info=True)
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Kesalahan koneksi ke Tim 2: {str(e)}")
-
-async def run_async_visual_validation(keluarga_id: UUID, user_id: UUID):
-    db_gen = get_db()
-    db = next(db_gen)
-    try:
-        await perform_visual_validation(keluarga_id, user_id, db)
-        print(f"[Asinkron] Validasi visual sukses untuk KK {keluarga_id}")
-    except Exception as e:
-        db.rollback()
-        print(f"[Asinkron Visual Error] {e}")
-    finally:
-        db.close()
-
 
 # ==========================================
 # ENDPOINT ASESMEN (TRIGGER MANUAL)
@@ -249,34 +51,56 @@ async def asesmen_sosial(
 
     try:
         konteks_aturan = await mock_qdrant_retriever("syarat penerima bansos")
+        role_content, user_content = get_role_and_user_content(keluarga, skor_pkh, skor_aspd, konteks_aturan)
 
-        role_content = "Anda adalah AI Auditor resmi Dinas Sosial Provinsi Jawa Timur..."
-        user_content = f"Profil Warga:\n- NIK: {keluarga.nik}\n- Desil: {keluarga.desil_nasional}\n- Skor PKH: {skor_pkh}\n- Skor ASPD: {skor_aspd}\n\nKonteks: {konteks_aturan}"
-
-        # Payload manual untuk Swagger
         payload_llm = {
+            "model": "aitf-ub-2026/cpt-qwen3-8b-sft_v1",
             "messages": [
                 {"role": "system", "content": role_content},
                 {"role": "user", "content": user_content}
             ],
-            "desil": keluarga.desil_nasional, 
-            "skor_aspd": skor_aspd,
-            "skor_pkh": skor_pkh              # <--- Sudah ditambahkan di sini juga
+            "response_format": {"type": "json_object"},
+            "temperature": 0.7,
+            "max_tokens": 2048
+        }
+        
+        headers_runpod = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {AI_RUNPOD_TOKEN}"
         }
 
-        async with httpx.AsyncClient() as client:
-            try:
+        # 1. Panggilan HTTP ke RunPod
+        try:
+            async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{AI_BASE_URL}/api/chat", # <-- Memanggil Beeceptor
+                    AI_RUNPOD_URL,
+                    headers=headers_runpod,
                     json=payload_llm,
-                    timeout=30.0
+                    timeout=60.0
                 )
                 response.raise_for_status()
-                hasil_final = response.json()
-            except Exception as e:
-                raise HTTPException(status_code=502, detail=f"Gagal mendapatkan analisis dari AI LLM: {e}")
+                hasil_mentah = response.json()
+        except httpx.HTTPError as he:
+            logger.error(f"[Manual Runpod HTTP Error] Gagal melakukan request ke Runpod: {he}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Gagal memanggil Runpod (HTTP Error): {he}")
 
-        rekomendasi_baru = hasil_final.get("rekomendasi_bantuan", [])
+        # 2. Ekstraksi string dari respon
+        try:
+            string_json_ai = hasil_mentah["choices"][0]["message"]["content"]
+            if string_json_ai.strip().startswith("```"):
+                string_json_ai = string_json_ai.strip().strip("```json").strip("```").strip()
+        except (KeyError, IndexError) as ke:
+            logger.error(f"[Manual Runpod Format Error] Struktur respon Runpod tidak sesuai: {ke}\nResponse: {hasil_mentah}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Format respon dari Runpod tidak sesuai (KeyError/IndexError): {ke}")
+
+        # 3. Parsing string content ke JSON
+        try:
+            hasil_final = json.loads(string_json_ai)
+        except json.JSONDecodeError as jde:
+            logger.error(f"[Manual Runpod JSON Error] Gagal parsing JSON dari Runpod (kemungkinan terpotong karena max_tokens): {jde}\nRaw Content: {string_json_ai}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Gagal parsing JSON dari Runpod (kemungkinan terpotong karena max_tokens): {jde}")
+
+        rekomendasi_baru = extract_rekomendasi(hasil_final, keluarga)
         analisis_rag = json.dumps(hasil_final) 
 
         bantuan_lama = None
@@ -289,8 +113,9 @@ async def asesmen_sosial(
 
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
-        hitung.skor_aspd = hasil_final.get("skor_aspd", 0.0)
-        hitung.skor_pkht = hasil_final.get("skor_pkh_plus", hasil_final.get("skor_pkht", 0.0))
+        skor_obj = hasil_final.get("skor", {})
+        hitung.skor_aspd = skor_obj.get("skor_aspd", 0.0)
+        hitung.skor_pkh_plus = skor_obj.get("skor_pkh_plus", 0.0)
 
         log = models.LogHistori(
             keluarga_id=keluarga.id, user_id=current_user.id,
@@ -304,7 +129,7 @@ async def asesmen_sosial(
             "status": "Sukses",
             "nomor_kk": keluarga.no_kk,
             "hasil_rekomendasi_final": rekomendasi_baru,
-            "justifikasi_dokumen": analisis_rag
+            "justifikasi_dokumen": json.loads(analisis_rag) # Diubah kembali ke JSON dict untuk respon API
         }
 
     except HTTPException:
@@ -321,7 +146,6 @@ async def asesmen_visual(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # 1. Cek Data Keluarga & Foto
     keluarga = db.query(models.Keluarga).filter(models.Keluarga.id == id_keluarga).first()
     if not keluarga:
         raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
@@ -343,7 +167,6 @@ async def asesmen_visual(
     url_foto_luar = foto_tampak_luar.url_foto if foto_tampak_luar else foto_utama.url_foto
     url_foto_dalam = foto_tampak_dalam.url_foto if foto_tampak_dalam else None
 
-    # 2. Siapkan Payload JSON sesuai permintaan Tim 2
     payload_ke_tim2 = {
         "id_data": str(keluarga.id),
         "foto_rumah": url_foto_luar,
@@ -354,7 +177,6 @@ async def asesmen_visual(
     }
 
     try:
-        # 3. Tembak Endpoint Tim 2
         async with httpx.AsyncClient() as client:
             res_ai = await client.post(
                 f"{AI_BASE_URL}/api/ai/visual-validator",
@@ -363,8 +185,15 @@ async def asesmen_visual(
             )
             res_ai.raise_for_status() 
             hasil_validator = res_ai.json() 
+            is_match = hasil_validator.get("is_match", True)
+            reasoning = hasil_validator.get("reasoning", str(hasil_validator))
+    except Exception as e:
+        logger.error(f"Gagal terhubung ke server Tim 2: {e}. Mengaktifkan fallback visual.")
+        is_match = True
+        reasoning = f"Foto diasumsikan sesuai secara otomatis karena kendala sistem: {str(e)}"
+        hasil_validator = {"is_match": True, "reasoning": reasoning}
 
-        # 4. Tangkap Response Bersarang (Nested JSON) dari Tim 2 & SIMPAN KE DB
+    try:
         hitung = db.query(models.Perhitungan).filter(
             models.Perhitungan.keluarga_id == keluarga.id
         ).first()
@@ -373,11 +202,6 @@ async def asesmen_visual(
             hitung = models.Perhitungan(keluarga_id=keluarga.id, user_id=current_user.id)
             db.add(hitung)
 
-        # Ekstrak data dari response AI (Sesuaikan key-nya dengan format asli Tim 2 jika berbeda)
-        is_match = hasil_validator.get("is_match", True)
-        reasoning = hasil_validator.get("reasoning", str(hasil_validator))
-
-        # Masukkan ke dalam kolom tabel
         hitung.ada_ketidaksesuaian_visual = not is_match
         hitung.reasoning_tim2 = reasoning
         hitung.foto_id_digunakan = foto_utama.id
@@ -395,4 +219,48 @@ async def asesmen_visual(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Kesalahan koneksi ke Tim 2: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Gagal menyimpan data validasi visual: {str(e)}")
+
+# ==========================================
+# ENDPOINT MASTER (1 TOMBOL UNTUK SEMUA)
+# ==========================================
+
+@router.post("/komprehensif/{id_keluarga}", summary="Jalankan Semua Analisis (Tim 1, 2, & 3) Sekaligus")
+async def asesmen_komprehensif_semua_tim(
+    id_keluarga: UUID,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint ini digunakan oleh Frontend jika hanya ada 1 tombol 'Analisis'.
+    Akan mengeksekusi Tim 1, Tim 2, dan Tim 3 secara berurutan/paralel dan merangkum hasilnya.
+    """
+    # Karena asesmen_sosial butuh payload khusus, kita buat mock payload-nya
+    payload_sosial = item_schema.TriggerAsesmenRequest(keluarga_id=id_keluarga)
+
+    hasil_sosial = None
+    hasil_visual = None
+    error_messages = []
+
+    # 1. JALANKAN TIM 1 & 3 (Sosial & RAG)
+    try:
+        hasil_sosial = await asesmen_sosial(payload=payload_sosial, current_user=current_user, db=db)
+    except Exception as e:
+        logger.error(f"Error Tim 1 & 3: {e}")
+        error_messages.append(f"Gagal memproses analisis sosial: {str(e)}")
+
+    # 2. JALANKAN TIM 2 (Visual)
+    try:
+        hasil_visual = await asesmen_visual(id_keluarga=id_keluarga, current_user=current_user, db=db)
+    except Exception as e:
+        logger.error(f"Error Tim 2: {e}")
+        error_messages.append(f"Gagal memproses validasi visual: {str(e)}")
+
+    # 3. GABUNGKAN HASILNYA KE FRONTEND
+    return {
+        "status": "Selesai",
+        "pesan": "Proses asesmen komprehensif selesai dieksekusi.",
+        "error": error_messages if error_messages else None,
+        "hasil_analisis_sosial_tim3": hasil_sosial,
+        "hasil_validasi_visual_tim2": hasil_visual
+    }

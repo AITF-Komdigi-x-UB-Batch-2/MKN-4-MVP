@@ -1,3 +1,10 @@
+"""
+FILE: app/routers/auth.py
+DESKRIPSI:
+Modul Autentikasi & Manajemen Sesi untuk Admin dan Pegawai.
+Menangani registrasi (hanya untuk seeding admin), login (set cookie HttpOnly),
+refresh token, dan logout.
+"""
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session

@@ -1,3 +1,10 @@
+"""
+FILE: app/main.py
+DESKRIPSI:
+Main application entry point FastAPI. Menginisialisasi server, setup CORS,
+menjalankan migrasi skema database otomatis (termasuk kolom NIK),
+memastikan bucket MinIO ada, dan mendaftarkan semua router API (Auth, Users, Items, Asesmen).
+"""
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -68,6 +75,23 @@ def seed_admin_user():
             print("[Seeder] Akun admin_jatim sudah tersedia.")
     except Exception as e:
         print(f"[Seeder] Error seeding admin: {e}")
+    finally:
+        db.close()
+
+# Cleanup Stuck Processes
+@app.on_event("startup")
+def cleanup_stuck_processes():
+    db = SessionLocal()
+    try:
+        stuck_records = db.query(models.Perhitungan).filter(models.Perhitungan.status_validasi == "proses").all()
+        if stuck_records:
+            print(f"[Cleanup] Menemukan {len(stuck_records)} data dalam status 'proses'. Mereset status ke 'analisis'...")
+            for record in stuck_records:
+                record.status_validasi = "analisis"
+            db.commit()
+            print("[Cleanup] Reset status 'proses' berhasil.")
+    except Exception as e:
+        print(f"[Cleanup] Gagal membersihkan status 'proses': {e}")
     finally:
         db.close()
 

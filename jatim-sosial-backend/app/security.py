@@ -1,3 +1,10 @@
+"""
+FILE: app/security.py
+DESKRIPSI:
+Manajemen Keamanan Aplikasi: Hashing Password (bcrypt), Validasi Token JWT,
+ dan Dependency Injection untuk autentikasi pengguna (get_current_user).
+"""
+
 import os
 from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, Request
