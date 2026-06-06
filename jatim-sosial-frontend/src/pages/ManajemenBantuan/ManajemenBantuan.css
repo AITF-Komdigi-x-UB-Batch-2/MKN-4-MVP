@@ -1301,3 +1301,31 @@
   letter-spacing: 0.06em;
   color: #64748b;
 }
+
+.mb-column-search {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.mb-column-search input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background-color: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.mb-column-search input::placeholder {
+  color: #94a3b8;
+}
+
+.mb-column-search input:focus {
+  border-color: #2563eb;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+

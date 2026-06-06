@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import "./AnalisisBaru.css";
 import { useState } from "react";
-import { apiFetch } from "../../services/api";
 
 interface AnalisisBaruProps {
   onLogout?: () => void;
@@ -23,6 +22,7 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
@@ -54,24 +54,53 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
 
     setIsLoading(true);
     setUploadError(null);
+    setUploadProgress(0);
 
     try {
       const formData = new FormData();
       formData.append("file", uploadedFile);
 
-      const response = await apiFetch("/api/v1/import-csv", {
-        method: "POST",
-        body: formData,
-      });
+      const uploadWithProgress = (): Promise<any> => {
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/v1/import-csv", true);
+          xhr.withCredentials = true;
 
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        throw new Error(
-          errBody.detail || errBody.pesan || "Upload gagal, silakan coba lagi",
-        );
-      }
+          // Track progress
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const percent = Math.round((event.loaded / event.total) * 100);
+              setUploadProgress(percent);
+            }
+          };
 
-      const result = await response.json().catch(() => null);
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const resData = JSON.parse(xhr.responseText);
+                resolve(resData);
+              } catch (e) {
+                resolve({ pesan: "Import berhasil." });
+              }
+            } else {
+              try {
+                const resData = JSON.parse(xhr.responseText);
+                reject(new Error(resData.detail || resData.pesan || `Upload gagal dengan status ${xhr.status}`));
+              } catch (e) {
+                reject(new Error(`Upload gagal dengan status ${xhr.status}`));
+              }
+            }
+          };
+
+          xhr.onerror = () => {
+            reject(new Error("Koneksi jaringan error. Upload gagal."));
+          };
+
+          xhr.send(formData);
+        });
+      };
+
+      const result = await uploadWithProgress();
       const pesan = result?.pesan || "Import berhasil.";
       showToast("success", pesan);
       setIsLoading(false);
@@ -150,6 +179,21 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
                   </p>
                 )}
               </div>
+
+              {isLoading && (
+                <div className="mb-upload-progress-wrapper">
+                  <div className="mb-upload-progress-info">
+                    <span>Mengirim data ke backend...</span>
+                    <strong>{uploadProgress}%</strong>
+                  </div>
+                  <div className="mb-upload-progress-track">
+                    <div
+                      className="mb-upload-progress-fill"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Template Download */}
               <div className="template-download-card">

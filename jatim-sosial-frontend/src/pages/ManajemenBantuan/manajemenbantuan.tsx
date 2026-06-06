@@ -250,6 +250,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   // State
   const [activeTab, setActiveTab] = useState<TabKey>("semua");
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchColumn, setSearchColumn] = useState("");
 
   // New filters states
   const [filterKecamatan, setFilterKecamatan] = useState("Semua");
@@ -303,6 +304,12 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     document.addEventListener("click", handleOutsideClick);
     return () => document.removeEventListener("click", handleOutsideClick);
   }, []);
+
+  useEffect(() => {
+    if (!showColumnDropdown) {
+      setSearchColumn("");
+    }
+  }, [showColumnDropdown]);
 
   const [sortConfig, setSortConfig] = useState<{
     key: SortKey;
@@ -861,6 +868,10 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     1 + // checkbox
     COLUMNS.filter((c) => visibleColumns.has(c.key) || c.locked).length;
 
+  const filteredColumns = COLUMNS.filter((col) =>
+    col.label.toLowerCase().includes(searchColumn.toLowerCase())
+  );
+
   return (
     <AdminLayout title="Manajemen Bantuan" onLogout={onLogout}>
       <div className="mb-page-wrapper">
@@ -946,11 +957,21 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
               >
                 Atur Kolom
               </button>
-              {showColumnDropdown && (
+               {showColumnDropdown && (
                 <div className="mb-popover-menu" onClick={(e) => e.stopPropagation()} style={{ position: "absolute", zIndex: 100, right: 0, marginTop: "8px" }}>
                   <div className="mb-popover-header">Visibilitas Kolom</div>
+                  
+                  <div className="mb-column-search">
+                    <input
+                      type="text"
+                      placeholder="Cari kolom..."
+                      value={searchColumn}
+                      onChange={(e) => setSearchColumn(e.target.value)}
+                    />
+                  </div>
+
                   <div className="mb-popover-list" style={{ maxHeight: "300px", overflowY: "auto" }}>
-                    {COLUMNS.map((col) => {
+                    {filteredColumns.map((col) => {
                       const isLocked = col.locked;
                       const isChecked = visibleColumns.has(col.key) || isLocked;
                       return (
