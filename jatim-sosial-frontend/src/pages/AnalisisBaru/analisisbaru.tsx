@@ -23,6 +23,7 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [progressStatus, setProgressStatus] = useState("Menghubungkan ke server...");
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
@@ -55,56 +56,84 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
     setIsLoading(true);
     setUploadError(null);
     setUploadProgress(0);
+    setProgressStatus("Menghubungkan ke server...");
 
     try {
       const formData = new FormData();
       formData.append("file", uploadedFile);
 
-      const uploadWithProgress = (): Promise<any> => {
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", "/api/v1/import-csv", true);
-          xhr.withCredentials = true;
+      let currentProgress = 0;
+      let backendCompleted = false;
+      let backendResult: any = null;
+      let uploadErrorOccurred: Error | null = null;
 
-          // Track progress
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const percent = Math.round((event.loaded / event.total) * 100);
-              setUploadProgress(percent);
-            }
-          };
+      const progressInterval = setInterval(() => {
+        if (uploadErrorOccurred) {
+          clearInterval(progressInterval);
+          setIsLoading(false);
+          setUploadError(uploadErrorOccurred.message);
+          showToast("error", uploadErrorOccurred.message);
+          return;
+        }
 
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const resData = JSON.parse(xhr.responseText);
-                resolve(resData);
-              } catch (e) {
-                resolve({ pesan: "Import berhasil." });
-              }
-            } else {
-              try {
-                const resData = JSON.parse(xhr.responseText);
-                reject(new Error(resData.detail || resData.pesan || `Upload gagal dengan status ${xhr.status}`));
-              } catch (e) {
-                reject(new Error(`Upload gagal dengan status ${xhr.status}`));
-              }
-            }
-          };
+        if (backendCompleted) {
+          // Accelerate to 100%
+          currentProgress += 10;
+          if (currentProgress >= 100) {
+            currentProgress = 100;
+            clearInterval(progressInterval);
+            setUploadProgress(100);
+            setProgressStatus("Selesai! Data berhasil diimport.");
+            
+            const pesan = backendResult?.pesan || "Import berhasil.";
+            showToast("success", pesan);
+            setIsLoading(false);
+            setTimeout(() => navigate("/manajemen-bantuan"), 1500);
+          } else {
+            setUploadProgress(currentProgress);
+          }
+        } else {
+          // Smooth crawl to 90%
+          if (currentProgress < 75) {
+            currentProgress += Math.floor(Math.random() * 4) + 3; // Increment by 3-6%
+            setProgressStatus("Mengirim file...");
+          } else if (currentProgress < 95) {
+            currentProgress += 1; // Slow down near the end
+            setProgressStatus("Memproses & memvalidasi data...");
+          }
+          setUploadProgress(Math.min(95, currentProgress));
+        }
+      }, 70);
 
-          xhr.onerror = () => {
-            reject(new Error("Koneksi jaringan error. Upload gagal."));
-          };
+      // Start actual request
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/v1/import-csv", true);
+      xhr.withCredentials = true;
 
-          xhr.send(formData);
-        });
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            backendResult = JSON.parse(xhr.responseText);
+          } catch (e) {
+            backendResult = { pesan: "Import berhasil." };
+          }
+          backendCompleted = true;
+        } else {
+          try {
+            const resData = JSON.parse(xhr.responseText);
+            uploadErrorOccurred = new Error(resData.detail || resData.pesan || `Upload gagal dengan status ${xhr.status}`);
+          } catch (e) {
+            uploadErrorOccurred = new Error(`Upload gagal dengan status ${xhr.status}`);
+          }
+        }
       };
 
-      const result = await uploadWithProgress();
-      const pesan = result?.pesan || "Import berhasil.";
-      showToast("success", pesan);
-      setIsLoading(false);
-      setTimeout(() => navigate("/manajemen-bantuan"), 1500);
+      xhr.onerror = () => {
+        uploadErrorOccurred = new Error("Koneksi jaringan error. Upload gagal.");
+      };
+
+      xhr.send(formData);
+
     } catch (error) {
       const message =
         error instanceof Error
@@ -145,55 +174,68 @@ const AnalisisBaru: React.FC<AnalisisBaruProps> = ({ onLogout }) => {
           <div className="analisis-left-col">
             <div className="import-container">
               {/* Upload Dropzone */}
-              <div className="upload-dropzone large">
-                <div className="upload-icon-wrapper">
-                  <UploadCloud size={52} className="upload-icon" />
-                </div>
-                <h4>Unggah File Data Excel / CSV</h4>
-                <p>
-                  Tarik &amp; lepaskan file di sini, atau klik tombol di bawah
-                  untuk memilih file dari perangkat Anda.
-                </p>
-                <input
-                  type="file"
-                  id="file-upload"
-                  accept=".xlsx,.xls,.csv"
-                  style={{ display: "none" }}
-                  onChange={handleFileSelect}
-                />
-                <label htmlFor="file-upload" className="browse-btn">
-                  <FileSpreadsheet size={16} /> Pilih File
-                </label>
-                <span className="upload-hint">
-                  Format yang didukung: .xlsx, .xls, .csv — Maks. 10MB
-                </span>
-                {uploadedFile && (
-                  <p
-                    style={{
-                      marginTop: "10px",
-                      color: "#10b981",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    ✓ File dipilih: {uploadedFile.name}
-                  </p>
+              <div className={`upload-dropzone large ${isLoading ? "loading" : ""}`}>
+                {isLoading ? (
+                  <div className="upload-loading-container" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", padding: "20px 0" }}>
+                    <div className="upload-loading-spinner" style={{ position: "relative", width: "80px", height: "80px", marginBottom: "20px" }}>
+                      <Loader size={48} className="upload-spin" style={{ color: "#2563eb" }} />
+                      <UploadCloud size={24} style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", color: "#2563eb" }} />
+                    </div>
+                    <h4 style={{ marginBottom: "8px" }}>{progressStatus}</h4>
+                    <p style={{ marginBottom: "20px", fontSize: "14px", color: "#64748b" }}>
+                      Mohon tunggu, jangan tutup halaman ini.
+                    </p>
+                    
+                    <div className="mb-upload-progress-wrapper" style={{ width: "80%", maxWidth: "400px", marginTop: 0 }}>
+                      <div className="mb-upload-progress-info">
+                        <span>Status Progres</span>
+                        <strong>{uploadProgress}%</strong>
+                      </div>
+                      <div className="mb-upload-progress-track">
+                        <div
+                          className="mb-upload-progress-fill"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="upload-icon-wrapper">
+                      <UploadCloud size={52} className="upload-icon" />
+                    </div>
+                    <h4>Unggah File Data Excel / CSV</h4>
+                    <p>
+                      Tarik &amp; lepaskan file di sini, atau klik tombol di bawah
+                      untuk memilih file dari perangkat Anda.
+                    </p>
+                    <input
+                      type="file"
+                      id="file-upload"
+                      accept=".xlsx,.xls,.csv"
+                      style={{ display: "none" }}
+                      onChange={handleFileSelect}
+                    />
+                    <label htmlFor="file-upload" className="browse-btn">
+                      <FileSpreadsheet size={16} /> Pilih File
+                    </label>
+                    <span className="upload-hint">
+                      Format yang didukung: .xlsx, .xls, .csv — Maks. 10MB
+                    </span>
+                    {uploadedFile && (
+                      <p
+                        style={{
+                          marginTop: "10px",
+                          color: "#10b981",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        ✓ File dipilih: {uploadedFile.name}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
-
-              {isLoading && (
-                <div className="mb-upload-progress-wrapper">
-                  <div className="mb-upload-progress-info">
-                    <span>Mengirim data ke backend...</span>
-                    <strong>{uploadProgress}%</strong>
-                  </div>
-                  <div className="mb-upload-progress-track">
-                    <div
-                      className="mb-upload-progress-fill"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
 
               {/* Template Download */}
               <div className="template-download-card">

@@ -838,3 +838,8 @@
 .mt-4 {
   margin-top: 16px;
 }
+
+.upload-spin {
+  animation: spinner-spin 1.5s linear infinite;
+}
+
