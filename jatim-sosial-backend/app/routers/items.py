@@ -13,6 +13,8 @@ from uuid import UUID
 from datetime import datetime
 import csv
 import io
+import os
+import tempfile
 from app.database import get_db
 from app import models
 from app.security import get_current_user
@@ -24,6 +26,8 @@ from app.utils.normalizer import fix_nik, safe_int, is_not_null, to_int
 from app.utils.scoring import hitung_skor_bantuan
 import httpx
 import logging
+import uuid
+import re
 
 
 logger = logging.getLogger(__name__)
@@ -44,35 +48,13 @@ async def import_csv(
     db: Session = Depends(get_db)
 ):
     contents = await file.read()
-    filename_lower = file.filename.lower()
+    temp_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.csv")
+    with open(temp_path, "wb") as f:
+        f.write(contents)
 
-    reader = []
-    if filename_lower.endswith(('.xlsx', '.xls')):
-        from openpyxl import load_workbook
-        wb = load_workbook(filename=io.BytesIO(contents), data_only=True)
-        sheet = wb.active
-
-        # Ambil header kolom (baris pertama)
-        headers = [cell.value for cell in sheet[1]]
-        # Ambil data dari baris kedua hingga akhir
-        for r in range(2, sheet.max_row + 1):
-            row_dict = {}
-            row_has_data = False
-            for col_idx, header in enumerate(headers):
-                if header:
-                    val = sheet.cell(row=r, column=col_idx + 1).value
-                    if val is not None:
-                        # Jika berupa float bernilai bulat (misal KK ending .0), bersihkan ke int
-                        if isinstance(val, float) and val.is_integer():
-                            val = int(val)
-                        row_dict[str(header)] = str(val).strip()
-                        row_has_data = True
-                    else:
-                        row_dict[str(header)] = ""
-            if row_has_data:
-                reader.append(row_dict)
-    else:
-        csv_reader = csv.DictReader(io.StringIO(contents.decode("utf-8")))
+    # PERBAIKAN: newline="" agar csv reader tidak error
+    with open(temp_path, "r", encoding="utf-8-sig", newline="") as csvfile:
+        csv_reader = csv.DictReader(csvfile)
         reader = list(csv_reader)
 
     kolom_sah = [c.name for c in models.Keluarga.__table__.columns]
@@ -91,9 +73,14 @@ async def import_csv(
         "aset_bergerak_perahu", "aset_bergerak_kapal_perahu_motor", "aset_bergerak_smartphone",
     }
 
-    # Kolom yang harus jadi INTEGER (Ditambahkan ID material rumah dan PBI)
+    # Kolom yang harus jadi INTEGER (sesuai kolom DB terbaru)
     KOLOM_INT = {
-        "desil_nasional", "jumlah_anggota_keluarga", "jumlah_jenis_usaha",
+        "umur_2026", "pkh_plus", "desil_nasional_anggota", "desil_nasional_keluarga",
+        "kemiskinan_ekstrem", "id_jenis_kelamin", "id_hub_kepala_keluarga",
+        "id_disabilitas", "pbi", "id_status_perkawinan", "id_partisipasi_sekolah",
+        "id_jenjang_pendidikan_dukcapil", "membantu_bekerja",
+        "id_lapangan_usaha_dari_usaha_utama", "id_status_kedudukan_pekerjaan_utama",
+        "id_kepemilikan_izin_usaha", "jumlah_jenis_usaha", "id_pekerjaan_utama",
         "jumlah_pekerja_dibayar", "jumlah_pekerja_tidak_dibayar",
         "luas_lantai_bangunan", "id_dayapenerangan",
         "lahan_tempat_lain", "rumah_tempat_lain",
@@ -119,8 +106,13 @@ async def import_csv(
         "NIK": "nik",
         "Nik": "nik",
         "no_kk": "no_kk",
-        "nama": "nama_kepala_keluarga",
+        "nomor_kartu_keluarga": "no_kk",
+        "nama": "nama",
+        "nama_kepala_keluarga": "nama",
         "pbi": "pbi",
+        "desil_nasional": "desil_nasional_keluarga",
+        "desil_nasional_anggota": "desil_nasional_anggota",
+        "desil_nasional_keluarga": "desil_nasional_keluarga",
         "id_status_penguasaan_bangunan": "id_status_penguasaan_bangunan",
         "id_lantai_terluas": "id_lantai_terluas",
         "luas_lantai_bangunan": "luas_lantai_bangunan",
@@ -153,6 +145,7 @@ async def import_csv(
         "umur_2026": "umur_2026",
         "cut_off_keluarga": "cut_off_keluarga"
     }
+
 
     async with httpx.AsyncClient() as client:
         for idx_row, raw_row in enumerate(reader):
@@ -432,16 +425,16 @@ async def get_manajemen_bantuan(
         tahap_ui = p.status_validasi if p and p.status_validasi else "analisis"
         rekomendasi_list = p.rekomendasi_bantuan if p and p.rekomendasi_bantuan else []
         bantuan_list = rekomendasi_list if tahap_ui in ("analisis", "validasi", "diterima", "ditolak") else []
-        
+        desil_val = k.desil_nasional or k.desil_nasional_keluarga or k.desil_nasional_anggota or 0
         row = item_schema.ManajemenBantuanResponse(
             id_keluarga=str(k.id),
             idLabel=f"ANL-{str(k.id)[:5].upper()}",
             tanggal=datetime.now().strftime("%d %b %Y"),
-            nama=k.nama_kepala_keluarga or "-",
+            nama=k.nama or "-",
             nik=k.nik or k.no_kk or "-",
-            wilayah=k.kabupaten_kota or "-",
-            kecamatan=k.kecamatan or "-",
-            desil=k.desil_nasional or 0,
+            wilayah="-",
+            kecamatan="-",
+            desil=desil_val,
             skorASPD=p.skor_aspd if p and p.skor_aspd is not None else 0.0,
             skorPKHPlus=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
             tahap=tahap_ui,
@@ -551,11 +544,11 @@ async def get_detail_manajemen_bantuan(
         id_keluarga=str(k.id),
         idLabel=f"ANL-{str(k.id)[:5].upper()}",
         tanggal=datetime.now().strftime("%d %b %Y"),
-        nama=k.nama_kepala_keluarga or "-",
+        nama=k.nama or "-",
         nik=k.nik or k.no_kk or "-",
-        wilayah=k.kabupaten_kota or "-",
-        kecamatan=k.kecamatan or "-",
-        desil=k.desil_nasional or 0,
+        wilayah="-",
+        kecamatan="-",
+        desil=(k.desil_nasional or k.desil_nasional_keluarga or k.desil_nasional_anggota or 0),
         skorASPD=p.skor_aspd if p and p.skor_aspd is not None else 0.0,
         skorPKHPlus=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
         tahap=tahap_ui,
@@ -675,3 +668,4 @@ async def get_histori(
             for log in logs
         ]
     }
+
