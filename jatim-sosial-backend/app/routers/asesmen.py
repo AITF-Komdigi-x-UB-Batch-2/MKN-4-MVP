@@ -20,7 +20,7 @@ from app.schemas import item as item_schema
 
 # Import Services & Utils
 from app.services.task_queue import asesmen_queue
-from app.services.ai_client import build_profil_warga, extract_rekomendasi
+from app.services.ai_client import build_profil_warga, extract_rekomendasi, determine_eligibility
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,11 @@ async def asesmen_sosial(
                     
         except Exception as e:
             logger.error(f"Gagal memanggil API Tim 3 (Sosial): {e}")
-            raise HTTPException(status_code=502, detail=f"Gagal mendapatkan analisis dari Tim 3: {e}")
+            hasil_final = {
+                "rekomendasi": determine_eligibility(keluarga),
+                "ringkasan_profil": "Sistem menggunakan analisis cadangan (Fallback Deterministik) karena koneksi ke API AI Tim 3 terputus atau URL belum dikonfigurasi.",
+                "rekomendasi_teknis_bansos": "Warga ini dievaluasi secara otomatis menggunakan sistem desil, usia lansia, dan filter disabilitas sesuai standar Juknis Jatim dasar tanpa analisis LLM."
+            }
 
         rekomendasi_baru = extract_rekomendasi(hasil_final, keluarga)
 
