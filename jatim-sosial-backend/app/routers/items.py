@@ -402,6 +402,7 @@ async def get_manajemen_bantuan(
     if search:
         search_term = f"%{search.strip()}%"
         query = query.filter(or_(
+            models.Keluarga.nama.ilike(search_term),
             models.Keluarga.nama_kepala_keluarga.ilike(search_term),
             models.Keluarga.nik.ilike(search_term),
             models.Keluarga.no_kk.ilike(search_term)
