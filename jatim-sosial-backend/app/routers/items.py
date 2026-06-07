@@ -272,10 +272,9 @@ async def import_csv(
                     keluarga_diproses = keluarga_baru
                     db.flush()
 
-                # 3. Hitung skor SETELAH data bersih dan terisi
-                skor = hitung_skor_bantuan(keluarga_diproses)
+
                 print("DEBUG sebelum akses tabel perhitungan")
-                # Tandai status awal sebagai "proses" agar data tidak terlihat sebelum selesai
+                # Tandai status awal sebagai "analisis" agar data masuk ke tab Analisis
                 hitung = db.query(models.Perhitungan).filter(
                     models.Perhitungan.keluarga_id == keluarga_diproses.id
                 ).first()
@@ -286,9 +285,10 @@ async def import_csv(
                     )
                     db.add(hitung)
 
-                hitung.skor_aspd = skor.get("skor_aspd")
-                hitung.skor_pkh_plus = skor.get("skor_pkh_plus")
-                hitung.rekomendasi_bantuan = determine_eligibility(keluarga_diproses)
+                # DIBIARKAN KOSONG SAAT IMPOR SESUAI PERMINTAAN USER
+                # hitung.skor_aspd = None
+                # hitung.skor_pkh_plus = None
+                # hitung.rekomendasi_bantuan = []
 
                 is_processing = hitung.status_validasi not in ("diterima", "ditolak")
                 if is_processing:

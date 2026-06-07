@@ -260,8 +260,11 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
 
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
-        # CATATAN: Tim 3 tidak mengembalikan field "skor",
-        # skor sudah dihitung oleh scoring.py saat import — tidak ditimpa.
+        # MENGHITUNG SKOR PADA SAAT ANALISIS BUKAN SAAT IMPOR
+        from app.utils.scoring import hitung_skor_bantuan
+        skor = hitung_skor_bantuan(keluarga)
+        hitung.skor_pkh_plus = skor.get("skor_pkh_plus")
+        hitung.skor_aspd = skor.get("skor_aspd")
 
         hitung.status_validasi = "validasi"
 
