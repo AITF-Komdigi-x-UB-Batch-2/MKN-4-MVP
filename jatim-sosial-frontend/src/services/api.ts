@@ -160,57 +160,113 @@ export const updateMyProfile = async (payload: UpdateProfilePayload): Promise<Us
 };
 
 export interface KeluargaDetail {
-  id_keluarga: string;
-  nama_anggota_keluarga?: string;
+  // Identitas individu (Kepala Keluarga)
+  id: string;
+  nama?: string;
   nik?: string;
-  nomor_kartu_keluarga?: string;
-  desil_nasional?: number;
-  provinsi?: string;
-  kode_provinsi?: string;
-  kabupaten_kota?: string;
+  no_kk?: string;
+  tempat_lahir?: string;
+  tanggal_lahir?: string;
+  umur_2026?: number;
+  id_jenis_kelamin?: number;
+  id_hub_kepala_keluarga?: number;
+  id_status_perkawinan?: number;
+  pbi?: number;
+  status_dtsen?: string;
+
+  // Pendidikan & Pekerjaan
+  id_partisipasi_sekolah?: number;
+  id_jenjang_pendidikan_dukcapil?: number;
+  membantu_bekerja?: number;
+  id_lapangan_usaha_dari_usaha_utama?: number;
+  id_status_kedudukan_pekerjaan_utama?: number;
+  id_kepemilikan_izin_usaha?: number;
+  jumlah_jenis_usaha?: number;
+  id_pekerjaan_utama?: number;
+  jumlah_pekerja_dibayar?: number;
+  jumlah_pekerja_tidak_dibayar?: number;
+  id_omset_usaha_utama?: number;
+
+  // Disabilitas & Kesehatan
+  id_disabilitas?: number;
+  tingkat_disabilitas?: string;
+  id_kondisi_gizi?: number;
+  id_penglihatan?: number;
+  id_pendengaran?: number;
+  id_berjalan_atau_naik_tangga?: number;
+  id_menggunakan_tangan_jari?: number;
+  id_belajar_kemampuan_intelektual?: number;
+  id_pengendalian_perilaku?: number;
+  id_berbicara_komunikasi?: number;
+  id_mengurus_diri?: number;
+  id_mengingat_berkonsentrasi?: number;
+  id_kesedihan_depresi?: number;
+  id_penyakit_menahun?: number;
+
+  // Bansos flags
+  kpm_jawara?: number;
+  putri_jawara?: number;
+  aspd?: number;
+  ppks_jawara?: number;
+  kemiskinan_ekstrem?: number;
+  pkh_plus?: number;
+
+  // Wilayah (Keluarga)
+  desil_nasional_anggota?: number;
+  desil_nasional_keluarga?: number;
   kode_kabupaten_kota?: string;
-  kecamatan?: string;
+  kabupaten_kota?: string;
   kode_kecamatan?: string;
-  kelurahan_desa?: string;
+  kecamatan?: string;
   kode_kelurahan_desa?: string;
+  kelurahan_desa?: string;
   alamat?: string;
   jumlah_anggota_keluarga?: number;
-  id_pelanggan_pln?: string;
-  pbi_nas?: boolean;
-  pbi_pemda?: boolean;
-  status_kepemilikan_rumah?: string;
-  luas_lantai?: number;
-  jenis_lantai_terluas?: string;
-  jenis_dinding_terluas?: string;
-  jenis_atap_terluas?: string;
-  sumber_air_minum_utama?: string;
-  sumber_penerangan_utama?: string;
-  daya_terpasang?: string;
-  bahan_bakar_utama_memasak?: string;
-  fasilitas_bab?: string;
-  jenis_kloset?: string;
-  pembuangan_akhir_tinja?: string;
-  aset_bergerak_tabung_gas?: boolean;
-  aset_bergerak_lemari_es?: boolean;
-  aset_bergerak_ac?: boolean;
-  aset_bergerak_pemanas_air?: boolean;
-  aset_bergerak_tv_datar?: boolean;
-  aset_bergerak_emas_perhiasan?: boolean;
-  aset_bergerak_komputer_laptop_tablet?: boolean;
-  aset_bergerak_sepeda_motor?: boolean;
-  aset_bergerak_sepeda?: boolean;
-  aset_bergerak_mobil?: boolean;
-  aset_bergerak_perahu?: boolean;
-  aset_bergerak_kapal_perahu_motor?: boolean;
-  aset_bergerak_smartphone?: boolean;
-  aset_bergerak_telepon_rumah?: boolean;
-  aset_tidak_bergerak_lahan_lainnya?: boolean;
-  aset_tidak_bergerak_rumah_lainnya?: boolean;
-  jumlah_ternak_sapi?: number;
-  jumlah_ternak_kerbau?: number;
-  jumlah_ternak_kuda?: number;
-  jumlah_ternak_babi?: number;
-  jumlah_ternak_kambing_domba?: number;
+  desil_nasional?: number;
+
+  // Bangunan
+  id_status_penguasaan_bangunan?: number;
+  id_lantai_terluas?: number;
+  luas_lantai_bangunan?: number;
+  id_dinding_terluas?: number;
+  id_atap_terluas?: number;
+
+  // Sanitasi & Air
+  id_sumber_airminum?: number;
+  id_fasilitas_bab?: number;
+  id_jenis_kloset?: number;
+  id_pembuangan_tinja?: number;
+
+  // Energi
+  id_sumberpenerangan?: number;
+  id_dayapenerangan?: number;
+  id_bb_utama?: number;
+
+  // Aset bergerak (0/1)
+  kepemilikan_aset?: number;
+  aset_bergerak_tabung_gas?: number;
+  aset_bergerak_lemari_es?: number;
+  aset_bergerak_ac?: number;
+  aset_bergerak_pemanas_air?: number;
+  aset_bergerak_telepon_rumah?: number;
+  aset_bergerak_tv_datar?: number;
+  aset_bergerak_emas_perhiasan?: number;
+  aset_bergerak_komputer_laptop_tablet?: number;
+  aset_bergerak_sepeda_motor?: number;
+  aset_bergerak_sepeda?: number;
+  aset_bergerak_mobil?: number;
+  aset_bergerak_perahu?: number;
+  aset_bergerak_kapal_perahu_motor?: number;
+  aset_bergerak_smartphone?: number;
+  lahan_tempat_lain?: number;
+  rumah_tempat_lain?: number;
+
+  // Ternak
+  jml_sapi?: number;
+  jml_kerbau?: number;
+  jml_kuda?: number;
+  jml_babi?: number;
+  jml_kambing_domba?: number;
 }
 
 /** Ambil detail keluarga dari database */
