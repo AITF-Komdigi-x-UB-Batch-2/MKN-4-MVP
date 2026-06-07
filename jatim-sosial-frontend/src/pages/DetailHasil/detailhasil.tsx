@@ -428,9 +428,15 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   };
 
   const handleReanalyze = async () => {
-    const success = await handleUpdateStatus("analisis");
+    const preserveStatus = currentTahap === "diterima" || currentTahap === "ditolak";
+    const nextStatus = preserveStatus ? currentTahap : "analisis";
+    const success = await handleUpdateStatus(nextStatus);
     if (success) {
-      setSuccessMsg("Status dikembalikan ke tahap Analisis!");
+      setSuccessMsg(
+        preserveStatus
+          ? "Status tetap pada tahap final."
+          : "Status dikembalikan ke tahap Analisis!",
+      );
       setTimeout(() => setSuccessMsg(""), 2000);
     }
   };

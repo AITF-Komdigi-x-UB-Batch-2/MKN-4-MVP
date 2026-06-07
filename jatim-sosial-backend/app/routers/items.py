@@ -272,26 +272,24 @@ async def import_csv(
                     keluarga_diproses = keluarga_baru
                     db.flush()
 
-                print("DEBUG sebelum akses tabel perhitungan")
-                # Tandai status awal sebagai "analisis" agar data masuk ke tab Analisis
+                # Tandai status awal sebagai "analisis" HANYA untuk data BARU
                 hitung = db.query(models.Perhitungan).filter(
                     models.Perhitungan.keluarga_id == keluarga_diproses.id
                 ).first()
+                is_new_record = False
                 if not hitung:
+                    is_new_record = True
                     hitung = models.Perhitungan(
                         keluarga_id=keluarga_diproses.id,
-                        user_id=current_user.id
+                        user_id=current_user.id,
+                        status_validasi="analisis"
                     )
                     db.add(hitung)
-
-                # DIBIARKAN KOSONG SAAT IMPOR SESUAI PERMINTAAN USER
-                # hitung.skor_aspd = None
-                # hitung.skor_pkh_plus = None
-                # hitung.rekomendasi_bantuan = []
-
-                is_processing = hitung.status_validasi not in ("diterima", "ditolak")
-                if is_processing:
-                    hitung.status_validasi = "analisis"
+                else:
+                    # JANGAN RESET STATUS UNTUK DATA EXISTING
+                    # Hanya reset jika status masih "proses" (dari unfinished analysis)
+                    if hitung.status_validasi == "proses":
+                        hitung.status_validasi = "analisis"
 
                 # 3. PROSES URL FOTO (Download ke MinIO)
                 for tipe, raw_photo_urls in [("tampak_luar", raw_urls), ("tampak_dalam", raw_urls_dalam)]:
@@ -339,7 +337,7 @@ async def import_csv(
                             log_foto.append(f"KK {no_kk_row}: ERROR foto {tipe} → {str(e)}")
 
                 sukses += 1
-                if is_processing:
+                if is_new_record:
                     keluarga_ids_for_tasks.add(keluarga_diproses.id)
 
             except Exception as e:
@@ -617,6 +615,8 @@ async def update_status_validasi(
         db.add(p)
     
     if request.status_validasi:
+        if p.status_validasi in ("diterima", "ditolak") and request.status_validasi == "analisis":
+            request.status_validasi = p.status_validasi
         p.status_validasi = request.status_validasi
         
     if request.bantuan is not None:
