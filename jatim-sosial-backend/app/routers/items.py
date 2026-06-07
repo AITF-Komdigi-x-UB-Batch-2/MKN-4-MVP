@@ -442,6 +442,10 @@ async def get_manajemen_bantuan(
                 models.Perhitungan.rekomendasi_bantuan == []
             ))
 
+    # Pastikan hasil selalu diurutkan secara konsisten berdasarkan ID atau atribut lain 
+    # agar urutan data di frontend tidak berubah saat ada data yang diupdate.
+    query = query.order_by(models.Keluarga.id.asc())
+
     total = query.count()
     paginated = page is not None or limit is not None
     page_value = page or 1
