@@ -704,33 +704,22 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   };
 
   const handleAnalisisAll = async () => {
-    const allAnalisis = displayData.filter((d) => d.tahap === "analisis");
-    if (allAnalisis.length === 0 || isBatchAnalyzing) return;
-    console.log(`[handleAnalisisAll] Memulai Analisis Semua (${allAnalisis.length} record)`);
-    const allIds = new Set(allAnalisis.map((d) => d.id_keluarga));
-    setSelectedRows(allIds);
+    if (isBatchAnalyzing) return;
+    console.log(`[handleAnalisisAll] Memulai Analisis Semua data di background server`);
     setIsBatchAnalyzing(true);
-    setBatchProgress(0);
-    const ids = Array.from(allIds);
-    const total = ids.length;
-    let processed = 0;
-
-    for (const id of ids) {
-      try {
-        console.log(`[handleAnalisisAll] [${processed + 1}/${total}] Menganalisis ID: ${id}`);
-        await runAnalisisAndAdvance(id);
-      } catch (e) {
-        console.error(`[handleAnalisisAll] Gagal menganalisis ID: ${id}. Error:`, e);
-      }
-      processed++;
-      setBatchProgress(Math.round((processed / total) * 100));
+    try {
+      const res = await apiFetch(`/api/v1/asesmen/batch-all`, { method: "POST" });
+      if (!res.ok) throw new Error("Gagal memulai batch-all");
+      const data = await res.json();
+      console.log(`[handleAnalisisAll] Respons server:`, data);
+      alert("Proses analisis massal telah dimulai di background server. Silakan refresh halaman secara berkala untuk melihat perubahan.");
+    } catch (e) {
+      console.error(`[handleAnalisisAll] Gagal:`, e);
+      alert("Gagal memulai analisis massal.");
+    } finally {
+      setIsBatchAnalyzing(false);
+      await fetchData();
     }
-
-    await fetchData();
-    setIsBatchAnalyzing(false);
-    setSelectedRows(new Set());
-    setBatchProgress(0);
-    console.log(`[handleAnalisisAll] Analisis semua selesai.`);
   };
 
   const resetFilters = () => {

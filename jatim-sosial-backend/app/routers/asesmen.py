@@ -9,11 +9,13 @@ import httpx
 import logging
 import json
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
+import asyncio
 
 from app import models
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.security import get_current_user
 from app.config import AI_BASE_URL, AI_RUNPOD_URL, API_TIM_3_URL
 from app.schemas import item as item_schema
@@ -278,3 +280,46 @@ async def asesmen_komprehensif_semua_tim(
         "hasil_analisis_sosial_tim3": hasil_sosial,
         "hasil_validasi_visual_tim2": hasil_visual
     }
+
+async def background_batch_process(ids: list, user_id: str):
+    logger.info(f"[BATCH ALL] Mulai memproses {len(ids)} data di background.")
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        for i, kid in enumerate(ids):
+            try:
+                logger.info(f"[BATCH ALL] [{i+1}/{len(ids)}] Memproses ID: {kid}")
+                await asesmen_komprehensif_semua_tim(kid, user, db)
+            except Exception as e:
+                logger.error(f"[BATCH ALL] Gagal pada ID {kid}: {e}")
+            await asyncio.sleep(0.5)
+    except Exception as e:
+        logger.error(f"[BATCH ALL] Error fatal pada proses background: {e}")
+    finally:
+        db.close()
+        logger.info(f"[BATCH ALL] Selesai memproses batch.")
+
+@router.post("/batch-all", summary="Analisis seluruh antrean data secara background")
+async def batch_all_analisis(
+    background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        query = db.query(models.Keluarga.id).outerjoin(
+            models.Perhitungan, models.Perhitungan.keluarga_id == models.Keluarga.id
+        ).filter(or_(
+            models.Perhitungan.id.is_(None),
+            models.Perhitungan.status_validasi == "analisis",
+            models.Perhitungan.status_validasi.is_(None)
+        )).all()
+        
+        ids = [row[0] for row in query]
+        if not ids:
+            return {"message": "Tidak ada data untuk dianalisis di tahap saat ini."}
+            
+        background_tasks.add_task(background_batch_process, ids, current_user.id)
+        return {"message": f"Memulai analisis batch untuk {len(ids)} data di background."}
+    except Exception as e:
+        logger.error(f"[BATCH ALL] Gagal memulai endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
