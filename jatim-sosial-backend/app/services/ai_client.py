@@ -263,7 +263,7 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
         # CATATAN: Tim 3 tidak mengembalikan field "skor",
         # skor sudah dihitung oleh scoring.py saat import — tidak ditimpa.
 
-        hitung.status_validasi = "analisis"
+        hitung.status_validasi = "validasi"
 
         log = models.LogHistori(
             keluarga_id=keluarga.id,
@@ -280,11 +280,11 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
     except Exception as e:
         db.rollback()
         print(f"[Asinkron DB Error] {e}")
-        # Try to reset status to 'analisis' to avoid getting stuck
+        # Try to reset status to 'validasi' to avoid getting stuck
         try:
             hitung_reset = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == keluarga_id).first()
             if hitung_reset:
-                hitung_reset.status_validasi = "analisis"
+                hitung_reset.status_validasi = "validasi"
                 db.commit()
         except Exception as db_ex:
             print(f"[Asinkron Failure Reset Error] {db_ex}")
