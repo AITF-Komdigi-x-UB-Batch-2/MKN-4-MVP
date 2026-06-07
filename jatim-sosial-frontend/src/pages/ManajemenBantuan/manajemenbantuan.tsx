@@ -348,6 +348,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
   const fetchData = useCallback(async (showLoading = false) => {
     const requestId = ++latestRequestRef.current;
+    console.log(`[fetchData] Memulai pengambilan data. Request ID: ${requestId}, Tab: "${activeTab}", Halaman: ${currentPage}, Pencarian: "${searchTerm}"`);
     try {
       if (showLoading) setIsLoading(true);
       const params = new URLSearchParams({
@@ -364,6 +365,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
       const res = await apiFetch(`/api/v1/manajemen-bantuan?${params.toString()}`);
       if (res.ok && requestId === latestRequestRef.current) {
         const json = (await res.json()) as PaginatedManajemenBantuanResponse | DataRow[];
+        console.log(`[fetchData] Berhasil mengambil data. Request ID: ${requestId}.`, json);
         if (Array.isArray(json)) {
           setData(json);
           setServerTotalItems(json.length);
@@ -384,7 +386,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
       }
     } catch (e) {
       if (requestId === latestRequestRef.current) {
-        console.error("Gagal mengambil data dari server:", e);
+        console.error(`[fetchData] Gagal mengambil data. Request ID: ${requestId}. Error:`, e);
       }
     } finally {
       if (showLoading && requestId === latestRequestRef.current) {
@@ -583,16 +585,19 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
   // Actions
   const runAnalisisAndAdvance = async (id: string) => {
+    console.log(`[runAnalisisAndAdvance] Memulai asesmen komprehensif untuk ID: ${id}`);
     const res = await apiFetch(`/api/v1/asesmen/komprehensif/${id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      console.error(`[runAnalisisAndAdvance] Asesmen komprehensif gagal untuk ID: ${id}.`, err);
       throw new Error(err.detail || "Gagal menjalankan analisis.");
     }
 
     const hasil = await res.json().catch(() => ({}));
+    console.log(`[runAnalisisAndAdvance] Hasil asesmen komprehensif diterima untuk ID: ${id}.`, hasil);
     const bantuan = Array.isArray(hasil?.hasil_analisis_sosial_tim3?.hasil_rekomendasi_final)
       ? hasil.hasil_analisis_sosial_tim3.hasil_rekomendasi_final
       : [];
@@ -601,6 +606,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     );
     const nextStatus = bantuanEligible.length > 0 ? "validasi" : "ditolak";
 
+    console.log(`[runAnalisisAndAdvance] Memperbarui status ID: ${id} menjadi "${nextStatus}" dengan bantuan:`, bantuanEligible);
     const resUpdate = await apiFetch(`/api/v1/manajemen-bantuan/${id}/status`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -611,11 +617,14 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     });
     if (!resUpdate.ok) {
       const err = await resUpdate.json().catch(() => ({}));
+      console.error(`[runAnalisisAndAdvance] Gagal memperbarui status ke database untuk ID: ${id}.`, err);
       throw new Error(err.detail || "Gagal memperbarui tahap hasil analisis.");
     }
+    console.log(`[runAnalisisAndAdvance] Sukses memproses dan memperbarui status ID: ${id}`);
   };
 
   const handleAnalisis = async (id: string) => {
+    console.log(`[handleAnalisis] Trigger analisis manual untuk ID: ${id}`);
     setProcessingIds((prev) => {
       const next = new Set(prev);
       next.add(id);
@@ -624,8 +633,9 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     try {
       await runAnalisisAndAdvance(id);
       await fetchData(); // refresh data setelah AI selesai
+      console.log(`[handleAnalisis] Sukses menyelesaikan analisis manual untuk ID: ${id}`);
     } catch (e) {
-      console.error(e);
+      console.error(`[handleAnalisis] Terjadi kesalahan saat analisis ID: ${id}.`, e);
     } finally {
       setProcessingIds((prev) => {
         const next = new Set(prev);
@@ -668,6 +678,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
   const handleBatchAnalisis = async () => {
     if (selectedRows.size === 0 || isBatchAnalyzing) return;
+    console.log(`[handleBatchAnalisis] Memulai batch analisis untuk ${selectedRows.size} record:`, Array.from(selectedRows));
     setIsBatchAnalyzing(true);
     setBatchProgress(0);
     const ids = Array.from(selectedRows);
@@ -676,9 +687,10 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
     for (const id of ids) {
       try {
+        console.log(`[handleBatchAnalisis] [${processed + 1}/${total}] Menganalisis ID: ${id}`);
         await runAnalisisAndAdvance(id);
       } catch (e) {
-        console.error(e);
+        console.error(`[handleBatchAnalisis] Gagal menganalisis ID: ${id}. Error:`, e);
       }
       processed++;
       setBatchProgress(Math.round((processed / total) * 100));
@@ -688,11 +700,13 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     setIsBatchAnalyzing(false);
     setSelectedRows(new Set());
     setBatchProgress(0);
+    console.log(`[handleBatchAnalisis] Batch analisis selesai.`);
   };
 
   const handleAnalisisAll = async () => {
     const allAnalisis = displayData.filter((d) => d.tahap === "analisis");
     if (allAnalisis.length === 0 || isBatchAnalyzing) return;
+    console.log(`[handleAnalisisAll] Memulai Analisis Semua (${allAnalisis.length} record)`);
     const allIds = new Set(allAnalisis.map((d) => d.id_keluarga));
     setSelectedRows(allIds);
     setIsBatchAnalyzing(true);
@@ -703,9 +717,10 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
     for (const id of ids) {
       try {
+        console.log(`[handleAnalisisAll] [${processed + 1}/${total}] Menganalisis ID: ${id}`);
         await runAnalisisAndAdvance(id);
       } catch (e) {
-        console.error(e);
+        console.error(`[handleAnalisisAll] Gagal menganalisis ID: ${id}. Error:`, e);
       }
       processed++;
       setBatchProgress(Math.round((processed / total) * 100));
@@ -715,6 +730,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     setIsBatchAnalyzing(false);
     setSelectedRows(new Set());
     setBatchProgress(0);
+    console.log(`[handleAnalisisAll] Analisis semua selesai.`);
   };
 
   const resetFilters = () => {

@@ -360,6 +360,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     catatan?: string,
     catatan_supervisor?: string,
   ) => {
+    console.log(`[handleUpdateStatus] Mengirim update status ke server. ID: ${id}, Status Baru: "${status}", Bantuan:`, bantuanList, `, Catatan Petugas: "${catatan}", Catatan Supervisor: "${catatan_supervisor}"`);
     try {
       const response = await apiFetch(
         `/api/v1/manajemen-bantuan/${id}/status`,
@@ -377,17 +378,19 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
       if (!response.ok) throw new Error("Gagal update status");
 
       const data = await response.json();
+      console.log(`[handleUpdateStatus] Sukses memperbarui status. Data terupdate:`, data);
       setDetailData(data);
       setStageState(status as Tahap);
       return true;
     } catch (e) {
-      console.error(e);
+      console.error(`[handleUpdateStatus] Terjadi kesalahan saat update status ID: ${id}. Error:`, e);
       return false;
     }
   };
 
   const handleConfirmAssistance = async () => {
     if (selectedPrograms.length === 0) return;
+    console.log(`[handleConfirmAssistance] Menyubmit bantuan sosial terpilih:`, selectedPrograms);
     setIsConfirming(true);
     const success = await handleUpdateStatus(
       "validasi",
@@ -396,12 +399,14 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     );
     setIsConfirming(false);
     if (success) {
+      console.log(`[handleConfirmAssistance] Sukses memindahkan ke tahap validasi.`);
       setSuccessMsg("Rekomendasi bantuan berhasil diajukan ke tahap Validasi!");
       setTimeout(() => setSuccessMsg(""), 2000);
     }
   };
 
   const handleSupervisorApprove = async () => {
+    console.log(`[handleSupervisorApprove] Supervisor menyetujui bantuan sosial dengan program:`, selectedPrograms);
     const success = await handleUpdateStatus(
       "diterima",
       selectedPrograms,
@@ -409,12 +414,14 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
       catatanSupInput,
     );
     if (success) {
+      console.log(`[handleSupervisorApprove] Sukses memperbarui status menjadi diterima.`);
       setSuccessMsg("Bantuan Sosial Berhasil Disetujui!");
       setTimeout(() => setSuccessMsg(""), 2000);
     }
   };
 
   const handleSupervisorReject = async () => {
+    console.log(`[handleSupervisorReject] Supervisor menolak bantuan sosial.`);
     const success = await handleUpdateStatus(
       "ditolak",
       undefined,
@@ -422,14 +429,17 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
       catatanSupInput,
     );
     if (success) {
+      console.log(`[handleSupervisorReject] Sukses memperbarui status menjadi ditolak.`);
       setSuccessMsg("Pengajuan Bantuan Sosial Ditolak!");
       setTimeout(() => setSuccessMsg(""), 2000);
     }
   };
 
   const handleReanalyze = async () => {
+    console.log(`[handleReanalyze] Memicu re-analyze kembali ke status analisis untuk ID: ${id}`);
     const success = await handleUpdateStatus("analisis");
     if (success) {
+      console.log(`[handleReanalyze] Sukses mengembalikan status ke analisis.`);
       setSuccessMsg("Status dikembalikan ke tahap Analisis!");
       setTimeout(() => setSuccessMsg(""), 2000);
     }

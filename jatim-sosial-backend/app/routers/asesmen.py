@@ -45,6 +45,7 @@ async def asesmen_sosial(
     if not keluarga:
         raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
 
+    logger.info(f"[ASESMEN SOSIAL] Memulai analisis sosial untuk NIK: {keluarga.nik}, KK: {keluarga.no_kk}")
     hitung = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == keluarga.id).first()
 
     try:
@@ -52,6 +53,7 @@ async def asesmen_sosial(
             "profil_warga": build_profil_warga(keluarga),
             "top_k": 5
         }
+        logger.info(f"[ASESMEN SOSIAL] Profil warga berhasil dibentuk untuk LLM: {payload_llm['profil_warga'][:200]}...")
 
         headers_api = {
             "accept": "application/json",
@@ -60,10 +62,9 @@ async def asesmen_sosial(
         
         # 1. Panggilan HTTP ke API Tim 3
         try:
+            url_target = f"{API_TIM_3_URL}/recommend"
+            logger.info(f"[ASESMEN SOSIAL] Mengirim request ke API Tim 3: {url_target}")
             async with httpx.AsyncClient() as client:
-                # Langsung tembak ke endpoint Tim 3 secara pasti
-                url_target = f"{API_TIM_3_URL}/recommend"
-                
                 response = await client.post(
                     url_target,
                     headers=headers_api,
@@ -72,10 +73,9 @@ async def asesmen_sosial(
                 )
                 response.raise_for_status()
                 hasil_mentah = response.json()
+                logger.info("[ASESMEN SOSIAL] Respon mentah diterima dari API Tim 3")
                 
                 # Fleksibilitas Ekstrak Balasan:
-                # Tetap dipertahankan untuk berjaga-jaga apakah Tim 3 mengembalikan 
-                # format raw OpenAI (choices) atau JSON yang sudah mereka rapikan.
                 if isinstance(hasil_mentah, str):
                     string_json_ai = hasil_mentah.strip().strip("```json").strip("```").strip()
                     hasil_final = json.loads(string_json_ai)
@@ -85,9 +85,11 @@ async def asesmen_sosial(
                     hasil_final = json.loads(string_json_ai)
                 else:
                     hasil_final = hasil_mentah.get("justifikasi_dokumen", hasil_mentah)
+                
+                logger.info(f"[ASESMEN SOSIAL] Berhasil memparsing respon AI: {hasil_final}")
                     
         except Exception as e:
-            logger.error(f"Gagal memanggil API Tim 3 (Sosial): {e}")
+            logger.error(f"[ASESMEN SOSIAL] Gagal memanggil API Tim 3 (Sosial): {e}. Mengaktifkan Fallback Deterministik.")
             hasil_final = {
                 "rekomendasi": determine_eligibility(keluarga),
                 "ringkasan_profil": "Sistem menggunakan analisis cadangan (Fallback Deterministik) karena koneksi ke API AI Tim 3 terputus atau URL belum dikonfigurasi.",
@@ -95,6 +97,7 @@ async def asesmen_sosial(
             }
 
         rekomendasi_baru = extract_rekomendasi(hasil_final, keluarga)
+        logger.info(f"[ASESMEN SOSIAL] Hasil ekstraksi rekomendasi baru: {rekomendasi_baru}")
 
         # Reasoning: simpan ringkasan + rekomendasi teknis dari Tim 3
         ringkasan = hasil_final.get("ringkasan_profil", "")
@@ -115,6 +118,7 @@ async def asesmen_sosial(
 
         is_eligible = len(rekomendasi_baru) > 0
         hitung.status_validasi = "validasi" if is_eligible else "ditolak"
+        logger.info(f"[ASESMEN SOSIAL] Status validasi disetel menjadi: {hitung.status_validasi} (is_eligible: {is_eligible})")
 
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
@@ -182,6 +186,7 @@ async def asesmen_visual(
         "id_dinding_terluas": keluarga.id_dinding_terluas,
         "id_lantai_terluas": keluarga.id_lantai_terluas
     }
+    logger.info(f"[ASESMEN VISUAL] Mengirim data ke validator visual Tim 2: {payload_ke_tim2}")
 
     try:
         async with httpx.AsyncClient() as client:
@@ -194,8 +199,9 @@ async def asesmen_visual(
             hasil_validator = res_ai.json() 
             is_match = hasil_validator.get("is_match", True)
             reasoning = hasil_validator.get("reasoning", str(hasil_validator))
+            logger.info(f"[ASESMEN VISUAL] Respon diterima dari Tim 2. IsMatch={is_match}, Reasoning={reasoning}")
     except Exception as e:
-        logger.error(f"Gagal terhubung ke server Tim 2: {e}. Mengaktifkan fallback visual.")
+        logger.error(f"[ASESMEN VISUAL] Gagal terhubung ke server Tim 2: {e}. Mengaktifkan fallback visual.")
         is_match = True
         reasoning = f"Foto diasumsikan sesuai secara otomatis karena kendala sistem: {str(e)}"
         hasil_validator = {"is_match": True, "reasoning": reasoning}
@@ -213,6 +219,7 @@ async def asesmen_visual(
         hitung.reasoning_tim2 = reasoning
         hitung.foto_id_digunakan = foto_utama.id
 
+        logger.info(f"[ASESMEN VISUAL] Menyimpan hasil validasi visual ke DB untuk keluarga {keluarga.no_kk}. Match={is_match}")
         db.commit()
 
         return {

@@ -320,8 +320,17 @@ def hitung_skor_bantuan(keluarga) -> dict:
         punya_pkh = 1.0 if is_pkh(keluarga) else 0.0
         jml_anggota = to_int(getattr(keluarga, "jumlah_anggota_keluarga", 1), 1)
 
+        is_pkh_eligible = eligible_pkh_plus(keluarga, umur, desil)
+        is_aspd_eligible = eligible_aspd(keluarga, umur, desil)
+
+        logger.info(
+            f"[SCORING] NIK: {keluarga.nik}, KK: {keluarga.no_kk}. "
+            f"Umur={umur}, Desil={desil}, PBI={pbi_val}, PKH={punya_pkh}, Jml Anggota={jml_anggota}. "
+            f"Eligibility -> PKH Plus: {is_pkh_eligible}, ASPD: {is_aspd_eligible}"
+        )
+
         skor_pkh = 0.0
-        if eligible_pkh_plus(keluarga, umur, desil):
+        if is_pkh_eligible:
             skor_pkh = (
                 normalisasi_usia_pkh(umur) * PKH_PLUS_WEIGHTS["usia"]
                 + normalisasi_desil(desil, 4) * PKH_PLUS_WEIGHTS["desil_nasional"]
@@ -343,7 +352,7 @@ def hitung_skor_bantuan(keluarga) -> dict:
             )
 
         skor_aspd = 0.0
-        if eligible_aspd(keluarga, umur, desil):
+        if is_aspd_eligible:
             skor_aspd = (
                 normalisasi_gizi(getattr(keluarga, "id_kondisi_gizi", 3)) * ASPD_WEIGHTS["id_kondisi_gizi"]
                 + normalisasi_hambatan(getattr(keluarga, "id_berjalan_atau_naik_tangga", 4)) * ASPD_WEIGHTS["id_berjalan_atau_naik_tangga"]
@@ -361,9 +370,17 @@ def hitung_skor_bantuan(keluarga) -> dict:
                 + normalisasi_jumlah_anggota(jml_anggota) * ASPD_WEIGHTS["jumlah_anggota_keluarga"]
             )
 
+        skor_pkh_final = saw_to_percent(skor_pkh)
+        skor_aspd_final = saw_to_percent(skor_aspd)
+
+        logger.info(
+            f"[SCORING] Selesai menghitung skor. NIK: {keluarga.nik}, KK: {keluarga.no_kk}. "
+            f"Skor Akhir -> PKH Plus: {skor_pkh_final}%, ASPD: {skor_aspd_final}%"
+        )
+
         return {
-            "skor_pkh_plus": saw_to_percent(skor_pkh),
-            "skor_aspd": saw_to_percent(skor_aspd),
+            "skor_pkh_plus": skor_pkh_final,
+            "skor_aspd": skor_aspd_final,
         }
 
     except Exception as e:

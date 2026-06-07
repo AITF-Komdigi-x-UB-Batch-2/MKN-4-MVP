@@ -377,6 +377,11 @@ async def get_manajemen_bantuan(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    logger.info(
+        f"[GET MANAJEMEN BANTUAN] Request parameters: page={page}, limit={limit}, "
+        f"tahap={tahap}, search='{search}', kecamatan={kecamatan}, "
+        f"kelurahan_desa={kelurahan_desa}, desils={desils}, overlap={overlap}"
+    )
     query = db.query(models.Keluarga, models.Perhitungan).outerjoin(
         models.Perhitungan, models.Perhitungan.keluarga_id == models.Keluarga.id
     ).filter(or_(
@@ -616,6 +621,11 @@ async def update_status_validasi(
         db.add(p)
     
     old_status = p.status_validasi if p else None
+    logger.info(
+        f"[UPDATE STATUS VALIDASI] ID Keluarga: {id_keluarga}. "
+        f"Old Status: {old_status}, Requested New Status: {request.status_validasi}, "
+        f"Bantuan: {request.bantuan}, Catatan Petugas: {request.catatan}, Catatan Supervisor: {request.catatan_supervisor}"
+    )
     
     if request.status_validasi:
         p.status_validasi = request.status_validasi
@@ -630,9 +640,11 @@ async def update_status_validasi(
         p.catatan_supervisor = request.catatan_supervisor
         
     db.commit()
+    logger.info(f"[UPDATE STATUS VALIDASI] Data berhasil disimpan ke database. Status akhir: {p.status_validasi}")
     
     # Trigger re-analysis tasks if transitioning to "analisis" from diterima/ditolak/validasi
     if request.status_validasi == "analisis" and old_status in ("diterima", "ditolak", "validasi"):
+        logger.info(f"[UPDATE STATUS VALIDASI] Memicu re-analysis visual async untuk ID Keluarga: {id_keluarga}")
         background_tasks.add_task(run_async_visual_validation, id_keluarga, current_user.id)
     
     return await get_detail_manajemen_bantuan(id_keluarga, current_user, db)
