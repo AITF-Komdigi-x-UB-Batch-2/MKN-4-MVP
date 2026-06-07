@@ -115,8 +115,12 @@ async def asesmen_sosial(
 
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
-        # CATATAN: Tim 3 tidak mengembalikan field "skor" — skor dari scoring.py tidak ditimpa.
-
+        
+        # MENGHITUNG SKOR PADA SAAT ANALISIS BUKAN SAAT IMPOR
+        from app.utils.scoring import hitung_skor_bantuan
+        skor = hitung_skor_bantuan(keluarga)
+        hitung.skor_pkh_plus = skor.get("skor_pkh_plus")
+        hitung.skor_aspd = skor.get("skor_aspd")
         log = models.LogHistori(
             keluarga_id=keluarga.id, user_id=current_user.id,
             desil_lama=None, desil_baru=None,
