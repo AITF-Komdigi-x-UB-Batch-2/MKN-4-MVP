@@ -94,16 +94,12 @@ interface PaginatedManajemenBantuanResponse {
 
 const COLUMNS: ColumnConfig[] = [
   { key: "id_keluarga", label: "ID / Tanggal", defaultVisible: true },
-  { key: "tahap", label: "Status Tahap", defaultVisible: true },
-  { key: "skor_aspd", label: "Skor ASPD", defaultVisible: true },
-  { key: "skor_pkh_plus", label: "Skor PKH+", defaultVisible: true },
   { key: "nama", label: "Nama Penerima", locked: true, defaultVisible: true },
   { key: "nik", label: "NIK", defaultVisible: true },
   { key: "wilayah", label: "Wilayah / Kota", defaultVisible: true },
   { key: "kecamatan", label: "Kecamatan", defaultVisible: true },
   { key: "kelurahan_desa", label: "Kelurahan / Desa", defaultVisible: false },
   { key: "desil", label: "Desil Ekonomi", defaultVisible: true },
-  { key: "bantuan", label: "Bantuan Eligible", locked: true, defaultVisible: true },
 
   // DTKS Extra fields
   { key: "jumlah_anggota_keluarga", label: "Jml Anggota Keluarga", defaultVisible: false },
@@ -144,6 +140,11 @@ const COLUMNS: ColumnConfig[] = [
   { key: "aset_bergerak_kapal_perahu_motor", label: "Aset: Kapal Motor", defaultVisible: false },
   { key: "aset_bergerak_smartphone", label: "Aset: Smartphone", defaultVisible: false },
 
+  // Indikator Kemiskinan Ekstrem
+  { key: "skor_aspd", label: "Skor ASPD", defaultVisible: true },
+  { key: "skor_pkh_plus", label: "Skor PKH+", defaultVisible: true },
+  { key: "tahap", label: "Status Tahap", defaultVisible: true },
+  { key: "bantuan", label: "Bantuan Eligible", locked: true, defaultVisible: true },
   { key: "aksi", label: "Aksi", locked: true, defaultVisible: true }
 ];
 
