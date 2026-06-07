@@ -50,18 +50,18 @@ async def asesmen_sosial(
     skor_aspd = hitung.skor_aspd if hitung and hitung.skor_aspd else 0.0
 
     try:
-        konteks_aturan = await mock_qdrant_retriever("syarat penerima bansos")
-        role_content, user_content = get_role_and_user_content(keluarga, skor_pkh, skor_aspd, konteks_aturan)
+        role_content, user_content = get_role_and_user_content(keluarga, skor_pkh, skor_aspd)
 
+        teks_profil_warga = f"{user_content}\n\n{role_content}"
+        
         payload_llm = {
-            "model": "aitf-ub-2026/cpt-qwen3-8b-sft_v1",
-            "messages": [
-                {"role": "system", "content": role_content},
-                {"role": "user", "content": user_content}
-            ],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.7,
-            "max_tokens": 2048
+            "profil_warga": teks_profil_warga,
+            "top_k": 5
+        }
+
+        headers_api = {
+            "accept": "application/json",
+            "Content-Type": "application/json"
         }
         
         # 1. Panggilan HTTP ke API Tim 3
@@ -71,7 +71,8 @@ async def asesmen_sosial(
                 url_target = f"{API_TIM_3_URL}/recommend"
                 
                 response = await client.post(
-                    url_target, 
+                    url_target,
+                    headers=headers_api,
                     json=payload_llm, 
                     timeout=60.0
                 )
@@ -81,10 +82,12 @@ async def asesmen_sosial(
                 # Fleksibilitas Ekstrak Balasan:
                 # Tetap dipertahankan untuk berjaga-jaga apakah Tim 3 mengembalikan 
                 # format raw OpenAI (choices) atau JSON yang sudah mereka rapikan.
-                if "choices" in hasil_mentah:
+                if isinstance(hasil_mentah, str):
+                    string_json_ai = hasil_mentah.strip().strip("```json").strip("```").strip()
+                    hasil_final = json.loads(string_json_ai)
+                elif isinstance(hasil_mentah, dict) and "choices" in hasil_mentah:
                     string_json_ai = hasil_mentah["choices"][0]["message"]["content"]
-                    if string_json_ai.strip().startswith("```"):
-                        string_json_ai = string_json_ai.strip().strip("```json").strip("```").strip()
+                    string_json_ai = string_json_ai.strip().strip("```json").strip("```").strip()
                     hasil_final = json.loads(string_json_ai)
                 else:
                     hasil_final = hasil_mentah.get("justifikasi_dokumen", hasil_mentah)
@@ -107,8 +110,8 @@ async def asesmen_sosial(
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
         skor_obj = hasil_final.get("skor", {})
-        hitung.skor_aspd = skor_obj.get("skor_aspd", 0.0)
-        hitung.skor_pkh_plus = skor_obj.get("skor_pkh_plus", 0.0)
+        hitung.skor_aspd = skor_obj.get("skor_aspd", 0.0) if isinstance(skor_obj, dict) else 0.0
+        hitung.skor_pkh_plus = skor_obj.get("skor_pkh_plus", 0.0) if isinstance(skor_obj, dict) else 0.0
 
         log = models.LogHistori(
             keluarga_id=keluarga.id, user_id=current_user.id,
@@ -122,7 +125,7 @@ async def asesmen_sosial(
             "status": "Sukses",
             "nomor_kk": keluarga.no_kk,
             "hasil_rekomendasi_final": rekomendasi_baru,
-            "justifikasi_dokumen": json.loads(analisis_rag) # Diubah kembali ke JSON dict untuk respon API
+            "justifikasi_dokumen": hasil_final
         }
 
     except HTTPException:
