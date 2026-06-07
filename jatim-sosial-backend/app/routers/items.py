@@ -180,7 +180,7 @@ async def import_csv(
                         row[db_key] = v
 
                 if idx_row < 3:
-                    log_foto.append(f"[DEBUG] Row {idx_row+1} keys: {list(row.keys())[:10]}")
+                    log_foto.append(f"[DEBUG] Row {idx_row+1} keys: {list(row.keys())[10:]}")
 
                 no_kk_row = (row.get("no_kk") or row.get("nomor_kartu_keluarga") or "").strip()
                 if not no_kk_row or no_kk_row.lower() == "nan":
@@ -232,10 +232,13 @@ async def import_csv(
                 #             data_bersih[col_name] = default_val
 
                 # 2. Cek Idempotensi & History
-                keluarga_lama = db.query(models.Keluarga).filter(
-                    models.Keluarga.no_kk == data_bersih.get("no_kk")
-                ).first()
-
+                try:
+                    keluarga_lama = db.query(models.Keluarga).filter(
+                        models.Keluarga.no_kk == data_bersih.get("no_kk")
+                    ).first()
+                    print(f"DEBUG cek idempotensi untuk KK {no_kk_row}: {'Ditemukan' if keluarga_lama else 'Tidak ditemukan'}")
+                except Exception as e:
+                    print(f"ERROR saat cek idempotensi KK {no_kk_row}: {str(e)}")
                 if keluarga_lama:
                     # Cek apakah ada perubahan variabel
                     any_changes = False
@@ -271,7 +274,7 @@ async def import_csv(
 
                 # 3. Hitung skor SETELAH data bersih dan terisi
                 skor = hitung_skor_bantuan(data_bersih)
-
+                print("DEBUG sebelum akses tabel perhitungan")
                 # Tandai status awal sebagai "proses" agar data tidak terlihat sebelum selesai
                 hitung = db.query(models.Perhitungan).filter(
                     models.Perhitungan.keluarga_id == keluarga_diproses.id
@@ -358,6 +361,7 @@ async def import_csv(
         "pesan": f"{sukses} data keluarga berhasil disinkronisasi, {di_skip} baris dilewati.",
         "log_proses_foto": log_foto
     }
+
 
 # ENDPOINT MANAJEMEN BANTUAN (FRONTEND)
 @router.get(
