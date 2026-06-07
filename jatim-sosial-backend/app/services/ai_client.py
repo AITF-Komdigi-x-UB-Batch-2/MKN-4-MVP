@@ -10,17 +10,7 @@ from app.config import AI_RUNPOD_URL, API_TIM_3_URL
 
 logger = logging.getLogger(__name__)
 
-async def mock_qdrant_retriever(query_text: str) -> str:
-    """
-    Simulasi pemanggilan database vektor Qdrant milik Tim 3.
-    """
-    return """
-    [Konteks Kebijakan Sosial Jawa Timur]
-    - PKH Plus: (a) lansia >= 70 tahun, (b) desil 1-4 DTSEN, (c) memiliki NIK Jawa Timur.
-    - ASPD: (1) NIK Jawa Timur, (2) usia 6 bulan - 60 tahun, (3) penyandang disabilitas/bed ridden, (4) prioritas desil 1-5.
-    """
-
-def get_role_and_user_content(keluarga, skor_pkh, skor_aspd, konteks_aturan):
+def get_role_and_user_content(keluarga, skor_pkh, skor_aspd):
     """
     Fungsi bantuan untuk merakit prompt agar tidak ada kode yang diulang (DRY).
     """
@@ -90,10 +80,6 @@ Skor Prioritas Bantuan (semakin mendekati 100 = semakin prioritas):
 - Skor ASPD        : {skor_aspd}
 
 Tolong buatkan laporan evaluasi kelayakan untuk program PKH Plus dan ASPD.
-Kamu harus merujuk pada aturan berikut sebagai konteks kebijakan:
-<hasil_retrieval>
-{konteks_aturan}
-</hasil_retrieval>
 """
     return role_content, user_content
 
@@ -183,19 +169,17 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
     skor_aspd = hitung.skor_aspd if hitung and hitung.skor_aspd else 0.0
 
     try:
-        konteks_aturan = await mock_qdrant_retriever("syarat penerima bansos")
-        role_content, user_content = get_role_and_user_content(keluarga, skor_pkh, skor_aspd, konteks_aturan)
+        role_content, user_content = get_role_and_user_content(keluarga, skor_pkh, skor_aspd)
 
         # Payload Model Baru (Runpod/OpenAI)
+        teks_profil_warga = f"{user_content}\n\n{role_content}"
         payload_llm = {
-            "model": "aitf-ub-2026/cpt-qwen3-8b-sft_v1",
-            "messages": [
-                {"role": "system", "content": role_content},
-                {"role": "user", "content": user_content}
-            ],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.7,
-            "max_tokens": 2048
+            "profil_warga": teks_profil_warga,
+            "top_k": 5
+        }
+        headers_api = {
+            "accept": "application/json",
+            "Content-Type": "application/json"
         }
         
         # 1. Panggilan HTTP ke API Tim 3
@@ -205,7 +189,8 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
                 url_target = f"{API_TIM_3_URL}/recommend"
                 
                 response = await client.post(
-                    url_target, 
+                    url_target,
+                    headers=headers_api,
                     json=payload_llm, 
                     timeout=60.0
                 )
@@ -215,10 +200,12 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
                 # Fleksibilitas Ekstrak Balasan:
                 # Tetap dipertahankan untuk berjaga-jaga apakah Tim 3 mengembalikan 
                 # format raw OpenAI (choices) atau JSON yang sudah mereka rapikan.
-                if "choices" in hasil_mentah:
+                if isinstance(hasil_mentah, str):
+                    string_json_ai = hasil_mentah.strip().strip("```json").strip("```").strip()
+                    hasil_final = json.loads(string_json_ai)
+                elif isinstance(hasil_mentah, dict) and "choices" in hasil_mentah:
                     string_json_ai = hasil_mentah["choices"][0]["message"]["content"]
-                    if string_json_ai.strip().startswith("```"):
-                        string_json_ai = string_json_ai.strip().strip("```json").strip("```").strip()
+                    string_json_ai = string_json_ai.strip().strip("```json").strip("```").strip()
                     hasil_final = json.loads(string_json_ai)
                 else:
                     hasil_final = hasil_mentah.get("justifikasi_dokumen", hasil_mentah)
@@ -272,6 +259,7 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
         db.add(log)
         db.commit()
         print(f"[Asinkron] Asesmen sukses untuk KK {keluarga.no_kk}. Rekomendasi: {rekomendasi_baru}")
+    
     except Exception as e:
         db.rollback()
         print(f"[Asinkron DB Error] {e}")
