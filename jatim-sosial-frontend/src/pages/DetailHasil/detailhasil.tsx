@@ -767,13 +767,13 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   flexDirection: "column"
                 }}
               >
-                {filteredRecommendations.length > 0 && (
-                  <div >
+                {filteredRecommendations.length > 0 ? (
+                  <div>
                     {filteredRecommendations.map(rec => {
                       const reasonText = getAIReason(rec.id, "");
                       if (!reasonText) return null;
                       return (
-                        <div key={rec.id}>
+                        <div key={rec.id} style={{ marginBottom: "12px" }}>
                           <strong style={{ color: "#334155" }}>Alasan kelayakan {rec.id}:</strong>
                           <div style={{ marginTop: "4px" }}>
                             <ReactMarkdown>{reasonText}</ReactMarkdown>
@@ -781,6 +781,21 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                         </div>
                       );
                     })}
+                  </div>
+                ) : (
+                  <div>
+                    <strong style={{ color: "#334155" }}>Analisis Keseluruhan:</strong>
+                    <div style={{ marginTop: "4px" }}>
+                      <ReactMarkdown>{ringkasanProfil}</ReactMarkdown>
+                    </div>
+                    {rekomendasiTeknis && (
+                      <div style={{ marginTop: "12px" }}>
+                        <strong style={{ color: "#334155" }}>Rekomendasi Teknis:</strong>
+                        <div style={{ marginTop: "4px" }}>
+                          <ReactMarkdown>{rekomendasiTeknis}</ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -943,7 +958,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     </p>
                   </div>
                   <div className="form-group">
-                    <label>Catatan Supervisor / Catatan Validasi</label>
+                    <label>Catatan Supervisor</label>
                     <textarea
                       placeholder="Masukkan catatan keputusan validasi supervisor..."
                       rows={4}

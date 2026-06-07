@@ -258,11 +258,7 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
         else:
             bantuan_lama = hitung.rekomendasi_bantuan
 
-        if not rekomendasi_baru:
-            rekomendasi_baru = ["Tidak Eligible"]
-            hitung.status_validasi = "ditolak"
-        else:
-            hitung.status_validasi = "validasi"
+        hitung.status_validasi = "validasi" if len(rekomendasi_baru) > 0 else "ditolak"
 
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag

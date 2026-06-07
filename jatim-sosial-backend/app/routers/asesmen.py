@@ -113,11 +113,8 @@ async def asesmen_sosial(
         else:
             bantuan_lama = hitung.rekomendasi_bantuan
 
-        if not rekomendasi_baru:
-            rekomendasi_baru = ["Tidak Eligible"]
-            hitung.status_validasi = "ditolak"
-        else:
-            hitung.status_validasi = "validasi"
+        is_eligible = len(rekomendasi_baru) > 0
+        hitung.status_validasi = "validasi" if is_eligible else "ditolak"
 
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag

@@ -331,11 +331,19 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     ditolak: 0,
   });
 
-  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
   const [batchProgress, setBatchProgress] = useState(0);
   const latestRequestRef = React.useRef(0);
+
+  const displayData = useMemo(() => {
+    return data.map((row) =>
+      processingIds.has(row.id_keluarga)
+        ? { ...row, tahap: "proses" as Tahap }
+        : row,
+    );
+  }, [data, processingIds]);
 
   const fetchData = useCallback(async (showLoading = false) => {
     const requestId = ++latestRequestRef.current;
@@ -403,7 +411,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   }, [fetchData]);
 
   useEffect(() => {
-    const hasProcessingData = data.some((row) => row.tahap === "proses");
+    const hasProcessingData = displayData.some((row) => row.tahap === "proses");
     setIsMonitoring(hasProcessingData);
 
     if (!hasProcessingData) return;
@@ -413,21 +421,36 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [data, fetchData]);
+  }, [displayData, fetchData]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, searchTerm, filterKecamatan, filterKelurahan, filterOverlap, selectedDesils]);
 
   // Counts per tab (before search/filter)
-  const tabCounts = useMemo(
-    () => serverTabCounts,
-    [serverTabCounts],
-  );
+  const tabCounts = useMemo(() => {
+    const counts = { ...serverTabCounts };
+    let prosesTambahan = 0;
+    let analisisBerkurang = 0;
+
+    processingIds.forEach((id) => {
+      const row = data.find((item) => item.id_keluarga === id);
+      if (!row) return;
+      if (row.tahap === "analisis") {
+        analisisBerkurang += 1;
+        prosesTambahan += 1;
+      }
+    });
+
+    counts.analisis = Math.max(0, (counts.analisis || 0) - analisisBerkurang);
+    counts.proses = (counts.proses || 0) + prosesTambahan;
+    counts.semua = Math.max(0, (counts.semua || 0) - analisisBerkurang + prosesTambahan);
+    return counts;
+  }, [data, processingIds, serverTabCounts]);
 
   // Filtered data
   const filteredData = useMemo(() => {
-    let result = data;
+    let result = displayData;
 
     // Tab filter
     if (activeTab !== "semua") {
@@ -530,7 +553,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
     return result;
   }, [
-    data, activeTab, searchTerm, filterKecamatan, filterKelurahan,
+    displayData, activeTab, searchTerm, filterKecamatan, filterKelurahan,
     filterOverlap, selectedDesils, sortConfig, columnFilters, textColumnFilters,
   ]);
 
@@ -572,30 +595,42 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     const bantuan = Array.isArray(hasil?.hasil_analisis_sosial_tim3?.hasil_rekomendasi_final)
       ? hasil.hasil_analisis_sosial_tim3.hasil_rekomendasi_final
       : [];
+    const bantuanEligible = bantuan.filter(
+      (item: string | null | undefined) => item && item !== "Tidak Eligible",
+    );
+    const nextStatus = bantuanEligible.length > 0 ? "validasi" : "ditolak";
 
     const resUpdate = await apiFetch(`/api/v1/manajemen-bantuan/${id}/status`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        status_validasi: "validasi",
-        bantuan,
+        status_validasi: nextStatus,
+        bantuan: bantuanEligible,
       }),
     });
     if (!resUpdate.ok) {
       const err = await resUpdate.json().catch(() => ({}));
-      throw new Error(err.detail || "Gagal memindahkan ke tahap validasi.");
+      throw new Error(err.detail || "Gagal memperbarui tahap hasil analisis.");
     }
   };
 
   const handleAnalisis = async (id: string) => {
-    setAnalyzingId(id);
+    setProcessingIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
     try {
       await runAnalisisAndAdvance(id);
       await fetchData(); // refresh data setelah AI selesai
     } catch (e) {
       console.error(e);
     } finally {
-      setAnalyzingId(null);
+      setProcessingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -655,7 +690,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   };
 
   const handleAnalisisAll = async () => {
-    const allAnalisis = data.filter((d) => d.tahap === "analisis");
+    const allAnalisis = displayData.filter((d) => d.tahap === "analisis");
     if (allAnalisis.length === 0 || isBatchAnalyzing) return;
     const allIds = new Set(allAnalisis.map((d) => d.id_keluarga));
     setSelectedRows(allIds);
@@ -896,17 +931,16 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
               onClick={handleAnalisisAll}
               disabled={
                 isBatchAnalyzing ||
-                data.filter((d) => d.tahap === "analisis").length === 0
+                tabCounts.analisis === 0
               }
               style={{
                 opacity:
-                  data.filter((d) => d.tahap === "analisis").length === 0
+                  tabCounts.analisis === 0
                     ? 0.5
                     : 1,
               }}
             >
-              <BrainCircuit size={16} /> Analisis Semua (
-              {data.filter((d) => d.tahap === "analisis").length})
+              <BrainCircuit size={16} /> Analisis Semua ({tabCounts.analisis})
             </button>
           </div>
         </div>
@@ -1094,7 +1128,12 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                     </td>
                   </tr>
                 ) : (
-                  paginatedData.map((row) => (
+                  paginatedData.map((row) => {
+                    const displayRow = processingIds.has(row.id_keluarga)
+                      ? { ...row, tahap: "proses" as Tahap }
+                      : row;
+
+                    return (
                     <tr
                       key={row.id_keluarga}
                       onClick={() =>
@@ -1113,7 +1152,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                         }}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {row.tahap === "analisis" ? (
+                        {displayRow.tahap === "analisis" ? (
                           <button
                             onClick={() => toggleRowSelection(row.id_keluarga)}
                             style={{
@@ -1229,7 +1268,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                           case "skor_aspd":
                             return (
                               <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#2563eb" }}>
-                                {row.tahap === "proses" || row.tahap === "analisis"
+                                {displayRow.tahap === "proses" || displayRow.tahap === "analisis"
                                   ? "—"
                                   : (row.skorASPD ?? 0).toFixed(1)}
                               </td>
@@ -1237,7 +1276,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                           case "skor_pkh_plus":
                             return (
                               <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#7c3aed" }}>
-                                {row.tahap === "proses" || row.tahap === "analisis"
+                                {displayRow.tahap === "proses" || displayRow.tahap === "analisis"
                                   ? "—"
                                   : (row.skorPKHPlus ?? row.skorPKHT ?? 0).toFixed(1)}
                               </td>
@@ -1245,9 +1284,9 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                           case "tahap":
                             return (
                               <td key={col.key} style={{ padding: "14px 16px" }}>
-                                <span className={`mb-stage-badge ${getStageBadgeClass(row.tahap)}`} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                                <span className={`mb-stage-badge ${getStageBadgeClass(displayRow.tahap)}`} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                                   <span className="mb-badge-dot" />
-                                  {getStageBadgeLabel(row.tahap)}
+                                  {getStageBadgeLabel(displayRow.tahap)}
                                 </span>
                               </td>
                             );
@@ -1271,7 +1310,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                             return (
                               <td key={col.key} onClick={(e) => e.stopPropagation()} style={{ padding: "14px 16px", textAlign: "center" }}>
                                 <div style={{ display: "flex", justifyContent: "center", gap: "8px", alignItems: "center" }}>
-                                  {row.tahap === "proses" && (
+                                  {displayRow.tahap === "proses" && (
                                     <button
                                       className="mb-btn-analisis"
                                       style={{
@@ -1289,7 +1328,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                     </button>
                                   )}
 
-                                  {row.tahap === "analisis" && (
+                                  {displayRow.tahap === "analisis" && (
                                     <button
                                       className="mb-btn-analisis"
                                       style={{
@@ -1299,13 +1338,13 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                         justifyContent: "center",
                                         gap: "6px",
                                       }}
-                                      disabled={analyzingId === row.id_keluarga}
+                                      disabled={processingIds.has(row.id_keluarga)}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         handleAnalisis(row.id_keluarga);
                                       }}
                                     >
-                                      {analyzingId === row.id_keluarga ? (
+                                      {processingIds.has(row.id_keluarga) ? (
                                         <>
                                           <Loader2 size={14} className="mb-spin" /> Menganalisis
                                         </>
@@ -1317,7 +1356,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                     </button>
                                   )}
 
-                                  {row.tahap === "validasi" && (
+                                  {displayRow.tahap === "validasi" && (
                                     <button
                                       className="mb-btn-validasi"
                                       style={{
@@ -1338,7 +1377,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                     </button>
                                   )}
 
-                                  {(row.tahap === "diterima" || row.tahap === "ditolak") && (
+                                  {(displayRow.tahap === "diterima" || displayRow.tahap === "ditolak") && (
                                     <button
                                       className="mb-btn-review"
                                       style={{
@@ -1347,9 +1386,9 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                         alignItems: "center",
                                         justifyContent: "center",
                                         gap: "6px",
-                                        backgroundColor: row.tahap === "diterima" ? "#ecfdf5" : "#fef2f2",
-                                        color: row.tahap === "diterima" ? "#10b981" : "#ef4444",
-                                        borderColor: row.tahap === "diterima" ? "#a7f3d0" : "#fecaca",
+                                        backgroundColor: displayRow.tahap === "diterima" ? "#ecfdf5" : "#fef2f2",
+                                        color: displayRow.tahap === "diterima" ? "#10b981" : "#ef4444",
+                                        borderColor: displayRow.tahap === "diterima" ? "#a7f3d0" : "#fecaca",
                                       }}
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -1358,14 +1397,14 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                                         });
                                       }}
                                     >
-                                      {row.tahap === "diterima" ? <CheckCircle size={14} /> : <FileBarChart size={14} />} Review
+                                      {displayRow.tahap === "diterima" ? <CheckCircle size={14} /> : <FileBarChart size={14} />} Review
                                     </button>
                                   )}
                                 </div>
                               </td>
                             );
                           default: {
-                            const val = row[col.key as keyof DataRow];
+                            const val = displayRow[col.key as keyof DataRow];
                             let displayVal = "—";
                             if (typeof val === "boolean") {
                               displayVal = val ? "Ya" : "Tidak";
@@ -1383,7 +1422,8 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                         }
                       })}
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
