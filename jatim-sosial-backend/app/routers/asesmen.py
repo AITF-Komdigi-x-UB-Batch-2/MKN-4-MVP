@@ -20,7 +20,7 @@ from app.schemas import item as item_schema
 
 # Import Services & Utils
 from app.services.task_queue import asesmen_queue
-from app.services.ai_client import get_role_and_user_content, extract_rekomendasi
+from app.services.ai_client import build_profil_warga, extract_rekomendasi
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +46,10 @@ async def asesmen_sosial(
         raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
 
     hitung = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == keluarga.id).first()
-    skor_pkh = hitung.skor_pkh_plus if hitung and hitung.skor_pkh_plus else 0.0
-    skor_aspd = hitung.skor_aspd if hitung and hitung.skor_aspd else 0.0
 
     try:
-        role_content, user_content = get_role_and_user_content(keluarga, skor_pkh, skor_aspd)
-
-        teks_profil_warga = f"{user_content}\n\n{role_content}"
-        
         payload_llm = {
-            "profil_warga": teks_profil_warga,
+            "profil_warga": build_profil_warga(keluarga),
             "top_k": 5
         }
 
@@ -97,7 +91,15 @@ async def asesmen_sosial(
             raise HTTPException(status_code=502, detail=f"Gagal mendapatkan analisis dari Tim 3: {e}")
 
         rekomendasi_baru = extract_rekomendasi(hasil_final, keluarga)
-        analisis_rag = json.dumps(hasil_final) 
+
+        # Reasoning: simpan ringkasan + rekomendasi teknis dari Tim 3
+        ringkasan = hasil_final.get("ringkasan_profil", "")
+        teknis    = hasil_final.get("rekomendasi_teknis_bansos", "")
+        analisis_rag = json.dumps(
+            {"ringkasan_profil": ringkasan, "rekomendasi_teknis": teknis,
+             "rekomendasi": hasil_final.get("rekomendasi", [])},
+            ensure_ascii=False
+        )
 
         bantuan_lama = None
 
@@ -109,9 +111,7 @@ async def asesmen_sosial(
 
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
-        skor_obj = hasil_final.get("skor", {})
-        hitung.skor_aspd = skor_obj.get("skor_aspd", 0.0) if isinstance(skor_obj, dict) else 0.0
-        hitung.skor_pkh_plus = skor_obj.get("skor_pkh_plus", 0.0) if isinstance(skor_obj, dict) else 0.0
+        # CATATAN: Tim 3 tidak mengembalikan field "skor" — skor dari scoring.py tidak ditimpa.
 
         log = models.LogHistori(
             keluarga_id=keluarga.id, user_id=current_user.id,

@@ -5,16 +5,17 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app import models
-from app.config import AI_BASE_URL
+from app.config import AI_BASE_URL, MINIO_ENDPOINT, MINIO_PUBLIC_ENDPOINT
 
 logger = logging.getLogger(__name__)
 
 async def fetch_image_as_base64(url: str) -> str:
     if not url:
         return None
+    internal_url = url.replace(f"http://{MINIO_PUBLIC_ENDPOINT}", f"http://{MINIO_ENDPOINT}")
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, timeout=10.0)
+            response = await client.get(internal_url, timeout=10.0)
             response.raise_for_status()
             base64_encoded = base64.b64encode(response.content).decode('utf-8')
             return f"data:image/jpeg;base64,{base64_encoded}"

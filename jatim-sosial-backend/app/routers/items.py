@@ -18,7 +18,7 @@ import tempfile
 from app.database import get_db
 from app import models
 from app.security import get_current_user
-from app.config import MINIO_BUCKET, MINIO_ENDPOINT, s3_client, to_public_foto_url
+from app.config import MINIO_BUCKET, MINIO_ENDPOINT, MINIO_PUBLIC_ENDPOINT, s3_client, to_public_foto_url
 from app.schemas import item as item_schema
 from app.services.task_queue import run_async_visual_validation, run_async_assessment
 from app.services.ai_client import determine_eligibility
@@ -322,7 +322,7 @@ async def import_csv(
                                     Body=foto_res.content,
                                     ContentType="image/jpeg"
                                 )
-                                url_minio_final = f"http://{MINIO_ENDPOINT}/{MINIO_BUCKET}/{nama_file_minio}"
+                                url_minio_final = f"http://{MINIO_PUBLIC_ENDPOINT}/{MINIO_BUCKET}/{nama_file_minio}"
                                 db.add(models.Foto(
                                     keluarga_id=keluarga_diproses.id,
                                     url_foto=url_minio_final,
