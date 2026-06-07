@@ -1008,21 +1008,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   />
                   <h4 style={{ color: "#0d9488" }}>Pengajuan Disetujui</h4>
                 </div>
-                <div className="panel-body">
-                  <p
-                    style={{
-                      fontSize: "14px",
-                      lineHeight: 1.5,
-                      color: "#374151",
-                      marginBottom: "16px",
-                    }}
-                  >
-                    Keluarga ini telah disetujui untuk menerima program bantuan
-                    sosial berikut berdasarkan analisis kebutuhan dan kelayakan
-                    ekonomi desil {desil}.
-                  </p>
-
-                  <div
+                <div className="panel-body">                  <div
                     style={{
                       marginBottom: "24px",
                       display: "flex",
@@ -1030,29 +1016,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                       gap: "12px",
                     }}
                   >
-                    <div>
-                      <label
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: "#6b7280",
-                        }}
-                      >
-                        CATATAN ANALIS
-                      </label>
-                      <p
-                        style={{
-                          fontSize: "14px",
-                          background: "#f3f4f6",
-                          padding: "10px",
-                          borderRadius: "6px",
-                          whiteSpace: "pre-wrap",
-                          marginTop: "4px",
-                        }}
-                      >
-                        {detailData?.catatan || "Tidak ada catatan."}
-                      </p>
-                    </div>
                     <div>
                       <label
                         style={{
@@ -1174,21 +1137,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     Pengajuan Bantuan Ditolak
                   </h4>
                 </div>
-                <div className="panel-body">
-                  <p
-                    style={{
-                      fontSize: "14px",
-                      lineHeight: 1.5,
-                      color: "#374151",
-                      marginBottom: "16px",
-                    }}
-                  >
-                    Berdasarkan kriteria kemiskinan dan proses verifikasi
-                    supervisor, keluarga ini dinilai tidak memenuhi kriteria
-                    kelayakan sebagai penerima manfaat.
-                  </p>
-
-                  <div
+                <div className="panel-body">                  <div
                     style={{
                       marginBottom: "24px",
                       display: "flex",
@@ -1196,30 +1145,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                       gap: "12px",
                     }}
                   >
-                    <div>
-                      <label
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: "#6b7280",
-                        }}
-                      >
-                        CATATAN ANALIS
-                      </label>
-                      <p
-                        style={{
-                          fontSize: "14px",
-                          background: "#fef2f2",
-                          padding: "10px",
-                          borderRadius: "6px",
-                          whiteSpace: "pre-wrap",
-                          marginTop: "4px",
-                          color: "#b91c1c",
-                        }}
-                      >
-                        {detailData?.catatan || "Tidak ada catatan."}
-                      </p>
-                    </div>
                     <div>
                       <label
                         style={{
