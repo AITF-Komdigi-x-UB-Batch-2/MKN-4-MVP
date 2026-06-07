@@ -20,7 +20,7 @@ from app.schemas import item as item_schema
 
 # Import Services & Utils
 from app.services.task_queue import asesmen_queue
-from app.services.ai_client import mock_qdrant_retriever, get_role_and_user_content, extract_rekomendasi
+from app.services.ai_client import get_role_and_user_content, extract_rekomendasi
 
 logger = logging.getLogger(__name__)
 
