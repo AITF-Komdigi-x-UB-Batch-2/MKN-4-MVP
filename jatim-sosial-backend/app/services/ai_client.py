@@ -228,11 +228,15 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
                     hasil_final = hasil_mentah.get("justifikasi_dokumen", hasil_mentah)
                     
         except Exception as e:
-            logger.error(f"[Asinkron] Gagal memanggil API Tim 3 (Sosial): {e}", exc_info=True)
-            if hitung:
-                hitung.status_validasi = "analisis"
-                db.commit()
-            return
+            import logging
+            logging.error(f"[Asinkron] Gagal memanggil API Tim 3 (Sosial): {e}", exc_info=True)
+            
+            # --- FALLBACK DETERMINISTIK ---
+            hasil_final = {
+                "rekomendasi": determine_eligibility(keluarga),
+                "ringkasan_profil": "Sistem menggunakan analisis cadangan (Fallback Deterministik) karena koneksi ke API AI Tim 3 terputus atau URL belum dikonfigurasi.",
+                "rekomendasi_teknis_bansos": "Warga ini dievaluasi secara otomatis menggunakan sistem desil, usia lansia, dan filter disabilitas sesuai standar Juknis Jatim dasar tanpa analisis LLM."
+            }
 
         # 3. Simpan Rekomendasi Program & Detail Analisis
         rekomendasi_baru = extract_rekomendasi(hasil_final, keluarga)
