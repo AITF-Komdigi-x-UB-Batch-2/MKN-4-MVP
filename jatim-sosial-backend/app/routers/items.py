@@ -292,7 +292,7 @@ async def import_csv(
 
                 is_processing = hitung.status_validasi not in ("diterima", "ditolak")
                 if is_processing:
-                    hitung.status_validasi = "proses"
+                    hitung.status_validasi = "analisis"
 
                 # 3. PROSES URL FOTO (Download ke MinIO)
                 for tipe, raw_photo_urls in [("tampak_luar", raw_urls), ("tampak_dalam", raw_urls_dalam)]:
@@ -354,7 +354,7 @@ async def import_csv(
 
     for keluarga_id in keluarga_ids_for_tasks:
         background_tasks.add_task(run_async_visual_validation, keluarga_id, current_user.id)
-        background_tasks.add_task(run_async_assessment, keluarga_id, current_user.id)
+        # Menghapus auto run_async_assessment agar tidak lompat ke tahap validasi otomatis
 
     return {
         "status": "Sukses",
