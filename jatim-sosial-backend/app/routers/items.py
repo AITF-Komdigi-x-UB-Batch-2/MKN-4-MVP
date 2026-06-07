@@ -272,27 +272,24 @@ async def import_csv(
                     keluarga_diproses = keluarga_baru
                     db.flush()
 
-
-                print("DEBUG sebelum akses tabel perhitungan")
-                # Tandai status awal sebagai "analisis" agar data masuk ke tab Analisis
+                # Tandai status awal sebagai "analisis" HANYA untuk data BARU
                 hitung = db.query(models.Perhitungan).filter(
                     models.Perhitungan.keluarga_id == keluarga_diproses.id
                 ).first()
+                is_new_record = False
                 if not hitung:
+                    is_new_record = True
                     hitung = models.Perhitungan(
                         keluarga_id=keluarga_diproses.id,
-                        user_id=current_user.id
+                        user_id=current_user.id,
+                        status_validasi="analisis"
                     )
                     db.add(hitung)
-
-                # DIBIARKAN KOSONG SAAT IMPOR SESUAI PERMINTAAN USER
-                # hitung.skor_aspd = None
-                # hitung.skor_pkh_plus = None
-                # hitung.rekomendasi_bantuan = []
-
-                is_processing = hitung.status_validasi not in ("diterima", "ditolak")
-                if is_processing:
-                    hitung.status_validasi = "analisis"
+                else:
+                    # JANGAN RESET STATUS UNTUK DATA EXISTING
+                    # Hanya reset jika status masih "proses" (dari unfinished analysis)
+                    if hitung.status_validasi == "proses":
+                        hitung.status_validasi = "analisis"
 
                 # 3. PROSES URL FOTO (Download ke MinIO)
                 for tipe, raw_photo_urls in [("tampak_luar", raw_urls), ("tampak_dalam", raw_urls_dalam)]:
@@ -340,7 +337,7 @@ async def import_csv(
                             log_foto.append(f"KK {no_kk_row}: ERROR foto {tipe} → {str(e)}")
 
                 sukses += 1
-                if is_processing:
+                if is_new_record:
                     keluarga_ids_for_tasks.add(keluarga_diproses.id)
 
             except Exception as e:
@@ -572,7 +569,7 @@ async def get_detail_manajemen_bantuan(
     
     tahap_ui = p.status_validasi if p and p.status_validasi else "analisis"
     rekomendasi_list = p.rekomendasi_bantuan if p and p.rekomendasi_bantuan else []
-    bantuan_list = rekomendasi_list if tahap_ui in ("validasi", "diterima", "ditolak") else []
+    bantuan_list = rekomendasi_list
     
     return item_schema.DetailKeluargaResponse(
         id_keluarga=str(k.id),
@@ -609,6 +606,7 @@ async def get_detail_manajemen_bantuan(
 async def update_status_validasi(
     id_keluarga: UUID,
     request: item_schema.UpdateStatusValidasiRequest,
+    background_tasks: BackgroundTasks,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -616,6 +614,8 @@ async def update_status_validasi(
     if not p:
         p = models.Perhitungan(keluarga_id=id_keluarga)
         db.add(p)
+    
+    old_status = p.status_validasi if p else None
     
     if request.status_validasi:
         p.status_validasi = request.status_validasi
@@ -630,6 +630,11 @@ async def update_status_validasi(
         p.catatan_supervisor = request.catatan_supervisor
         
     db.commit()
+    
+    # Trigger re-analysis tasks if transitioning to "analisis" from diterima/ditolak/validasi
+    if request.status_validasi == "analisis" and old_status in ("diterima", "ditolak", "validasi"):
+        background_tasks.add_task(run_async_visual_validation, id_keluarga, current_user.id)
+    
     return await get_detail_manajemen_bantuan(id_keluarga, current_user, db)
 
 # ENDPOINT READ DATA (GET)

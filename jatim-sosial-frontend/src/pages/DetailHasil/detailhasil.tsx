@@ -767,13 +767,13 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   flexDirection: "column"
                 }}
               >
-                {filteredRecommendations.length > 0 && (
-                  <div >
+                {filteredRecommendations.length > 0 ? (
+                  <div>
                     {filteredRecommendations.map(rec => {
                       const reasonText = getAIReason(rec.id, "");
                       if (!reasonText) return null;
                       return (
-                        <div key={rec.id}>
+                        <div key={rec.id} style={{ marginBottom: "12px" }}>
                           <strong style={{ color: "#334155" }}>Alasan kelayakan {rec.id}:</strong>
                           <div style={{ marginTop: "4px" }}>
                             <ReactMarkdown>{reasonText}</ReactMarkdown>
@@ -782,13 +782,27 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                       );
                     })}
                   </div>
+                ) : (
+                  <div>
+                    <strong style={{ color: "#334155" }}>Analisis Keseluruhan:</strong>
+                    <div style={{ marginTop: "4px" }}>
+                      <ReactMarkdown>{ringkasanProfil}</ReactMarkdown>
+                    </div>
+                    {rekomendasiTeknis && (
+                      <div style={{ marginTop: "12px" }}>
+                        <strong style={{ color: "#334155" }}>Rekomendasi Teknis:</strong>
+                        <div style={{ marginTop: "4px" }}>
+                          <ReactMarkdown>{rekomendasiTeknis}</ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
 
             {/* Smart Recommendations Section */}
-            {currentTahap !== "diterima" && (
-              <div className="detail-card-section">
+            <div className="detail-card-section">
                 <div className="detail-card-header">
                   <h4>Bantuan yang Eligible (Analisis AI)</h4>
                 </div>
@@ -857,7 +871,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   </div>
                 </div>
               </div>
-            )}
           </div>
 
           {/* Right Column (Dynamic Panel based on Tahap) */}
@@ -943,7 +956,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     </p>
                   </div>
                   <div className="form-group">
-                    <label>Catatan Supervisor / Catatan Validasi</label>
+                    <label>Catatan Supervisor</label>
                     <textarea
                       placeholder="Masukkan catatan keputusan validasi supervisor..."
                       rows={4}
@@ -1111,18 +1124,34 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                       </div>
                     )}
                   </div>
-                  <button
-                    className="btn-action w-full"
-                    style={{
-                      justifyContent: "center",
-                      marginTop: "16px",
-                      backgroundColor: "#f8fafc",
-                      border: "1px solid #e2e8f0",
-                    }}
-                    onClick={() => navigate("/manajemen-bantuan")}
+                  <div
+                    className="panel-actions"
+                    style={{ flexDirection: "column", gap: "10px", marginTop: "16px" }}
                   >
-                    Kembali ke Daftar
-                  </button>
+                    <button
+                      className="btn-action w-full"
+                      style={{
+                        justifyContent: "center",
+                        backgroundColor: "#f3f4f6",
+                        color: "#374151",
+                        border: "1px solid #d1d5db",
+                      }}
+                      onClick={handleReanalyze}
+                    >
+                      <RefreshCw size={14} /> Analisis Ulang Data
+                    </button>
+                    <button
+                      className="btn-action w-full"
+                      style={{
+                        justifyContent: "center",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                      }}
+                      onClick={() => navigate("/manajemen-bantuan")}
+                    >
+                      Kembali ke Daftar
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

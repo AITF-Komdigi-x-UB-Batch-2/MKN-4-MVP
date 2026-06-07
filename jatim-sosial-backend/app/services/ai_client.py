@@ -258,6 +258,8 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
         else:
             bantuan_lama = hitung.rekomendasi_bantuan
 
+        hitung.status_validasi = "validasi" if len(rekomendasi_baru) > 0 else "ditolak"
+
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
         # MENGHITUNG SKOR PADA SAAT ANALISIS BUKAN SAAT IMPOR
@@ -265,8 +267,6 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
         skor = hitung_skor_bantuan(keluarga)
         hitung.skor_pkh_plus = skor.get("skor_pkh_plus")
         hitung.skor_aspd = skor.get("skor_aspd")
-
-        hitung.status_validasi = "validasi"
 
         log = models.LogHistori(
             keluarga_id=keluarga.id,

@@ -22,11 +22,13 @@ interface RecommendationCardProps {
 export const RecommendationCard: React.FC<RecommendationCardProps> = ({
   data
 }) => {
+  const normalizedId = data.id === 'PKHT' ? 'PKH Plus' : data.id;
+
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
         <h4 className="rec-title">{data.title}</h4>
-        {(data.id === 'PKHT' || data.id === 'ASPD') && (
+        {(normalizedId === 'PKH Plus' || normalizedId === 'ASPD') && (
           <span className="match-text">Skor Bantuan: {(data.match / 100).toFixed(3)}</span>
         )}
       </div>
