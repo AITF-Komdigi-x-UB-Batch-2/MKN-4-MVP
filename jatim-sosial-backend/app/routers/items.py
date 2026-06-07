@@ -569,7 +569,7 @@ async def get_detail_manajemen_bantuan(
     
     tahap_ui = p.status_validasi if p and p.status_validasi else "analisis"
     rekomendasi_list = p.rekomendasi_bantuan if p and p.rekomendasi_bantuan else []
-    bantuan_list = rekomendasi_list if tahap_ui in ("validasi", "diterima", "ditolak") else []
+    bantuan_list = rekomendasi_list
     
     return item_schema.DetailKeluargaResponse(
         id_keluarga=str(k.id),
@@ -606,6 +606,7 @@ async def get_detail_manajemen_bantuan(
 async def update_status_validasi(
     id_keluarga: UUID,
     request: item_schema.UpdateStatusValidasiRequest,
+    background_tasks: BackgroundTasks,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -614,9 +615,9 @@ async def update_status_validasi(
         p = models.Perhitungan(keluarga_id=id_keluarga)
         db.add(p)
     
+    old_status = p.status_validasi if p else None
+    
     if request.status_validasi:
-        if p.status_validasi in ("diterima", "ditolak") and request.status_validasi == "analisis":
-            request.status_validasi = p.status_validasi
         p.status_validasi = request.status_validasi
         
     if request.bantuan is not None:
@@ -629,6 +630,11 @@ async def update_status_validasi(
         p.catatan_supervisor = request.catatan_supervisor
         
     db.commit()
+    
+    # Trigger re-analysis tasks if transitioning to "analisis" from diterima/ditolak/validasi
+    if request.status_validasi == "analisis" and old_status in ("diterima", "ditolak", "validasi"):
+        background_tasks.add_task(run_async_visual_validation, id_keluarga, current_user.id)
+    
     return await get_detail_manajemen_bantuan(id_keluarga, current_user, db)
 
 # ENDPOINT READ DATA (GET)

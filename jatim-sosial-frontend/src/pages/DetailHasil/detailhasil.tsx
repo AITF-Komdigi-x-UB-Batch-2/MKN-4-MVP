@@ -428,15 +428,9 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   };
 
   const handleReanalyze = async () => {
-    const preserveStatus = currentTahap === "diterima" || currentTahap === "ditolak";
-    const nextStatus = preserveStatus ? currentTahap : "analisis";
-    const success = await handleUpdateStatus(nextStatus);
+    const success = await handleUpdateStatus("analisis");
     if (success) {
-      setSuccessMsg(
-        preserveStatus
-          ? "Status tetap pada tahap final."
-          : "Status dikembalikan ke tahap Analisis!",
-      );
+      setSuccessMsg("Status dikembalikan ke tahap Analisis!");
       setTimeout(() => setSuccessMsg(""), 2000);
     }
   };
@@ -808,8 +802,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
             </div>
 
             {/* Smart Recommendations Section */}
-            {currentTahap !== "diterima" && (
-              <div className="detail-card-section">
+            <div className="detail-card-section">
                 <div className="detail-card-header">
                   <h4>Bantuan yang Eligible (Analisis AI)</h4>
                 </div>
@@ -878,7 +871,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   </div>
                 </div>
               </div>
-            )}
           </div>
 
           {/* Right Column (Dynamic Panel based on Tahap) */}

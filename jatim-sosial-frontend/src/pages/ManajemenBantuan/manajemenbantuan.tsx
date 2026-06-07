@@ -974,7 +974,6 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                 placeholder="Cari Nama / NIK / ID Analisis..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                disabled={isLoading}
               />
             </div>
 
