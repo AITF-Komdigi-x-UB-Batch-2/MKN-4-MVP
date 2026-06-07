@@ -273,7 +273,7 @@ async def import_csv(
                     db.flush()
 
                 # 3. Hitung skor SETELAH data bersih dan terisi
-                skor = hitung_skor_bantuan(data_bersih)
+                skor = hitung_skor_bantuan(keluarga_diproses)
                 print("DEBUG sebelum akses tabel perhitungan")
                 # Tandai status awal sebagai "proses" agar data tidak terlihat sebelum selesai
                 hitung = db.query(models.Perhitungan).filter(
