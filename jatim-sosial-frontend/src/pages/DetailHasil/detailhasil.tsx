@@ -1111,18 +1111,34 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                       </div>
                     )}
                   </div>
-                  <button
-                    className="btn-action w-full"
-                    style={{
-                      justifyContent: "center",
-                      marginTop: "16px",
-                      backgroundColor: "#f8fafc",
-                      border: "1px solid #e2e8f0",
-                    }}
-                    onClick={() => navigate("/manajemen-bantuan")}
+                  <div
+                    className="panel-actions"
+                    style={{ flexDirection: "column", gap: "10px", marginTop: "16px" }}
                   >
-                    Kembali ke Daftar
-                  </button>
+                    <button
+                      className="btn-action w-full"
+                      style={{
+                        justifyContent: "center",
+                        backgroundColor: "#f3f4f6",
+                        color: "#374151",
+                        border: "1px solid #d1d5db",
+                      }}
+                      onClick={handleReanalyze}
+                    >
+                      <RefreshCw size={14} /> Analisis Ulang Data
+                    </button>
+                    <button
+                      className="btn-action w-full"
+                      style={{
+                        justifyContent: "center",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                      }}
+                      onClick={() => navigate("/manajemen-bantuan")}
+                    >
+                      Kembali ke Daftar
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
