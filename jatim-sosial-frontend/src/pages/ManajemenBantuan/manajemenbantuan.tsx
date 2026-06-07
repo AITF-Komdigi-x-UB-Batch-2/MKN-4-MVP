@@ -265,7 +265,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
   const [textColumnFilters, setTextColumnFilters] = useState<Record<string, string>>({});
   const [pendingFilter, setPendingFilter] = useState<Set<string>>(new Set());
-  const [pendingTextFilter, setPendingTextFilter] = useState('');  
+  const [pendingTextFilter, setPendingTextFilter] = useState('');
   const [filterDropdownSearch, setFilterDropdownSearch] = useState('');
 
   // Column visibility state loaded from localStorage
@@ -418,7 +418,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
     const pollInterval = setInterval(() => {
       fetchData();
-    }, 2000);
+    }, 4000);
 
     return () => clearInterval(pollInterval);
   }, [displayData, fetchData]);
@@ -990,10 +990,10 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
               >
                 Atur Kolom
               </button>
-               {showColumnDropdown && (
+              {showColumnDropdown && (
                 <div className="mb-popover-menu" onClick={(e) => e.stopPropagation()} style={{ position: "absolute", zIndex: 100, right: 0, marginTop: "8px" }}>
                   <div className="mb-popover-header">Visibilitas Kolom</div>
-                  
+
                   <div className="mb-column-search">
                     <input
                       type="text"
@@ -1133,294 +1133,294 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                       : row;
 
                     return (
-                    <tr
-                      key={row.id_keluarga}
-                      onClick={() =>
-                        navigate(`/detail-hasil/${row.id_keluarga}`, {
-                          state: row,
-                        })
-                      }
-                      className={`mb-clickable-row ${selectedRows.has(row.id_keluarga) ? "mb-row-selected" : ""}`}
-                    >
-                      {/* Checkbox */}
-                      <td
-                        style={{
-                          width: "44px",
-                          textAlign: "center",
-                          padding: "14px 8px",
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {displayRow.tahap === "analisis" ? (
-                          <button
-                            onClick={() => toggleRowSelection(row.id_keluarga)}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              padding: 0,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              margin: "0 auto",
-                            }}
-                          >
-                            {selectedRows.has(row.id_keluarga) ? (
-                              <CheckSquare
-                                size={16}
-                                style={{ color: "#2563eb" }}
-                              />
-                            ) : (
-                              <Square size={16} style={{ color: "#cbd5e1" }} />
-                            )}
-                          </button>
-                        ) : (
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 16,
-                              height: 16,
-                            }}
-                          />
-                        )}
-                      </td>
-
-                      {/* Dynamic Columns Cell Mapping */}
-                      {COLUMNS.map((col) => {
-                        if (!visibleColumns.has(col.key) && !col.locked) return null;
-
-                        switch (col.key) {
-                          case "id_keluarga":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                <div className="mb-id-col" style={{ display: "flex", flexDirection: "column" }}>
-                                  <span className="mb-cell-link" style={{ fontWeight: 600 }}>{row.idLabel}</span>
-                                  <span style={{ fontSize: "11px", color: "#64748b" }}>{row.tanggal || "-"}</span>
-                                </div>
-                              </td>
-                            );
-                          case "nama": {
-                            const isNikColumnVisible = visibleColumns.has("nik");
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                <div style={{ display: "flex", flexDirection: "column" }}>
-                                  <span style={{ fontWeight: 600, color: "#1e293b" }}>{row.nama}</span>
-                                  {!isNikColumnVisible && (
-                                    <>
-                                      <span style={{ fontSize: "12px", color: "#64748b" }}>
-                                        NIK: {row.nik.length > 20 ? row.nik.substring(0, 20) + "..." : row.nik}
-                                      </span>
-                                      {row.nik && (row.nik.includes("0000") || row.nik.length < 16) && (
-                                        <span style={{ fontSize: "10px", color: "#ef4444", background: "#fef2f2", padding: "2px 6px", borderRadius: "4px", width: "fit-content", marginTop: "4px", fontWeight: 600 }}>
-                                          Anomali NIK
-                                        </span>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          }
-                          case "wilayah": {
-                            const isKecamatanVisible = visibleColumns.has("kecamatan");
-                            const isKelurahanVisible = visibleColumns.has("kelurahan_desa");
-                            const showWilayahSubtext = !isKecamatanVisible && !isKelurahanVisible;
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                <div style={{ display: "flex", flexDirection: "column" }}>
-                                  <span style={{ fontWeight: 500, color: "#334155" }}>{row.wilayah}</span>
-                                  {showWilayahSubtext && (
-                                    <span style={{ fontSize: "12px", color: "#64748b" }}>
-                                      {row.kecamatan || "-"}, {row.kelurahan_desa || "-"}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          }
-                          case "desil":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                <span
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    color: getDesilColor(row.desil),
-                                    fontWeight: "600",
-                                    backgroundColor:
-                                      getDesilColor(row.desil) === "red"
-                                        ? "#fee2e2"
-                                        : getDesilColor(row.desil) === "orange"
-                                          ? "#ffedd5"
-                                          : "#dcfce7",
-                                    padding: "4px 12px",
-                                    borderRadius: "9999px",
-                                    fontSize: "13px",
-                                    minWidth: "70px",
-                                  }}
-                                >
-                                  Desil {row.desil}
-                                </span>
-                              </td>
-                            );
-                          case "skor_aspd":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#2563eb" }}>
-                                {displayRow.tahap === "proses" || displayRow.tahap === "analisis"
-                                  ? "—"
-                                  : (row.skorASPD ?? 0).toFixed(1)}
-                              </td>
-                            );
-                          case "skor_pkh_plus":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#7c3aed" }}>
-                                {displayRow.tahap === "proses" || displayRow.tahap === "analisis"
-                                  ? "—"
-                                  : (row.skorPKHPlus ?? row.skorPKHT ?? 0).toFixed(1)}
-                              </td>
-                            );
-                          case "tahap":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                <span className={`mb-stage-badge ${getStageBadgeClass(displayRow.tahap)}`} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                                  <span className="mb-badge-dot" />
-                                  {getStageBadgeLabel(displayRow.tahap)}
-                                </span>
-                              </td>
-                            );
-                          case "bantuan":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                {row.bantuan && row.bantuan.length > 0 ? (
-                                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                                    {row.bantuan.map((b) => (
-                                      <span key={b} className={`mb-pill-bantuan ${b.toLowerCase()}`} style={{ fontSize: "11px", fontWeight: "600", padding: "2px 8px", borderRadius: "4px", backgroundColor: b === "ASPD" ? "#eff6ff" : "#f5f3ff", color: b === "ASPD" ? "#1d4ed8" : "#6d28d9", border: `1px solid ${b === "ASPD" ? "#bfdbfe" : "#ddd6fe"}` }}>
-                                        {b}
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span style={{ color: "#94a3b8", fontSize: "13px" }}>—</span>
-                                )}
-                              </td>
-                            );
-                          case "aksi":
-                            return (
-                              <td key={col.key} onClick={(e) => e.stopPropagation()} style={{ padding: "14px 16px", textAlign: "center" }}>
-                                <div style={{ display: "flex", justifyContent: "center", gap: "8px", alignItems: "center" }}>
-                                  {displayRow.tahap === "proses" && (
-                                    <button
-                                      className="mb-btn-analisis"
-                                      style={{
-                                        width: "120px",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: "6px",
-                                        cursor: "not-allowed",
-                                        opacity: 0.8,
-                                      }}
-                                      disabled
-                                    >
-                                      <Loader2 size={14} className="mb-spin" /> Diproses...
-                                    </button>
-                                  )}
-
-                                  {displayRow.tahap === "analisis" && (
-                                    <button
-                                      className="mb-btn-analisis"
-                                      style={{
-                                        width: "120px",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: "6px",
-                                      }}
-                                      disabled={processingIds.has(row.id_keluarga)}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleAnalisis(row.id_keluarga);
-                                      }}
-                                    >
-                                      {processingIds.has(row.id_keluarga) ? (
-                                        <>
-                                          <Loader2 size={14} className="mb-spin" /> Menganalisis
-                                        </>
-                                      ) : (
-                                        <>
-                                          <BrainCircuit size={14} /> Analisis
-                                        </>
-                                      )}
-                                    </button>
-                                  )}
-
-                                  {displayRow.tahap === "validasi" && (
-                                    <button
-                                      className="mb-btn-validasi"
-                                      style={{
-                                        width: "120px",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: "6px",
-                                      }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate(`/detail-hasil/${row.id_keluarga}`, {
-                                          state: row,
-                                        });
-                                      }}
-                                    >
-                                      <ShieldCheck size={14} /> Validasi
-                                    </button>
-                                  )}
-
-                                  {(displayRow.tahap === "diterima" || displayRow.tahap === "ditolak") && (
-                                    <button
-                                      className="mb-btn-review"
-                                      style={{
-                                        width: "120px",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: "6px",
-                                        backgroundColor: displayRow.tahap === "diterima" ? "#ecfdf5" : "#fef2f2",
-                                        color: displayRow.tahap === "diterima" ? "#10b981" : "#ef4444",
-                                        borderColor: displayRow.tahap === "diterima" ? "#a7f3d0" : "#fecaca",
-                                      }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate(`/detail-hasil/${row.id_keluarga}`, {
-                                          state: row,
-                                        });
-                                      }}
-                                    >
-                                      {displayRow.tahap === "diterima" ? <CheckCircle size={14} /> : <FileBarChart size={14} />} Review
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          default: {
-                            const val = displayRow[col.key as keyof DataRow];
-                            let displayVal = "—";
-                            if (typeof val === "boolean") {
-                              displayVal = val ? "Ya" : "Tidak";
-                            } else if (typeof val === "number") {
-                              displayVal = val.toLocaleString();
-                            } else if (val) {
-                              displayVal = String(val);
-                            }
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px", color: "#475569", fontSize: "13px" }}>
-                                {displayVal}
-                              </td>
-                            );
-                          }
+                      <tr
+                        key={row.id_keluarga}
+                        onClick={() =>
+                          navigate(`/detail-hasil/${row.id_keluarga}`, {
+                            state: row,
+                          })
                         }
-                      })}
-                    </tr>
+                        className={`mb-clickable-row ${selectedRows.has(row.id_keluarga) ? "mb-row-selected" : ""}`}
+                      >
+                        {/* Checkbox */}
+                        <td
+                          style={{
+                            width: "44px",
+                            textAlign: "center",
+                            padding: "14px 8px",
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {displayRow.tahap === "analisis" ? (
+                            <button
+                              onClick={() => toggleRowSelection(row.id_keluarga)}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: 0,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                margin: "0 auto",
+                              }}
+                            >
+                              {selectedRows.has(row.id_keluarga) ? (
+                                <CheckSquare
+                                  size={16}
+                                  style={{ color: "#2563eb" }}
+                                />
+                              ) : (
+                                <Square size={16} style={{ color: "#cbd5e1" }} />
+                              )}
+                            </button>
+                          ) : (
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 16,
+                                height: 16,
+                              }}
+                            />
+                          )}
+                        </td>
+
+                        {/* Dynamic Columns Cell Mapping */}
+                        {COLUMNS.map((col) => {
+                          if (!visibleColumns.has(col.key) && !col.locked) return null;
+
+                          switch (col.key) {
+                            case "id_keluarga":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  <div className="mb-id-col" style={{ display: "flex", flexDirection: "column" }}>
+                                    <span className="mb-cell-link" style={{ fontWeight: 600 }}>{row.idLabel}</span>
+                                    <span style={{ fontSize: "11px", color: "#64748b" }}>{row.tanggal || "-"}</span>
+                                  </div>
+                                </td>
+                              );
+                            case "nama": {
+                              const isNikColumnVisible = visibleColumns.has("nik");
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  <div style={{ display: "flex", flexDirection: "column" }}>
+                                    <span style={{ fontWeight: 600, color: "#1e293b" }}>{row.nama}</span>
+                                    {!isNikColumnVisible && (
+                                      <>
+                                        <span style={{ fontSize: "12px", color: "#64748b" }}>
+                                          NIK: {row.nik.length > 20 ? row.nik.substring(0, 20) + "..." : row.nik}
+                                        </span>
+                                        {row.nik && (row.nik.includes("0000") || row.nik.length < 16) && (
+                                          <span style={{ fontSize: "10px", color: "#ef4444", background: "#fef2f2", padding: "2px 6px", borderRadius: "4px", width: "fit-content", marginTop: "4px", fontWeight: 600 }}>
+                                            Anomali NIK
+                                          </span>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            }
+                            case "wilayah": {
+                              const isKecamatanVisible = visibleColumns.has("kecamatan");
+                              const isKelurahanVisible = visibleColumns.has("kelurahan_desa");
+                              const showWilayahSubtext = !isKecamatanVisible && !isKelurahanVisible;
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  <div style={{ display: "flex", flexDirection: "column" }}>
+                                    <span style={{ fontWeight: 500, color: "#334155" }}>{row.wilayah}</span>
+                                    {showWilayahSubtext && (
+                                      <span style={{ fontSize: "12px", color: "#64748b" }}>
+                                        {row.kecamatan || "-"}, {row.kelurahan_desa || "-"}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            }
+                            case "desil":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      color: getDesilColor(row.desil),
+                                      fontWeight: "600",
+                                      backgroundColor:
+                                        getDesilColor(row.desil) === "red"
+                                          ? "#fee2e2"
+                                          : getDesilColor(row.desil) === "orange"
+                                            ? "#ffedd5"
+                                            : "#dcfce7",
+                                      padding: "4px 12px",
+                                      borderRadius: "9999px",
+                                      fontSize: "13px",
+                                      minWidth: "70px",
+                                    }}
+                                  >
+                                    Desil {row.desil}
+                                  </span>
+                                </td>
+                              );
+                            case "skor_aspd":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#2563eb" }}>
+                                  {displayRow.tahap === "proses" || displayRow.tahap === "analisis"
+                                    ? "—"
+                                    : (row.skorASPD ?? 0).toFixed(1)}
+                                </td>
+                              );
+                            case "skor_pkh_plus":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#7c3aed" }}>
+                                  {displayRow.tahap === "proses" || displayRow.tahap === "analisis"
+                                    ? "—"
+                                    : (row.skorPKHPlus ?? row.skorPKHT ?? 0).toFixed(1)}
+                                </td>
+                              );
+                            case "tahap":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  <span className={`mb-stage-badge ${getStageBadgeClass(displayRow.tahap)}`} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                                    <span className="mb-badge-dot" />
+                                    {getStageBadgeLabel(displayRow.tahap)}
+                                  </span>
+                                </td>
+                              );
+                            case "bantuan":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  {row.bantuan && row.bantuan.length > 0 ? (
+                                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                                      {row.bantuan.map((b) => (
+                                        <span key={b} className={`mb-pill-bantuan ${b.toLowerCase()}`} style={{ fontSize: "11px", fontWeight: "600", padding: "2px 8px", borderRadius: "4px", backgroundColor: b === "ASPD" ? "#eff6ff" : "#f5f3ff", color: b === "ASPD" ? "#1d4ed8" : "#6d28d9", border: `1px solid ${b === "ASPD" ? "#bfdbfe" : "#ddd6fe"}` }}>
+                                          {b}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span style={{ color: "#94a3b8", fontSize: "13px" }}>—</span>
+                                  )}
+                                </td>
+                              );
+                            case "aksi":
+                              return (
+                                <td key={col.key} onClick={(e) => e.stopPropagation()} style={{ padding: "14px 16px", textAlign: "center" }}>
+                                  <div style={{ display: "flex", justifyContent: "center", gap: "8px", alignItems: "center" }}>
+                                    {displayRow.tahap === "proses" && (
+                                      <button
+                                        className="mb-btn-analisis"
+                                        style={{
+                                          width: "120px",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          gap: "6px",
+                                          cursor: "not-allowed",
+                                          opacity: 0.8,
+                                        }}
+                                        disabled
+                                      >
+                                        <Loader2 size={14} className="mb-spin" /> Diproses...
+                                      </button>
+                                    )}
+
+                                    {displayRow.tahap === "analisis" && (
+                                      <button
+                                        className="mb-btn-analisis"
+                                        style={{
+                                          width: "120px",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          gap: "6px",
+                                        }}
+                                        disabled={processingIds.has(row.id_keluarga)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleAnalisis(row.id_keluarga);
+                                        }}
+                                      >
+                                        {processingIds.has(row.id_keluarga) ? (
+                                          <>
+                                            <Loader2 size={14} className="mb-spin" /> Menganalisis
+                                          </>
+                                        ) : (
+                                          <>
+                                            <BrainCircuit size={14} /> Analisis
+                                          </>
+                                        )}
+                                      </button>
+                                    )}
+
+                                    {displayRow.tahap === "validasi" && (
+                                      <button
+                                        className="mb-btn-validasi"
+                                        style={{
+                                          width: "120px",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          gap: "6px",
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate(`/detail-hasil/${row.id_keluarga}`, {
+                                            state: row,
+                                          });
+                                        }}
+                                      >
+                                        <ShieldCheck size={14} /> Validasi
+                                      </button>
+                                    )}
+
+                                    {(displayRow.tahap === "diterima" || displayRow.tahap === "ditolak") && (
+                                      <button
+                                        className="mb-btn-review"
+                                        style={{
+                                          width: "120px",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          gap: "6px",
+                                          backgroundColor: displayRow.tahap === "diterima" ? "#ecfdf5" : "#fef2f2",
+                                          color: displayRow.tahap === "diterima" ? "#10b981" : "#ef4444",
+                                          borderColor: displayRow.tahap === "diterima" ? "#a7f3d0" : "#fecaca",
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate(`/detail-hasil/${row.id_keluarga}`, {
+                                            state: row,
+                                          });
+                                        }}
+                                      >
+                                        {displayRow.tahap === "diterima" ? <CheckCircle size={14} /> : <FileBarChart size={14} />} Review
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            default: {
+                              const val = displayRow[col.key as keyof DataRow];
+                              let displayVal = "—";
+                              if (typeof val === "boolean") {
+                                displayVal = val ? "Ya" : "Tidak";
+                              } else if (typeof val === "number") {
+                                displayVal = val.toLocaleString();
+                              } else if (val) {
+                                displayVal = String(val);
+                              }
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px", color: "#475569", fontSize: "13px" }}>
+                                  {displayVal}
+                                </td>
+                              );
+                            }
+                          }
+                        })}
+                      </tr>
                     );
                   })
                 )}
