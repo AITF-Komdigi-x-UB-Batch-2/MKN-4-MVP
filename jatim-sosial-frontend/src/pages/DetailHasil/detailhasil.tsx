@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   ThumbsUp,
   RefreshCw,
+  BrainCircuit,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import "./DetailHasil.css";
@@ -445,6 +446,27 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     }
   };
 
+  const runAnalisisAI = async () => {
+    if (!id) return;
+    setIsProcessing(true);
+    try {
+      const res = await apiFetch(`/api/v1/asesmen/komprehensif/${id}`, { method: "POST" });
+      if (!res.ok) throw new Error("Gagal AI");
+      const hasil = await res.json();
+      const b = Array.isArray(hasil?.hasil_analisis_sosial_tim3?.hasil_rekomendasi_final)
+        ? hasil.hasil_analisis_sosial_tim3.hasil_rekomendasi_final.filter((i: any) => i && i !== "Tidak Eligible") : [];
+      await handleUpdateStatus(b.length ? "validasi" : "ditolak", b);
+      setSuccessMsg("Analisis AI Selesai!");
+      fetchDetail();
+    } catch (e) {
+      console.error(e);
+      setSuccessMsg("Gagal menjalankan Analisis AI");
+    } finally {
+      setIsProcessing(false);
+      setTimeout(() => setSuccessMsg(""), 2000);
+    }
+  };
+
   if (isLoading) {
     return (
       <AdminLayout title="Detail Analisis" onLogout={onLogout}>
@@ -813,74 +835,74 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
             {/* Smart Recommendations Section */}
             <div className="detail-card-section">
-                <div className="detail-card-header">
-                  <h4>Bantuan yang Eligible (Analisis AI)</h4>
-                </div>
-                <div className="detail-card-body">
-                  <div className="recommendation-cards-grid">
-                    {filteredRecommendations.length === 0 ? (
-                      <div
+              <div className="detail-card-header">
+                <h4>Bantuan yang Eligible (Analisis AI)</h4>
+              </div>
+              <div className="detail-card-body">
+                <div className="recommendation-cards-grid">
+                  {filteredRecommendations.length === 0 ? (
+                    <div
+                      style={{
+                        gridColumn: "1 / -1",
+                        padding: "32px 24px",
+                        backgroundColor: "#f8fafc",
+                        border: "1px dashed #cbd5e1",
+                        borderRadius: "12px",
+                        textAlign: "center",
+                        color: "#64748b",
+                      }}
+                    >
+                      <AlertCircle
+                        size={32}
+                        style={{ margin: "0 auto 8px", color: "#94a3b8" }}
+                      />
+                      <p
                         style={{
-                          gridColumn: "1 / -1",
-                          padding: "32px 24px",
-                          backgroundColor: "#f8fafc",
-                          border: "1px dashed #cbd5e1",
-                          borderRadius: "12px",
-                          textAlign: "center",
+                          fontWeight: 600,
+                          fontSize: "14px",
+                          color: "#334155",
+                        }}
+                      >
+                        Tidak Ada Rekomendasi Program Bantuan
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "12px",
+                          marginTop: "4px",
                           color: "#64748b",
                         }}
                       >
-                        <AlertCircle
-                          size={32}
-                          style={{ margin: "0 auto 8px", color: "#94a3b8" }}
-                        />
-                        <p
-                          style={{
-                            fontWeight: 600,
-                            fontSize: "14px",
-                            color: "#334155",
-                          }}
-                        >
-                          Tidak Ada Rekomendasi Program Bantuan
-                        </p>
-                        <p
-                          style={{
-                            fontSize: "12px",
-                            marginTop: "4px",
-                            color: "#64748b",
-                          }}
-                        >
-                          Keluarga ini tidak memenuhi indikasi kelayakan untuk
-                          program ASPD, PKH+, atau KE.
-                        </p>
-                      </div>
-                    ) : (
-                      filteredRecommendations.map((rec) => {
-                        const enhancedRec = {
-                          ...rec,
-                          reason: ""
-                        };
-                        return (
-                          <div key={rec.id} style={{ marginBottom: "24px" }}>
-                            <RecommendationCard
-                              data={enhancedRec}
-                              isSelected={selectedPrograms.includes(rec.id)}
-                              isLocked={isFinalized || isAssistanceConfirmed}
-                              onToggle={handleToggleProgram}
-                            />
-                            {rekomendasiTeknis && (
-                              <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#f0f9ff", borderRadius: "8px", border: "1px solid #bae6fd", color: "#0369a1", fontSize: "14px", lineHeight: "1.6" }}>
-                                <strong style={{ display: "block", marginBottom: "8px", color: "#0284c7" }}>Spesifikasi Teknis:</strong>
-                                <ReactMarkdown>{rekomendasiTeknis}</ReactMarkdown>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                        Keluarga ini tidak memenuhi indikasi kelayakan untuk
+                        program ASPD, PKH+, atau KE.
+                      </p>
+                    </div>
+                  ) : (
+                    filteredRecommendations.map((rec) => {
+                      const enhancedRec = {
+                        ...rec,
+                        reason: ""
+                      };
+                      return (
+                        <div key={rec.id} style={{ marginBottom: "24px" }}>
+                          <RecommendationCard
+                            data={enhancedRec}
+                            isSelected={selectedPrograms.includes(rec.id)}
+                            isLocked={isFinalized || isAssistanceConfirmed}
+                            onToggle={handleToggleProgram}
+                          />
+                          {rekomendasiTeknis && (
+                            <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#f0f9ff", borderRadius: "8px", border: "1px solid #bae6fd", color: "#0369a1", fontSize: "14px", lineHeight: "1.6" }}>
+                              <strong style={{ display: "block", marginBottom: "8px", color: "#0284c7" }}>Spesifikasi Teknis:</strong>
+                              <ReactMarkdown>{rekomendasiTeknis}</ReactMarkdown>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
+            </div>
           </div>
 
           {/* Right Column (Dynamic Panel based on Tahap) */}
@@ -893,30 +915,25 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   <h4>Analisis</h4>
                 </div>
                 <div className="panel-body">
-                  <div className="form-group">
-                    <label>Catatan Analisis</label>
-                    <textarea
-                      placeholder="Tambahkan observasi lapangan atau catatan analisis..."
-                      rows={5}
-                      value={catatanInput}
-                      onChange={(e) => setCatatanInput(e.target.value)}
-                    ></textarea>
-                  </div>
                   <div
                     className="panel-actions"
                     style={{ flexDirection: "column" }}
                   >
                     <button
-                      className="btn-action approve w-full"
-                      style={{ justifyContent: "center" }}
-                      onClick={handleConfirmAssistance}
-                      disabled={selectedPrograms.length === 0 || isConfirming}
+                      className="btn-action w-full"
+                      style={{
+                        justifyContent: "center",
+                        backgroundColor: "#f0fdf4",
+                        color: "#166534",
+                        border: "1px solid #bbf7d0",
+                      }}
+                      onClick={runAnalisisAI}
+                      disabled={isProcessing}
                     >
-                      <CheckCircle size={18} />{" "}
-                      {isConfirming
-                        ? "Memproses..."
-                        : "Kirim ke Tahap Validasi"}
+                      <BrainCircuit size={18} />{" "}
+                      {isProcessing ? "AI Memproses..." : "Jalankan Analisis AI"}
                     </button>
+
                     {selectedPrograms.length === 0 && (
                       <p
                         style={{
@@ -927,7 +944,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                           fontWeight: 500,
                         }}
                       >
-                        Tidak ada bantuan eligible untuk warga ini.
                       </p>
                     )}
                   </div>
@@ -942,29 +958,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   <h4>Validasi</h4>
                 </div>
                 <div className="panel-body">
-                  <div className="mb-4">
-                    <label
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "#6b7280",
-                      }}
-                    >
-                      DIBUAT OLEH (ANALIS)
-                    </label>
-                    <p
-                      style={{
-                        fontSize: "14px",
-                        background: "#f3f4f6",
-                        padding: "10px",
-                        borderRadius: "6px",
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {detailData?.catatan ||
-                        "Tidak ada catatan analisis yang ditambahkan."}
-                    </p>
-                  </div>
                   <div className="form-group">
                     <label>Catatan Supervisor</label>
                     <textarea
