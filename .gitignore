@@ -16,9 +16,11 @@
 jatim-sosial-backend/venv/
 jatim-sosial-backend/data_tim1.csv
 jatim-sosial-backend/chroma_data/chroma.sqlite3
-jatim-sosial-backend/__pycache__/
-jatim-sosial-backend/*.pyc
-jatim-sosial-backend/.pytest_cache/
+**/__pycache__/
+**/*.pyc
+*.pyc
+**/.pytest_cache/
+.pytest_cache/
 jatim-sosial-backend/foto_tersimpan/
 
 # ─── 3. FRONTEND SPECIFIC (REACT + VITE) ─────────────────────────────────────
@@ -31,6 +33,8 @@ jatim-sosial-frontend/*.local
 Juknis/
 df_sample_10_skor.csv
 df_sample_10_tanpa_skor.csv
+architecture.md
+
 
 # ─── 4. LOGS AND TEMPORARY FILES ─────────────────────────────────────────────
 logs
@@ -52,3 +56,13 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# ─── 6. POSTMAN SENSITIVE FILES ──────────────────────────────────────────────
+postman/
+.postman/
+
+# ─── 7. FALLOW CONFIGURATION & CACHE ─────────────────────────────────────────
+.fallow/
+**/.fallow/
+.fallowrc.json
+**/.fallowrc.json

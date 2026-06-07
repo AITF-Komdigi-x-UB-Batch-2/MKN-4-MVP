@@ -130,6 +130,7 @@
   outline: none !important;
   box-shadow: none !important;
   -webkit-appearance: none;
+  appearance: none;
 }
 
 .input-wrapper input::placeholder {

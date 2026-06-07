@@ -149,8 +149,57 @@ class ManajemenBantuanResponse(BaseModel):
     skorKesejahteraan: float
     aiReasoning: str
 
+    # Tambahan variabel dinamis untuk Atur Kolom (Show/Hide) & Filter
+    kelurahan_desa: Optional[str] = None
+    jumlah_anggota_keluarga: Optional[int] = None
+    luas_lantai_bangunan: Optional[int] = None
+    id_lantai_terluas: Optional[int] = None
+    id_dinding_terluas: Optional[int] = None
+    id_atap_terluas: Optional[int] = None
+    id_sumber_airminum: Optional[int] = None
+    id_sumberpenerangan: Optional[int] = None
+    id_bb_utama: Optional[int] = None
+    id_fasilitas_bab: Optional[int] = None
+    id_jenis_kloset: Optional[int] = None
+    id_pembuangan_tinja: Optional[int] = None
+    id_disabilitas: Optional[int] = None
+    tingkat_disabilitas: Optional[str] = None
+    pbi: Optional[int] = None
+    kpm_jawara: Optional[int] = None
+    putri_jawara: Optional[int] = None
+    aspd: Optional[int] = None
+    eks_ppks_jawara: Optional[int] = None
+    ppks_jawara: Optional[int] = None
+    kemiskinan_ekstrem: Optional[int] = None
+    pkh_plus: Optional[int] = None
+    aset_bergerak_tabung_gas: Optional[int] = None
+    aset_bergerak_lemari_es: Optional[int] = None
+    aset_bergerak_ac: Optional[int] = None
+    aset_bergerak_pemanas_air: Optional[int] = None
+    aset_bergerak_telepon_rumah: Optional[int] = None
+    aset_bergerak_tv_datar: Optional[int] = None
+    aset_bergerak_emas_perhiasan: Optional[int] = None
+    aset_bergerak_komputer_laptop_tablet: Optional[int] = None
+    aset_bergerak_sepeda_motor: Optional[int] = None
+    aset_bergerak_sepeda: Optional[int] = None
+    aset_bergerak_mobil: Optional[int] = None
+    aset_bergerak_perahu: Optional[int] = None
+    aset_bergerak_kapal_perahu_motor: Optional[int] = None
+    aset_bergerak_smartphone: Optional[int] = None
+
     class Config:
         from_attributes = True
+
+class ManajemenBantuanPaginationMeta(BaseModel):
+    page: int
+    limit: int
+    total: int
+    totalPages: int
+    counts: dict[str, int]
+
+class ManajemenBantuanPaginatedResponse(BaseModel):
+    data: list[ManajemenBantuanResponse]
+    meta: ManajemenBantuanPaginationMeta
 
 class DetailKeluargaResponse(BaseModel):
     id_keluarga: str

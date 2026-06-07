@@ -1,3 +1,12 @@
+"""
+FILE: app/models.py
+DESKRIPSI:
+Database Models (Entity) untuk menyimpan data Dukcapil (User) dan Keluarga.
+Menggunakan SQLAlchemy ORM.
+
+CATATAN: Kolom NIK telah ditambahkan ke tabel Keluarga sesuai revisi kebutuhan.
+"""
+
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, SmallInteger, JSON, DateTime, Text, Float
@@ -62,12 +71,27 @@ class Keluarga(Base):
     id_kesedihan_depresi = Column(Integer, nullable=True)
     id_penyakit_menahun = Column(Integer, nullable=True)
     status_dtsen = Column(String(100), nullable=True)
+    cut_off = Column(String(50), nullable=True)
+    cut_off_keluarga = Column(String(50), nullable=True)
+    desil_nasional = Column(Integer, nullable=True)
+    desil_nasional_anggota = Column(Integer, nullable=True)
+    desil_nasional_keluarga = Column(Integer, nullable=True)
+    umur_2026 = Column(Integer, nullable=True)
     kpm_jawara = Column(Integer, nullable=True)
     putri_jawara = Column(Integer, nullable=True)
     aspd = Column(Integer, nullable=True)
     eks_ppks_jawara = Column(Integer, nullable=True)
     ppks_jawara = Column(Integer, nullable=True)
-    kode_provinsi = Column(String(10), nullable=True)
+    kode_provinsi = Column(String(50), nullable=True)
+    provinsi = Column(String(100), nullable=True)
+    kode_kabupaten_kota = Column(String(50), nullable=True)
+    kabupaten_kota = Column(String(100), nullable=True)
+    kode_kecamatan = Column(String(50), nullable=True)
+    kecamatan = Column(String(100), nullable=True)
+    kode_kelurahan_desa = Column(String(50), nullable=True)
+    kelurahan_desa = Column(String(100), nullable=True)
+    alamat = Column(Text, nullable=True)
+    nama_kepala_keluarga = Column(String(255), nullable=True)
     id_status_keberadaan_keluarga = Column(Integer, nullable=True)
     id_dayapenerangan = Column(Integer, nullable=True)
     jumlah_anggota_keluarga = Column(Integer, nullable=True)
@@ -112,8 +136,8 @@ class KeluargaHistory(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_keluarga = Column(UUID(as_uuid=True), ForeignKey("keluarga.id"), nullable=False, index=True)
     nama = Column(String(255), nullable=True)
-    no_kk = Column(String(100), unique=True, nullable=False)
-    nik = Column(String(100), unique=True, index=True, nullable=True)
+    no_kk = Column(String(100), nullable=False)
+    nik = Column(String(100), index=True, nullable=True)
     tanggal_lahir = Column(String(50), nullable=True)
     umur_2026 = Column(Integer, nullable=True)
     pkh_plus = Column(Integer, nullable=True)
@@ -152,12 +176,27 @@ class KeluargaHistory(Base):
     id_kesedihan_depresi = Column(Integer, nullable=True)
     id_penyakit_menahun = Column(Integer, nullable=True)
     status_dtsen = Column(String(100), nullable=True)
+    cut_off = Column(String(50), nullable=True)
+    cut_off_keluarga = Column(String(50), nullable=True)
+    desil_nasional = Column(Integer, nullable=True)
+    desil_nasional_anggota = Column(Integer, nullable=True)
+    desil_nasional_keluarga = Column(Integer, nullable=True)
+    umur_2026 = Column(Integer, nullable=True)
     kpm_jawara = Column(Integer, nullable=True)
     putri_jawara = Column(Integer, nullable=True)
     aspd = Column(Integer, nullable=True)
     eks_ppks_jawara = Column(Integer, nullable=True)
     ppks_jawara = Column(Integer, nullable=True)
-    kode_provinsi = Column(String(10), nullable=True)
+    kode_provinsi = Column(String(50), nullable=True)
+    provinsi = Column(String(100), nullable=True)
+    kode_kabupaten_kota = Column(String(50), nullable=True)
+    kabupaten_kota = Column(String(100), nullable=True)
+    kode_kecamatan = Column(String(50), nullable=True)
+    kecamatan = Column(String(100), nullable=True)
+    kode_kelurahan_desa = Column(String(50), nullable=True)
+    kelurahan_desa = Column(String(100), nullable=True)
+    alamat = Column(Text, nullable=True)
+    nama_kepala_keluarga = Column(String(255), nullable=True)
     id_status_keberadaan_keluarga = Column(Integer, nullable=True)
     id_dayapenerangan = Column(Integer, nullable=True)
     jumlah_anggota_keluarga = Column(Integer, nullable=True)
@@ -217,6 +256,14 @@ class Perhitungan(Base):
     catatan_petugas            = Column(String(500), nullable=True)
     catatan_supervisor         = Column(String(500), nullable=True)
     desil_kemiskinan           = Column(String(5), nullable=True)
+
+    @property
+    def skor_pkht(self):
+        return self.skor_pkh_plus
+
+    @skor_pkht.setter
+    def skor_pkht(self, value):
+        self.skor_pkh_plus = value
 
 # --- TABEL 5: FOTO RUMAH (MENGHUBUNGKAN KELUARGA DENGAN FOTO) ---
 class Foto(Base):

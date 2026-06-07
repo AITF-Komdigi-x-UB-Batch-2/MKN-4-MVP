@@ -12,25 +12,50 @@ import AdminLayout from '../../components/layout/AdminLayout';
 import { apiFetch } from '../../services/api';
 import './Dashboard.css';
 
+interface DashboardData {
+  tahap?: string;
+  desil?: number;
+}
+
 interface DashboardProps {
   onLogout?: () => void;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#d0ed57', '#a4de6c'];
 
+interface ChartCardProps {
+  title: string;
+  children: React.ReactNode;
+}
+
+const ChartCard: React.FC<ChartCardProps> = ({ title, children }) => (
+  <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+    <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '24px', color: '#1f2937', marginTop: 0 }}>{title}</h3>
+    <div style={{ height: '350px' }}>
+      <ResponsiveContainer width="100%" height="100%">
+        {children}
+      </ResponsiveContainer>
+    </div>
+  </div>
+);
+
 const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
-  const [data, setData] = React.useState<any[]>([]);
+  const [data, setData] = React.useState<DashboardData[]>([]);
+  const latestRequestRef = React.useRef(0);
 
   React.useEffect(() => {
+    const requestId = ++latestRequestRef.current;
     const fetchData = async () => {
       try {
         const res = await apiFetch('/api/v1/manajemen-bantuan');
-        if (res.ok) {
+        if (res.ok && requestId === latestRequestRef.current) {
           const json = await res.json();
           setData(json);
         }
       } catch (err) {
-        console.error('Failed to fetch dashboard data', err);
+        if (requestId === latestRequestRef.current) {
+          console.error('Failed to fetch dashboard data', err);
+        }
       }
     };
     fetchData();
@@ -83,7 +108,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
               <Users size={32} color="#3b82f6" />
             </div>
             <div>
-              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Data Input</p>
+              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Data Keluarga</p>
               <p style={{ margin: '4px 0 0 0', fontSize: '32px', fontWeight: 'bold', color: '#111827', lineHeight: 1 }}>{totalData}</p>
             </div>
           </div>
@@ -113,52 +138,42 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', paddingBottom: '24px' }}>
           
           {/* Bar Chart Status Persetujuan */}
-          <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '24px', color: '#1f2937', marginTop: 0 }}>Status Persetujuan Rekomendasi</h3>
-            <div style={{ height: '350px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={approvalData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6b7280'}} dy={10} />
-                  <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{fill: '#6b7280'}} dx={-10} />
-                  <RechartsTooltip cursor={{fill: '#f3f4f6'}} contentStyle={{borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
-                  <Bar dataKey="value" name="Jumlah Keluarga" radius={[6, 6, 0, 0]} barSize={50}>
-                    {approvalData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartCard title="Status Persetujuan Rekomendasi">
+            <BarChart data={approvalData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6b7280'}} dy={10} />
+              <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{fill: '#6b7280'}} dx={-10} />
+              <RechartsTooltip cursor={{fill: '#f3f4f6'}} contentStyle={{borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+              <Bar dataKey="value" name="Jumlah Keluarga" radius={[6, 6, 0, 0]} barSize={50}>
+                {approvalData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ChartCard>
 
           {/* Pie Chart Desil */}
-          <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '24px', color: '#1f2937', marginTop: 0 }}>Distribusi Desil Kesejahteraan</h3>
-            <div style={{ height: '350px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={distributionByDecile}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={80}
-                    outerRadius={120}
-                    paddingAngle={5}
-                    dataKey="value"
-                    label={({ name, percent = 0 }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    labelLine={{stroke: '#9ca3af', strokeWidth: 1}}
-                  >
-                    {distributionByDecile.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip contentStyle={{borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartCard title="Distribusi Desil Kesejahteraan">
+            <PieChart>
+              <Pie
+                data={distributionByDecile}
+                cx="50%"
+                cy="50%"
+                innerRadius={80}
+                outerRadius={120}
+                paddingAngle={5}
+                dataKey="value"
+                label={({ name, percent = 0 }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                labelLine={{stroke: '#9ca3af', strokeWidth: 1}}
+              >
+                {distributionByDecile.map((_, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <RechartsTooltip contentStyle={{borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+              <Legend verticalAlign="bottom" height={36} iconType="circle" />
+            </PieChart>
+          </ChartCard>
 
         </div>
       </div>

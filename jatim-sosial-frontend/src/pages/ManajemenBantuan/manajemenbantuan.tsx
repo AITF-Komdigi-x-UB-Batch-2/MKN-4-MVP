@@ -5,22 +5,21 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-  ArrowRight,
   FileBarChart,
   CheckCircle,
   ChevronUp,
   ChevronDown,
-  ChevronsUpDown,
   Loader2,
   ShieldCheck,
   BrainCircuit,
   CheckSquare,
   Square,
   XCircle,
+  Filter,
 } from "lucide-react";
 import LoadingState from "../../components/ui/LoadingState";
 import EmptyState from "../../components/ui/EmptyState";
-import { type Tahap, type AnalisisOutput } from "../../data/mockData";
+import type { Tahap, AnalisisOutput } from "../../data/mockData";
 import { apiFetch } from "../../services/api";
 import "./ManajemenBantuan.css";
 
@@ -33,26 +32,127 @@ export interface DataRow extends AnalisisOutput {
   kecamatan: string;
   desil: number;
   skorASPD: number;
-  skorPKHT: number;
+  skorPKHPlus: number;
+  skorPKHT?: number;
+
+  // Variabel dinamis DTKS untuk kolom dan filter
+  kelurahan_desa?: string;
+  jumlah_anggota_keluarga?: number;
+  luas_lantai_bangunan?: number;
+  id_lantai_terluas?: number;
+  id_dinding_terluas?: number;
+  id_atap_terluas?: number;
+  id_sumber_airminum?: number;
+  id_sumberpenerangan?: number;
+  id_bb_utama?: number;
+  id_fasilitas_bab?: number;
+  id_jenis_kloset?: number;
+  id_pembuangan_tinja?: number;
+  id_disabilitas?: number;
+  tingkat_disabilitas?: string;
+  pbi?: number;
+  kpm_jawara?: number;
+  putri_jawara?: number;
+  aspd?: number;
+  eks_ppks_jawara?: number;
+  ppks_jawara?: number;
+  kemiskinan_ekstrem?: number;
+  pkh_plus?: number;
+  aset_bergerak_tabung_gas?: number;
+  aset_bergerak_lemari_es?: number;
+  aset_bergerak_ac?: number;
+  aset_bergerak_pemanas_air?: number;
+  aset_bergerak_telepon_rumah?: number;
+  aset_bergerak_tv_datar?: number;
+  aset_bergerak_emas_perhiasan?: number;
+  aset_bergerak_komputer_laptop_tablet?: number;
+  aset_bergerak_sepeda_motor?: number;
+  aset_bergerak_sepeda?: number;
+  aset_bergerak_mobil?: number;
+  aset_bergerak_perahu?: number;
+  aset_bergerak_kapal_perahu_motor?: number;
+  aset_bergerak_smartphone?: number;
 }
 
-// DataRow kini didefinisikan secara independen karena data asli berasal dari backend
+interface ColumnConfig {
+  key: string;
+  label: string;
+  locked?: boolean;
+  defaultVisible?: boolean;
+}
+
+interface PaginatedManajemenBantuanResponse {
+  data: DataRow[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    counts: Record<string, number>;
+  };
+}
+
+const COLUMNS: ColumnConfig[] = [
+  { key: "id_keluarga", label: "ID / Tanggal", defaultVisible: true },
+  { key: "tahap", label: "Status Tahap", defaultVisible: true },
+  { key: "skor_aspd", label: "Skor ASPD", defaultVisible: true },
+  { key: "skor_pkh_plus", label: "Skor PKH+", defaultVisible: true },
+  { key: "nama", label: "Nama Penerima", locked: true, defaultVisible: true },
+  { key: "nik", label: "NIK", defaultVisible: true },
+  { key: "wilayah", label: "Wilayah / Kota", defaultVisible: true },
+  { key: "kecamatan", label: "Kecamatan", defaultVisible: true },
+  { key: "kelurahan_desa", label: "Kelurahan / Desa", defaultVisible: false },
+  { key: "desil", label: "Desil Ekonomi", defaultVisible: true },
+  { key: "bantuan", label: "Bantuan Eligible", locked: true, defaultVisible: true },
+
+  // DTKS Extra fields
+  { key: "jumlah_anggota_keluarga", label: "Jml Anggota Keluarga", defaultVisible: false },
+  { key: "luas_lantai_bangunan", label: "Luas Lantai (m²)", defaultVisible: false },
+  { key: "id_lantai_terluas", label: "ID Lantai Terluas", defaultVisible: false },
+  { key: "id_dinding_terluas", label: "ID Dinding Terluas", defaultVisible: false },
+  { key: "id_atap_terluas", label: "ID Atap Terluas", defaultVisible: false },
+  { key: "id_sumber_airminum", label: "ID Sumber Air", defaultVisible: false },
+  { key: "id_sumberpenerangan", label: "ID Penerangan", defaultVisible: false },
+  { key: "id_bb_utama", label: "ID BB Utama", defaultVisible: false },
+  { key: "id_fasilitas_bab", label: "ID Fasilitas BAB", defaultVisible: false },
+  { key: "id_jenis_kloset", label: "ID Jenis Kloset", defaultVisible: false },
+  { key: "id_pembuangan_tinja", label: "ID Pembuangan Tinja", defaultVisible: false },
+  { key: "id_disabilitas", label: "ID Disabilitas", defaultVisible: false },
+  { key: "tingkat_disabilitas", label: "Tingkat Disabilitas", defaultVisible: false },
+  { key: "pbi", label: "PBI", defaultVisible: false },
+  { key: "kpm_jawara", label: "KPM Jawara", defaultVisible: false },
+  { key: "putri_jawara", label: "Putri Jawara", defaultVisible: false },
+  { key: "aspd", label: "ASPD Flag", defaultVisible: false },
+  { key: "eks_ppks_jawara", label: "Eks PPKS Jawara", defaultVisible: false },
+  { key: "ppks_jawara", label: "PPKS Jawara", defaultVisible: false },
+  { key: "kemiskinan_ekstrem", label: "Kemiskinan Ekstrem", defaultVisible: false },
+  { key: "pkh_plus", label: "PKH Plus Flag", defaultVisible: false },
+
+  // Aset Extra fields
+  { key: "aset_bergerak_tabung_gas", label: "Aset: Tabung Gas", defaultVisible: false },
+  { key: "aset_bergerak_lemari_es", label: "Aset: Lemari Es", defaultVisible: false },
+  { key: "aset_bergerak_ac", label: "Aset: AC", defaultVisible: false },
+  { key: "aset_bergerak_pemanas_air", label: "Aset: Pemanas Air", defaultVisible: false },
+  { key: "aset_bergerak_telepon_rumah", label: "Aset: Telp Rumah", defaultVisible: false },
+  { key: "aset_bergerak_tv_datar", label: "Aset: TV Datar", defaultVisible: false },
+  { key: "aset_bergerak_emas_perhiasan", label: "Aset: Emas Perhiasan", defaultVisible: false },
+  { key: "aset_bergerak_komputer_laptop_tablet", label: "Aset: Laptop/Tablet", defaultVisible: false },
+  { key: "aset_bergerak_sepeda_motor", label: "Aset: Sepeda Motor", defaultVisible: false },
+  { key: "aset_bergerak_sepeda", label: "Aset: Sepeda", defaultVisible: false },
+  { key: "aset_bergerak_mobil", label: "Aset: Mobil", defaultVisible: false },
+  { key: "aset_bergerak_perahu", label: "Aset: Perahu", defaultVisible: false },
+  { key: "aset_bergerak_kapal_perahu_motor", label: "Aset: Kapal Motor", defaultVisible: false },
+  { key: "aset_bergerak_smartphone", label: "Aset: Smartphone", defaultVisible: false },
+
+  { key: "aksi", label: "Aksi", locked: true, defaultVisible: true }
+];
 
 interface ManajemenBantuanProps {
   onLogout?: () => void;
 }
 
 type TabKey = "semua" | Tahap;
-type SortKey =
-  | "id"
-  | "nama"
-  | "wilayah"
-  | "desil"
-  | "tahap"
-  | "bantuan"
-  | "perubahanDesil"
-  | "skorASPD"
-  | "skorPKHT";
+type SortKey = string;
 
 /* ─── Helpers ────────────────────────────── */
 
@@ -118,6 +218,30 @@ const getEmptyMessage = (tab: TabKey) => {
   }
 };
 
+const isNumericColumn = (key: string): boolean => {
+  const numericPrefixes = ["id_", "aset_", "skor", "desil", "pbi", "kpm_", "putri_", "aspd", "pkh_plus", "kemiskinan_", "luas_", "jumlah_"];
+  return numericPrefixes.some(prefix => key.toLowerCase().startsWith(prefix)) || ["skorASPD", "skorPKHPlus", "desil"].includes(key);
+};
+
+const getColValue = (row: DataRow, key: string): string => {
+  switch (key) {
+    case 'id_keluarga': return row.idLabel;
+    case 'tahap': return getStageBadgeLabel(row.tahap);
+    case 'bantuan': return (row.bantuan || []).join(', ') || '—';
+    case 'skor_aspd': return String((row.skorASPD ?? 0).toFixed(1));
+    case 'skor_pkh_plus': return String((row.skorPKHPlus ?? row.skorPKHT ?? 0).toFixed(1));
+    case 'desil': return String(row.desil ?? '—');
+    default: { const v = row[key as keyof DataRow]; return v !== undefined && v !== null ? String(v) : '—'; }
+  }
+};
+
+// Kolom yang nilai uniknya sangat banyak (tidak boleh pakai checkbox — akan crash browser)
+// Gunakan text search sebagai gantinya
+const HIGH_CARDINALITY_COLS = new Set(['id_keluarga', 'nama', 'nik']);
+
+// Batas maksimal unique values yang ditampilkan sebagai checkbox
+const MAX_CHECKBOX_VALUES = 300;
+
 /* ─── Component ──────────────────────────── */
 
 const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
@@ -126,9 +250,67 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   // State
   const [activeTab, setActiveTab] = useState<TabKey>("semua");
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("Semua");
-  const [filterWilayah, setFilterWilayah] = useState("Semua");
-  const [filterBantuan, setFilterBantuan] = useState("Semua");
+  const [searchColumn, setSearchColumn] = useState("");
+
+  // New filters states
+  const [filterKecamatan, setFilterKecamatan] = useState("Semua");
+  const [filterKelurahan, setFilterKelurahan] = useState("Semua");
+  const [selectedDesils, setSelectedDesils] = useState<number[]>([]);
+  const [filterOverlap, setFilterOverlap] = useState("Semua");
+
+  // Popovers state
+  const [showColumnDropdown, setShowColumnDropdown] = useState(false);
+  const [, setShowDesilDropdown] = useState(false);
+  const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
+  const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
+  const [textColumnFilters, setTextColumnFilters] = useState<Record<string, string>>({});
+  const [pendingFilter, setPendingFilter] = useState<Set<string>>(new Set());
+  const [pendingTextFilter, setPendingTextFilter] = useState('');  
+  const [filterDropdownSearch, setFilterDropdownSearch] = useState('');
+
+  // Column visibility state loaded from localStorage
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem("mb-visible-columns");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return new Set(parsed);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return new Set(COLUMNS.filter(c => c.defaultVisible || c.locked).map(c => c.key));
+  });
+
+  // Save visible columns
+  useEffect(() => {
+    localStorage.setItem("mb-visible-columns", JSON.stringify(Array.from(visibleColumns)));
+  }, [visibleColumns]);
+
+  // Click outside to close dropdowns
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".mb-popover-wrapper")) {
+        setShowColumnDropdown(false);
+        setShowDesilDropdown(false);
+      }
+      if (!target.closest(".excel-filter-th")) {
+        setOpenFilterCol(null);
+      }
+    };
+    document.addEventListener("click", handleOutsideClick);
+    return () => document.removeEventListener("click", handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    if (!showColumnDropdown) {
+      setSearchColumn("");
+    }
+  }, [showColumnDropdown]);
+
   const [sortConfig, setSortConfig] = useState<{
     key: SortKey;
     direction: "asc" | "desc";
@@ -138,26 +320,83 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   const [data, setData] = useState<DataRow[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
+  const [serverTotalItems, setServerTotalItems] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(1);
+  const [serverTabCounts, setServerTabCounts] = useState<Record<TabKey, number>>({
+    semua: 0,
+    proses: 0,
+    analisis: 0,
+    validasi: 0,
+    diterima: 0,
+    ditolak: 0,
+  });
 
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
   const [batchProgress, setBatchProgress] = useState(0);
+  const latestRequestRef = React.useRef(0);
 
   const fetchData = useCallback(async (showLoading = false) => {
+    const requestId = ++latestRequestRef.current;
     try {
       if (showLoading) setIsLoading(true);
-      const res = await apiFetch("/api/v1/manajemen-bantuan");
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(ITEMS_PER_PAGE),
+      });
+      if (activeTab !== "semua") params.set("tahap", activeTab);
+      if (searchTerm.trim()) params.set("search", searchTerm.trim());
+      if (filterKecamatan !== "Semua") params.set("kecamatan", filterKecamatan);
+      if (filterKelurahan !== "Semua") params.set("kelurahan_desa", filterKelurahan);
+      if (filterOverlap !== "Semua") params.set("overlap", filterOverlap);
+      if (selectedDesils.length > 0) params.set("desils", selectedDesils.join(","));
+
+      const res = await apiFetch(`/api/v1/manajemen-bantuan?${params.toString()}`);
+      if (res.ok && requestId === latestRequestRef.current) {
+        const json = (await res.json()) as PaginatedManajemenBantuanResponse | DataRow[];
+        if (Array.isArray(json)) {
+          setData(json);
+          setServerTotalItems(json.length);
+          setServerTotalPages(Math.max(1, Math.ceil(json.length / ITEMS_PER_PAGE)));
+        } else {
+          setData(json.data);
+          setServerTotalItems(json.meta.total);
+          setServerTotalPages(json.meta.totalPages);
+          setServerTabCounts({
+            semua: json.meta.counts.semua || 0,
+            proses: json.meta.counts.proses || 0,
+            analisis: json.meta.counts.analisis || 0,
+            validasi: json.meta.counts.validasi || 0,
+            diterima: json.meta.counts.diterima || 0,
+            ditolak: json.meta.counts.ditolak || 0,
+          });
+        }
       }
     } catch (e) {
-      console.error("Gagal mengambil data dari server:", e);
+      if (requestId === latestRequestRef.current) {
+        console.error("Gagal mengambil data dari server:", e);
+      }
     } finally {
-      if (showLoading) setIsLoading(false);
+      if (showLoading && requestId === latestRequestRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, []);
+  }, [
+    activeTab,
+    currentPage,
+    filterKecamatan,
+    filterKelurahan,
+    filterOverlap,
+    searchTerm,
+    selectedDesils,
+  ]);
+
+  useEffect(() => {
+    if (currentPage > serverTotalPages) {
+      setCurrentPage(serverTotalPages);
+    }
+  }, [currentPage, serverTotalPages]);
 
   useEffect(() => {
     fetchData(true);
@@ -178,19 +417,12 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchTerm, filterStatus, filterWilayah, filterBantuan]);
+  }, [activeTab, searchTerm, filterKecamatan, filterKelurahan, filterOverlap, selectedDesils]);
 
   // Counts per tab (before search/filter)
   const tabCounts = useMemo(
-    () => ({
-      semua: data.length,
-      proses: data.filter((d) => d.tahap === "proses").length,
-      analisis: data.filter((d) => d.tahap === "analisis").length,
-      validasi: data.filter((d) => d.tahap === "validasi").length,
-      diterima: data.filter((d) => d.tahap === "diterima").length,
-      ditolak: data.filter((d) => d.tahap === "ditolak").length,
-    }),
-    [data],
+    () => serverTabCounts,
+    [serverTabCounts],
   );
 
   // Filtered data
@@ -213,31 +445,48 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
       );
     }
 
-    // Status filter (maps to tahap)
-    if (filterStatus !== "Semua") {
-      const mapping: Record<string, Tahap> = {
-        Diproses: "proses",
-        Analisis: "analisis",
-        Validasi: "validasi",
-        Diterima: "diterima",
-        Ditolak: "ditolak",
-      };
-      if (mapping[filterStatus]) {
-        result = result.filter((d) => d.tahap === mapping[filterStatus]);
+    // Advanced Wilayah: Kecamatan & Kelurahan
+    if (filterKecamatan !== "Semua") {
+      result = result.filter((d) => d.kecamatan === filterKecamatan);
+    }
+    if (filterKelurahan !== "Semua") {
+      result = result.filter((d) => d.kelurahan_desa === filterKelurahan || (d as DataRow & { kelurahan?: string }).kelurahan === filterKelurahan);
+    }
+
+
+
+    // Advanced Assistance Intersection / Overlap
+    if (filterOverlap !== "Semua") {
+      result = result.filter((d) => {
+        const list = d.bantuan || [];
+        const hasPKHPlus = list.includes("PKH+") || list.includes("PKH Plus") || list.includes("PKHT");
+        const hasASPD = list.includes("ASPD");
+
+        if (filterOverlap === "HanyaPKHPlus") return hasPKHPlus && !hasASPD;
+        if (filterOverlap === "HanyaASPD") return hasASPD && !hasPKHPlus;
+        if (filterOverlap === "Keduanya") return hasPKHPlus && hasASPD;
+        if (filterOverlap === "BelumMenerima") return !hasPKHPlus && !hasASPD;
+        return true;
+      });
+    }
+
+    // Advanced Desil Multi-select
+    if (selectedDesils.length > 0) {
+      result = result.filter((d) => selectedDesils.includes(d.desil));
+    }
+
+    // Column value filters — checkbox (categorical)
+    Object.entries(columnFilters).forEach(([key, allowed]) => {
+      if (allowed.size > 0) result = result.filter(row => allowed.has(getColValue(row, key)));
+    });
+
+    // Column text filters — text search (high-cardinality: NIK, Nama, ID)
+    Object.entries(textColumnFilters).forEach(([key, text]) => {
+      if (text.trim()) {
+        const lower = text.toLowerCase();
+        result = result.filter(row => getColValue(row, key).toLowerCase().includes(lower));
       }
-    }
-
-    // Wilayah filter
-    if (filterWilayah !== "Semua") {
-      result = result.filter((d) => d.wilayah === filterWilayah);
-    }
-
-    // Bantuan filter
-    if (filterBantuan !== "Semua") {
-      result = result.filter(
-        (d) => d.bantuan && d.bantuan.includes(filterBantuan),
-      );
-    }
+    });
 
     // Sort ascending by skorKesejahteraan to show lowest welfare first
     result.sort((a, b) => a.skorKesejahteraan - b.skorKesejahteraan);
@@ -245,77 +494,52 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     // Generic Sort
     if (sortConfig) {
       result.sort((a, b) => {
-        let valA: any = a[sortConfig.key as keyof DataRow];
-        let valB: any = b[sortConfig.key as keyof DataRow];
+        let valA: string | number = "";
+        let valB: string | number = "";
 
         const tahapOrder: Record<string, number> = {
-          proses: 0,
-          analisis: 1,
-          validasi: 2,
-          diterima: 3,
-          ditolak: 4,
+          proses: 0, analisis: 1, validasi: 2, diterima: 3, ditolak: 4,
         };
 
-        if (sortConfig.key === "id") {
-          valA = a.idLabel;
-          valB = b.idLabel;
-        } else if (sortConfig.key === "bantuan") {
-          valA = a.bantuan ? a.bantuan.join(", ") : "";
-          valB = b.bantuan ? b.bantuan.join(", ") : "";
-        } else if (sortConfig.key === "perubahanDesil") {
-          valA = (a.desilSesudah ?? 0) - (a.desilSebelum ?? 0);
-          valB = (b.desilSesudah ?? 0) - (b.desilSebelum ?? 0);
-        } else if (sortConfig.key === "tahap") {
-          valA = tahapOrder[a.tahap] || 99;
-          valB = tahapOrder[b.tahap] || 99;
-        } else if (sortConfig.key === "skorASPD") {
-          valA = a.skorASPD;
-          valB = b.skorASPD;
-        } else if (sortConfig.key === "skorPKHT") {
-          valA = a.skorPKHT;
-          valB = b.skorPKHT;
+        const key = sortConfig.key;
+        if (key === "id_keluarga") { valA = a.idLabel; valB = b.idLabel; }
+        else if (key === "bantuan") { valA = a.bantuan ? a.bantuan.join(", ") : ""; valB = b.bantuan ? b.bantuan.join(", ") : ""; }
+        else if (key === "tahap") { valA = tahapOrder[a.tahap] || 99; valB = tahapOrder[b.tahap] || 99; }
+        else if (key === "skor_aspd") { valA = a.skorASPD ?? 0; valB = b.skorASPD ?? 0; }
+        else if (key === "skor_pkh_plus") { valA = a.skorPKHPlus ?? a.skorPKHT ?? 0; valB = b.skorPKHPlus ?? b.skorPKHT ?? 0; }
+        else {
+          const rawValA = a[key as keyof DataRow];
+          const rawValB = b[key as keyof DataRow];
+          valA = typeof rawValA === "number" ? rawValA : String(rawValA ?? "");
+          valB = typeof rawValB === "number" ? rawValB : String(rawValB ?? "");
         }
 
+        const isNum = isNumericColumn(sortConfig.key);
+        if (valA === undefined || valA === null) valA = isNum ? 0 : "";
+        if (valB === undefined || valB === null) valB = isNum ? 0 : "";
+
         if (typeof valA === "string" && typeof valB === "string") {
-          return sortConfig.direction === "asc"
-            ? valA.localeCompare(valB)
-            : valB.localeCompare(valA);
+          return sortConfig.direction === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
         } else {
           return sortConfig.direction === "asc"
-            ? valA > valB
-              ? 1
-              : valA < valB
-                ? -1
-                : 0
-            : valB > valA
-              ? 1
-              : valB < valA
-                ? -1
-                : 0;
+            ? valA > valB ? 1 : valA < valB ? -1 : 0
+            : valB > valA ? 1 : valB < valA ? -1 : 0;
         }
       });
     }
 
     return result;
   }, [
-    data,
-    activeTab,
-    searchTerm,
-    filterStatus,
-    filterWilayah,
-    filterBantuan,
-    sortConfig,
+    data, activeTab, searchTerm, filterKecamatan, filterKelurahan,
+    filterOverlap, selectedDesils, sortConfig, columnFilters, textColumnFilters,
   ]);
 
   // Pagination
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredData.length / ITEMS_PER_PAGE),
+    serverTotalPages,
   );
-  const paginatedData = filteredData.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
-  );
+  const paginatedData = filteredData;
 
   const getPageNumbers = () => {
     const pages: (number | "...")[] = [];
@@ -335,10 +559,9 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
   // Actions
   const runAnalisisAndAdvance = async (id: string) => {
-    const res = await apiFetch("/api/v1/asesmen/sosial", {
+    const res = await apiFetch(`/api/v1/asesmen/komprehensif/${id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ keluarga_id: id }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -346,8 +569,8 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     }
 
     const hasil = await res.json().catch(() => ({}));
-    const bantuan = Array.isArray(hasil?.hasil_rekomendasi_final)
-      ? hasil.hasil_rekomendasi_final
+    const bantuan = Array.isArray(hasil?.hasil_analisis_sosial_tim3?.hasil_rekomendasi_final)
+      ? hasil.hasil_analisis_sosial_tim3.hasil_rekomendasi_final
       : [];
 
     const resUpdate = await apiFetch(`/api/v1/manajemen-bantuan/${id}/status`, {
@@ -460,57 +683,194 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
   const resetFilters = () => {
     setSearchTerm("");
-    setFilterStatus("Semua");
-    setFilterWilayah("Semua");
-    setFilterBantuan("Semua");
+    setFilterKecamatan("Semua");
+    setFilterKelurahan("Semua");
+    setSelectedDesils([]);
+    setFilterOverlap("Semua");
     setSortConfig(null);
+    setColumnFilters({});
+    setTextColumnFilters({});
   };
 
-  const handleSort = (key: SortKey) => {
-    let direction: "asc" | "desc" = "asc";
-    if (sortConfig && sortConfig.key === key) {
-      direction = sortConfig.direction === "asc" ? "desc" : "asc";
+  const resetColumns = () => {
+    setVisibleColumns(new Set(COLUMNS.filter(c => c.defaultVisible || c.locked).map(c => c.key)));
+  };
+
+  const uniqueColumnValues = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    COLUMNS.forEach(col => {
+      if (col.key === 'aksi') return;
+      const set = new Set<string>();
+      data.forEach(row => set.add(getColValue(row, col.key)));
+      result[col.key] = Array.from(set).sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+      );
+    });
+    return result;
+  }, [data]);
+
+  const openFilter = (colKey: string) => {
+    const isHighCard = HIGH_CARDINALITY_COLS.has(colKey);
+    if (isHighCard) {
+      setPendingTextFilter(textColumnFilters[colKey] || '');
+    } else {
+      const allVals = uniqueColumnValues[colKey] || [];
+      const existing = columnFilters[colKey];
+      setPendingFilter(existing && existing.size > 0 ? new Set(existing) : new Set(allVals));
     }
-    setSortConfig({ key, direction });
+    setFilterDropdownSearch('');
+    setOpenFilterCol(prev => prev === colKey ? null : colKey);
   };
 
-  const renderSortHeader = (label: string, sortKey: SortKey) => {
-    const isActive = sortConfig?.key === sortKey;
+  const applyFilter = (colKey: string) => {
+    const isHighCard = HIGH_CARDINALITY_COLS.has(colKey);
+    if (isHighCard) {
+      setTextColumnFilters(prev => {
+        const next = { ...prev };
+        if (!pendingTextFilter.trim()) delete next[colKey];
+        else next[colKey] = pendingTextFilter.trim();
+        return next;
+      });
+    } else {
+      const allVals = uniqueColumnValues[colKey] || [];
+      setColumnFilters(prev => {
+        const next = { ...prev };
+        if (pendingFilter.size === 0 || pendingFilter.size >= allVals.length) { delete next[colKey]; }
+        else { next[colKey] = new Set(pendingFilter); }
+        return next;
+      });
+    }
+    setOpenFilterCol(null);
+  };
+
+  const renderExcelHeader = (label: string, colKey: string) => {
+    const isOpen = openFilterCol === colKey;
+    const isHighCard = HIGH_CARDINALITY_COLS.has(colKey);
+    const hasTextFilter = !!(textColumnFilters[colKey]?.trim());
+    const hasCheckboxFilter = !!(columnFilters[colKey] && columnFilters[colKey].size > 0);
+    const hasFilter = isHighCard ? hasTextFilter : hasCheckboxFilter;
+    const isSortActive = sortConfig?.key === colKey;
+    const isNum = isNumericColumn(colKey);
+    const allVals = uniqueColumnValues[colKey] || [];
+    const filteredVals = filterDropdownSearch
+      ? allVals.filter(v => v.toLowerCase().includes(filterDropdownSearch.toLowerCase()))
+      : allVals;
+    const displayVals = filteredVals.slice(0, MAX_CHECKBOX_VALUES);
+    const allPendingSelected = displayVals.length > 0 && displayVals.every(v => pendingFilter.has(v));
+
     return (
-      <th
-        className="mb-th-sortable"
-        onClick={() => handleSort(sortKey)}
-        title={`Klik untuk mengurutkan berdasarkan ${label.toLowerCase()}`}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          {label}
-          <span className={`mb-sort-icon ${isActive ? "active" : ""}`}>
-            {isActive && sortConfig.direction === "asc" ? (
-              <ChevronUp size={14} />
-            ) : isActive && sortConfig.direction === "desc" ? (
-              <ChevronDown size={14} />
-            ) : (
-              <ChevronsUpDown size={14} />
-            )}
+      <th key={colKey} className={`excel-filter-th${isSortActive ? ' sort-active' : ''}`} style={{ position: 'relative', padding: 0, minWidth: '120px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 8px 12px 14px', gap: '4px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: hasFilter || isSortActive ? '#2563eb' : '#475569', whiteSpace: 'nowrap' }}>
+            {label}
           </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+            {isSortActive && <span style={{ color: '#2563eb', display: 'flex' }}>{sortConfig?.direction === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />}</span>}
+            <button
+              onClick={(e) => { e.stopPropagation(); openFilter(colKey); }}
+              style={{ background: hasFilter ? '#eff6ff' : 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center', borderRadius: '3px', color: hasFilter ? '#2563eb' : '#94a3b8' }}
+              title={hasFilter ? 'Filter aktif' : 'Filter kolom'}
+            >
+              <Filter size={11} />
+            </button>
+          </div>
         </div>
+        {isOpen && (
+          <div className="excel-filter-dropdown" onClick={e => e.stopPropagation()}>
+            {/* Sort section — selalu tampil */}
+            <div className="efd-sort-section">
+              <button className={`efd-sort-btn${isSortActive && sortConfig?.direction === 'asc' ? ' active' : ''}`}
+                onClick={() => setSortConfig({ key: colKey, direction: 'asc' })}>
+                {isNum ? '↑ Terkecil ke Terbesar' : '↑ A ke Z'}
+              </button>
+              <button className={`efd-sort-btn${isSortActive && sortConfig?.direction === 'desc' ? ' active' : ''}`}
+                onClick={() => setSortConfig({ key: colKey, direction: 'desc' })}>
+                {isNum ? '↓ Terbesar ke Terkecil' : '↓ Z ke A'}
+              </button>
+              {isSortActive && (
+                <button className="efd-sort-btn efd-clear-sort" onClick={() => setSortConfig(null)}>✕ Hapus Urutan</button>
+              )}
+            </div>
+            <div className="efd-divider" />
+
+            {isHighCard ? (
+              /* ── Mode Text Search untuk kolom high-cardinality (NIK, Nama, ID) ── */
+              <>
+                <div className="efd-highcard-label">Cari (mengandung teks):</div>
+                <div className="efd-search" style={{ borderBottom: 'none', paddingBottom: '4px' }}>
+                  <Search size={11} />
+                  <input
+                    placeholder={`Ketik ${label}...`}
+                    value={pendingTextFilter}
+                    onChange={e => setPendingTextFilter(e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    onKeyDown={e => e.key === 'Enter' && applyFilter(colKey)}
+                    autoFocus
+                  />
+                  {pendingTextFilter && (
+                    <button onClick={() => setPendingTextFilter('')}
+                      style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0 2px', display: 'flex' }}>
+                      <XCircle size={11} />
+                    </button>
+                  )}
+                </div>
+                {hasTextFilter && (
+                  <div style={{ padding: '2px 12px 6px', fontSize: '11px', color: '#60a5fa' }}>
+                    Filter aktif: "{textColumnFilters[colKey]}"
+                  </div>
+                )}
+              </>
+            ) : (
+              /* ── Mode Checkbox untuk kolom kategorikal ── */
+              <>
+                <div className="efd-search">
+                  <Search size={11} />
+                  <input placeholder="Cari nilai..." value={filterDropdownSearch}
+                    onChange={e => setFilterDropdownSearch(e.target.value)}
+                    onClick={e => e.stopPropagation()} autoFocus />
+                </div>
+                <div className="efd-list">
+                  <label className="efd-item efd-select-all">
+                    <input type="checkbox" checked={allPendingSelected}
+                      onChange={() => {
+                        if (allPendingSelected) setPendingFilter(prev => { const n = new Set(prev); displayVals.forEach(v => n.delete(v)); return n; });
+                        else setPendingFilter(prev => new Set([...prev, ...displayVals]));
+                      }} />
+                    <span>(Pilih Semua{filteredVals.length > MAX_CHECKBOX_VALUES ? ` — ${MAX_CHECKBOX_VALUES} dari ${filteredVals.length}` : ''})</span>
+                  </label>
+                  {displayVals.map(v => (
+                    <label key={v} className="efd-item">
+                      <input type="checkbox" checked={pendingFilter.has(v)}
+                        onChange={() => setPendingFilter(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; })} />
+                      <span>{v}</span>
+                    </label>
+                  ))}
+                  {filteredVals.length > MAX_CHECKBOX_VALUES && (
+                    <div style={{ padding: '6px 12px', fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>
+                      +{filteredVals.length - MAX_CHECKBOX_VALUES} nilai lainnya tidak ditampilkan
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className="efd-actions">
+              <button className="efd-btn-ok" onClick={() => applyFilter(colKey)}>OK</button>
+              <button className="efd-btn-cancel" onClick={() => setOpenFilterCol(null)}>Batal</button>
+            </div>
+          </div>
+        )}
       </th>
     );
   };
 
-  // Determine what columns to show
-  const showBantuan = activeTab !== "analisis";
-  const showStageBadge = true;
-  const showDesilChange = false; // Evaluasi kaku telah dihilangkan
-
   const colCount =
     1 + // checkbox
-    5 + // id, nama, wilayah, desil
-    2 + // ASPD and PKHT columns
-    (showStageBadge ? 1 : 0) +
-    (showBantuan ? 1 : 0) +
-    (showDesilChange ? 1 : 0) +
-    1; // aksi
+    COLUMNS.filter((c) => visibleColumns.has(c.key) || c.locked).length;
+
+  const filteredColumns = COLUMNS.filter((col) =>
+    col.label.toLowerCase().includes(searchColumn.toLowerCase())
+  );
 
   return (
     <AdminLayout title="Manajemen Bantuan" onLogout={onLogout}>
@@ -520,7 +880,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
           <div className="mb-title-area">
             <h3>Manajemen Bantuan</h3>
             <p>
-              Kelola seluruh rekomendasi bantuan sosial mulai dari tahap
+              Kelola seluruh eligible bantuan sosial mulai dari tahap
               analisis, validasi, hingga penetapan diterima/ditolak.
             </p>
           </div>
@@ -571,104 +931,105 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
         </div>
 
         {/* ── Filter & Search ───────────────── */}
-        <div className="mb-filter-bar">
-          <div className="mb-search-box">
-            <Search size={18} />
-            <input
-              type="text"
-              placeholder="Cari Nama / NIK / ID Analisis..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              disabled={isLoading}
-            />
-          </div>
+        <div className="mb-filter-bar" style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "20px" }}>
+          <div style={{ display: "flex", width: "100%", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
+            <div className="mb-search-box" style={{ flex: 1, minWidth: "280px" }}>
+              <Search size={18} />
+              <input
+                type="text"
+                placeholder="Cari Nama / NIK / ID Analisis..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
 
-          <div className="mb-filter-group">
-            <label>STATUS</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+            {/* Kolom Manager Popover */}
+            <div className="mb-popover-wrapper" style={{ position: "relative" }}>
+              <button
+                className="mb-btn-reset"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowColumnDropdown(!showColumnDropdown);
+                  setShowDesilDropdown(false);
+                }}
+                style={{ height: "42px", display: "flex", alignItems: "center" }}
+              >
+                Atur Kolom
+              </button>
+               {showColumnDropdown && (
+                <div className="mb-popover-menu" onClick={(e) => e.stopPropagation()} style={{ position: "absolute", zIndex: 100, right: 0, marginTop: "8px" }}>
+                  <div className="mb-popover-header">Visibilitas Kolom</div>
+                  
+                  <div className="mb-column-search">
+                    <input
+                      type="text"
+                      placeholder="Cari kolom..."
+                      value={searchColumn}
+                      onChange={(e) => setSearchColumn(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="mb-popover-list" style={{ maxHeight: "300px", overflowY: "auto" }}>
+                    {filteredColumns.map((col) => {
+                      const isLocked = col.locked;
+                      const isChecked = visibleColumns.has(col.key) || isLocked;
+                      return (
+                        <label key={col.key} className="mb-popover-item" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px", cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            disabled={isLocked}
+                            onChange={() => {
+                              setVisibleColumns((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(col.key)) {
+                                  next.delete(col.key);
+                                } else {
+                                  next.add(col.key);
+                                }
+                                return next;
+                              });
+                            }}
+                          />
+                          <span className={isLocked ? "mb-column-locked" : ""} style={{ fontSize: "14px", color: isLocked ? "#94a3b8" : "#334155" }}>
+                            {col.label} {isLocked && "(Wajib)"}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+
+
+
+
+            <button
+              className="mb-btn-reset"
+              onClick={resetColumns}
               disabled={isLoading}
+              style={{ height: "42px", display: "flex", alignItems: "center" }}
             >
-              <option value="Semua">Semua Status</option>
-              <option value="Diproses">Diproses</option>
-              <option value="Analisis">Analisis</option>
-              <option value="Validasi">Validasi</option>
-              <option value="Diterima">Diterima</option>
-              <option value="Ditolak">Ditolak</option>
-            </select>
-          </div>
-
-          <div className="mb-filter-group">
-            <label>WILAYAH</label>
-            <select
-              value={filterWilayah}
-              onChange={(e) => setFilterWilayah(e.target.value)}
+              Reset Kolom
+            </button>
+            <button
+              className="mb-btn-reset"
+              onClick={resetFilters}
               disabled={isLoading}
+              style={{ height: "42px", display: "flex", alignItems: "center" }}
             >
-              <option value="Semua">Semua Wilayah</option>
-              <option value="Malang">Malang</option>
-            </select>
+              Reset Filter
+            </button>
           </div>
-
-          <div className="mb-filter-group">
-            <label>JENIS BANTUAN</label>
-            <select
-              value={filterBantuan}
-              onChange={(e) => setFilterBantuan(e.target.value)}
-              disabled={isLoading}
-            >
-              <option value="Semua">Semua Jenis</option>
-              <option value="ASPD">ASPD</option>
-              <option value="PKHT">PKHT</option>
-              <option value="KE">KE</option>
-              <option value="JAWARA">Jawara</option>
-              <option value="JAWARA P">Jawara P</option>
-              <option value="PPU">PPU</option>
-            </select>
-          </div>
-
-          <div className="mb-filter-group">
-            <label>URUTKAN</label>
-            <select
-              value={
-                sortConfig
-                  ? `${sortConfig.key}-${sortConfig.direction}`
-                  : "default"
-              }
-              onChange={(e) => {
-                if (e.target.value === "default") {
-                  setSortConfig(null);
-                } else {
-                  const [key, direction] = e.target.value.split("-");
-                  setSortConfig({
-                    key: key as SortKey,
-                    direction: direction as "asc" | "desc",
-                  });
-                }
-              }}
-              disabled={isLoading}
-            >
-              <option value="default">Default</option>
-              <option value="skorASPD-desc">Skor ASPD Tertinggi</option>
-              <option value="skorPKHT-desc">Skor PKHT Tertinggi</option>
-              <option value="nama-asc">Nama (A - Z)</option>
-            </select>
-          </div>
-
-          <button
-            className="mb-btn-reset"
-            onClick={resetFilters}
-            disabled={isLoading}
-          >
-            Reset Filter
-          </button>
         </div>
 
         {/* ── Data Table ────────────────────── */}
         <div className="mb-table-card">
-          <div className="mb-table-responsive">
-            <table className="mb-table">
+          <div className="mb-table-responsive" style={{ overflowX: "auto" }}>
+            <table className="mb-table" style={{ tableLayout: "auto", width: "100%" }}>
               <thead>
                 <tr>
                   <th
@@ -706,17 +1067,13 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                       )}
                     </button>
                   </th>
-                  {renderSortHeader("ID / TANGGAL", "id")}
-                  {renderSortHeader("NAMA PENERIMA", "nama")}
-                  {renderSortHeader("WILAYAH", "wilayah")}
-                  {renderSortHeader("DESIL", "desil")}
-                  {renderSortHeader("ASPD", "skorASPD")}
-                  {renderSortHeader("PKHT", "skorPKHT")}
-                  {showStageBadge && renderSortHeader("STATUS TAHAP", "tahap")}
-                  {showBantuan && renderSortHeader("BANTUAN", "bantuan")}
-                  {showDesilChange &&
-                    renderSortHeader("PERUBAHAN DESIL", "perubahanDesil")}
-                  <th style={{ textAlign: "center" }}>AKSI</th>
+                  {COLUMNS.map((col) => {
+                    if (!visibleColumns.has(col.key) && !col.locked) return null;
+                    if (col.key === "aksi") {
+                      return <th key={col.key} style={{ padding: "14px 16px", color: "#475569", fontSize: "12px", fontWeight: "600", textTransform: "uppercase", textAlign: "center" }}>{col.label}</th>;
+                    }
+                    return renderExcelHeader(col.label, col.key);
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -789,287 +1146,242 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                           />
                         )}
                       </td>
-                      {/* ID / Tanggal */}
-                      <td>
-                        <div
-                          className="mb-cell-link"
-                          style={{ display: "inline-block" }}
-                        >
-                          {row.idLabel}
-                        </div>
-                        <div className="mb-cell-secondary">{row.tanggal}</div>
-                      </td>
 
-                      {/* Nama */}
-                      <td>
-                        <div className="mb-cell-primary">{row.nama}</div>
-                        <div className="mb-cell-secondary">
-                          NIK:{" "}
-                          {row.nik.length > 20
-                            ? row.nik.substring(0, 20) + "..."
-                            : row.nik}
-                        </div>
-                      </td>
+                      {/* Dynamic Columns Cell Mapping */}
+                      {COLUMNS.map((col) => {
+                        if (!visibleColumns.has(col.key) && !col.locked) return null;
 
-                      {/* Wilayah */}
-                      <td>
-                        <div className="mb-cell-primary">{row.wilayah}</div>
-                        <div className="mb-cell-secondary">{row.kecamatan}</div>
-                      </td>
-
-                      {/* Desil */}
-                      <td style={{ textAlign: "center" }}>
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: getDesilColor(row.desil),
-                            fontWeight: "600",
-                            backgroundColor:
-                              getDesilColor(row.desil) === "red"
-                                ? "#fee2e2"
-                                : getDesilColor(row.desil) === "orange"
-                                  ? "#ffedd5"
-                                  : "#dcfce7",
-                            padding: "4px 12px",
-                            borderRadius: "9999px",
-                            fontSize: "13px",
-                            minWidth: "70px",
-                          }}
-                        >
-                          Desil {row.desil}
-                        </span>
-                      </td>
-
-                      {/* ASPD Column */}
-                      <td>
-                        <div className="mb-cell-primary font-semibold text-blue-600">
-                          {row.tahap === "analisis"
-                            ? row.rekomendasiBantuan &&
-                              row.rekomendasiBantuan.includes("ASPD")
-                              ? `${row.skorASPD.toFixed(1)}`
-                              : "—"
-                            : row.bantuan && row.bantuan.includes("ASPD")
-                              ? `${row.skorASPD.toFixed(1)}`
-                              : "—"}
-                        </div>
-                      </td>
-
-                      {/* PKHT Column */}
-                      <td>
-                        <div className="mb-cell-primary font-semibold text-purple-600">
-                          {row.tahap === "analisis"
-                            ? row.rekomendasiBantuan &&
-                              row.rekomendasiBantuan.includes("PKHT")
-                              ? `${row.skorPKHT.toFixed(1)}`
-                              : "—"
-                            : row.bantuan && row.bantuan.includes("PKHT")
-                              ? `${row.skorPKHT.toFixed(1)}`
-                              : "—"}
-                        </div>
-                      </td>
-
-                      {/* Stage Badge (only on Semua tab) */}
-                      {showStageBadge && (
-                        <td>
-                          <span
-                            className={`mb-stage-badge ${getStageBadgeClass(row.tahap)}`}
-                          >
-                            <span className="mb-badge-dot" />
-                            {getStageBadgeLabel(row.tahap)}
-                          </span>
-                        </td>
-                      )}
-
-                      {/* Bantuan */}
-                      {showBantuan && (
-                        <td style={{ fontWeight: 500 }}>
-                          {row.bantuan && row.bantuan.length > 0 ? (
-                            <div className="mb-bantuan-container">
-                              {row.bantuan.slice(0, 2).join(", ")}
-                              {row.bantuan.length > 2 && (
-                                <span className="mb-bantuan-more">
-                                  +{row.bantuan.length - 2} lainnya
-                                </span>
-                              )}
-                              {row.bantuan.length > 2 && (
-                                <div className="mb-bantuan-tooltip">
-                                  {row.bantuan.join(", ")}
+                        switch (col.key) {
+                          case "id_keluarga":
+                            return (
+                              <td key={col.key} style={{ padding: "14px 16px" }}>
+                                <div className="mb-id-col" style={{ display: "flex", flexDirection: "column" }}>
+                                  <span className="mb-cell-link" style={{ fontWeight: 600 }}>{row.idLabel}</span>
+                                  <span style={{ fontSize: "11px", color: "#64748b" }}>{row.tanggal || "-"}</span>
                                 </div>
-                              )}
-                            </div>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                      )}
-
-                      {/* Desil Change (Evaluasi only) */}
-                      {showDesilChange && (
-                        <td>
-                          {row.desilSebelum !== undefined &&
-                          row.desilSesudah !== undefined ? (
-                            <div className="mb-desil-change">
-                              <span>Desil {row.desilSebelum}</span>
-                              <ArrowRight
-                                size={14}
-                                className="mb-desil-arrow"
-                              />
-                              <span>Desil {row.desilSesudah}</span>
-                              {row.desilSesudah > row.desilSebelum ? (
-                                <span className="mb-desil-improved">
-                                  ↑ Naik
+                              </td>
+                            );
+                          case "nama": {
+                            const isNikColumnVisible = visibleColumns.has("nik");
+                            return (
+                              <td key={col.key} style={{ padding: "14px 16px" }}>
+                                <div style={{ display: "flex", flexDirection: "column" }}>
+                                  <span style={{ fontWeight: 600, color: "#1e293b" }}>{row.nama}</span>
+                                  {!isNikColumnVisible && (
+                                    <>
+                                      <span style={{ fontSize: "12px", color: "#64748b" }}>
+                                        NIK: {row.nik.length > 20 ? row.nik.substring(0, 20) + "..." : row.nik}
+                                      </span>
+                                      {row.nik && (row.nik.includes("0000") || row.nik.length < 16) && (
+                                        <span style={{ fontSize: "10px", color: "#ef4444", background: "#fef2f2", padding: "2px 6px", borderRadius: "4px", width: "fit-content", marginTop: "4px", fontWeight: 600 }}>
+                                          Anomali NIK
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          }
+                          case "wilayah": {
+                            const isKecamatanVisible = visibleColumns.has("kecamatan");
+                            const isKelurahanVisible = visibleColumns.has("kelurahan_desa");
+                            const showWilayahSubtext = !isKecamatanVisible && !isKelurahanVisible;
+                            return (
+                              <td key={col.key} style={{ padding: "14px 16px" }}>
+                                <div style={{ display: "flex", flexDirection: "column" }}>
+                                  <span style={{ fontWeight: 500, color: "#334155" }}>{row.wilayah}</span>
+                                  {showWilayahSubtext && (
+                                    <span style={{ fontSize: "12px", color: "#64748b" }}>
+                                      {row.kecamatan || "-"}, {row.kelurahan_desa || "-"}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          }
+                          case "desil":
+                            return (
+                              <td key={col.key} style={{ padding: "14px 16px" }}>
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    color: getDesilColor(row.desil),
+                                    fontWeight: "600",
+                                    backgroundColor:
+                                      getDesilColor(row.desil) === "red"
+                                        ? "#fee2e2"
+                                        : getDesilColor(row.desil) === "orange"
+                                          ? "#ffedd5"
+                                          : "#dcfce7",
+                                    padding: "4px 12px",
+                                    borderRadius: "9999px",
+                                    fontSize: "13px",
+                                    minWidth: "70px",
+                                  }}
+                                >
+                                  Desil {row.desil}
                                 </span>
-                              ) : row.desilSesudah < row.desilSebelum ? (
-                                <span className="mb-desil-declined">
-                                  ↓ Turun
+                              </td>
+                            );
+                          case "skor_aspd":
+                            return (
+                              <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#2563eb" }}>
+                                {row.tahap === "proses" || row.tahap === "analisis"
+                                  ? "—"
+                                  : (row.skorASPD ?? 0).toFixed(1)}
+                              </td>
+                            );
+                          case "skor_pkh_plus":
+                            return (
+                              <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#7c3aed" }}>
+                                {row.tahap === "proses" || row.tahap === "analisis"
+                                  ? "—"
+                                  : (row.skorPKHPlus ?? row.skorPKHT ?? 0).toFixed(1)}
+                              </td>
+                            );
+                          case "tahap":
+                            return (
+                              <td key={col.key} style={{ padding: "14px 16px" }}>
+                                <span className={`mb-stage-badge ${getStageBadgeClass(row.tahap)}`} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                                  <span className="mb-badge-dot" />
+                                  {getStageBadgeLabel(row.tahap)}
                                 </span>
-                              ) : (
-                                <span className="mb-desil-unchanged">
-                                  = Tetap
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                      )}
+                              </td>
+                            );
+                          case "bantuan":
+                            return (
+                              <td key={col.key} style={{ padding: "14px 16px" }}>
+                                {row.bantuan && row.bantuan.length > 0 ? (
+                                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                                    {row.bantuan.map((b) => (
+                                      <span key={b} className={`mb-pill-bantuan ${b.toLowerCase()}`} style={{ fontSize: "11px", fontWeight: "600", padding: "2px 8px", borderRadius: "4px", backgroundColor: b === "ASPD" ? "#eff6ff" : "#f5f3ff", color: b === "ASPD" ? "#1d4ed8" : "#6d28d9", border: `1px solid ${b === "ASPD" ? "#bfdbfe" : "#ddd6fe"}` }}>
+                                        {b}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span style={{ color: "#94a3b8", fontSize: "13px" }}>—</span>
+                                )}
+                              </td>
+                            );
+                          case "aksi":
+                            return (
+                              <td key={col.key} onClick={(e) => e.stopPropagation()} style={{ padding: "14px 16px", textAlign: "center" }}>
+                                <div style={{ display: "flex", justifyContent: "center", gap: "8px", alignItems: "center" }}>
+                                  {row.tahap === "proses" && (
+                                    <button
+                                      className="mb-btn-analisis"
+                                      style={{
+                                        width: "120px",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "6px",
+                                        cursor: "not-allowed",
+                                        opacity: 0.8,
+                                      }}
+                                      disabled
+                                    >
+                                      <Loader2 size={14} className="mb-spin" /> Diproses...
+                                    </button>
+                                  )}
 
-                      {/* Actions */}
-                      <td style={{ textAlign: "center" }}>
-                        <div
-                          className="mb-action-cell"
-                          style={{
-                            justifyContent: "center",
-                            display: "flex",
-                            gap: "8px",
-                            alignItems: "center",
-                          }}
-                        >
-                          {/* Proses-specific */}
-                          {row.tahap === "proses" && (
-                            <button
-                              className="mb-btn-analisis"
-                              style={{
-                                width: "140px",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "6px",
-                                cursor: "not-allowed",
-                                opacity: 0.8,
-                              }}
-                              disabled
-                            >
-                              <Loader2 size={14} className="mb-spin" /> Diproses...
-                            </button>
-                          )}
+                                  {row.tahap === "analisis" && (
+                                    <button
+                                      className="mb-btn-analisis"
+                                      style={{
+                                        width: "120px",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "6px",
+                                      }}
+                                      disabled={analyzingId === row.id_keluarga}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAnalisis(row.id_keluarga);
+                                      }}
+                                    >
+                                      {analyzingId === row.id_keluarga ? (
+                                        <>
+                                          <Loader2 size={14} className="mb-spin" /> Menganalisis
+                                        </>
+                                      ) : (
+                                        <>
+                                          <BrainCircuit size={14} /> Analisis
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
 
-                          {/* Analisis-specific */}
-                          {row.tahap === "analisis" && (
-                            <button
-                              className="mb-btn-analisis"
-                              style={{
-                                width: "140px",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "6px",
-                              }}
-                              disabled={analyzingId === row.id_keluarga}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAnalisis(row.id_keluarga);
-                              }}
-                            >
-                              {analyzingId === row.id_keluarga ? (
-                                <>
-                                  <Loader2 size={14} className="mb-spin" />{" "}
-                                  Menganalisis...
-                                </>
-                              ) : (
-                                <>
-                                  <BrainCircuit size={14} /> Analisis
-                                </>
-                              )}
-                            </button>
-                          )}
+                                  {row.tahap === "validasi" && (
+                                    <button
+                                      className="mb-btn-validasi"
+                                      style={{
+                                        width: "120px",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "6px",
+                                      }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/detail-hasil/${row.id_keluarga}`, {
+                                          state: row,
+                                        });
+                                      }}
+                                    >
+                                      <ShieldCheck size={14} /> Validasi
+                                    </button>
+                                  )}
 
-                          {/* Validasi-specific */}
-                          {row.tahap === "validasi" && (
-                            <button
-                              className="mb-btn-validasi"
-                              style={{
-                                width: "140px",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "6px",
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/detail-hasil/${row.id_keluarga}`, {
-                                  state: row,
-                                });
-                              }}
-                            >
-                              <ShieldCheck size={14} /> Validasi
-                            </button>
-                          )}
-
-                          {/* Diterima-specific */}
-                          {row.tahap === "diterima" && (
-                            <button
-                              className="mb-btn-review"
-                              style={{
-                                width: "140px",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "6px",
-                                backgroundColor: "#ecfdf5",
-                                color: "#10b981",
-                                borderColor: "#a7f3d0",
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/detail-hasil/${row.id_keluarga}`, {
-                                  state: row,
-                                });
-                              }}
-                            >
-                              <CheckCircle size={14} /> Review Bantuan
-                            </button>
-                          )}
-
-                          {/* Ditolak-specific */}
-                          {row.tahap === "ditolak" && (
-                            <button
-                              className="mb-btn-history"
-                              style={{
-                                width: "140px",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "6px",
-                                backgroundColor: "#fef2f2",
-                                color: "#ef4444",
-                                borderColor: "#fecaca",
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/detail-hasil/${row.id_keluarga}`, {
-                                  state: row,
-                                });
-                              }}
-                            >
-                              <FileBarChart size={14} /> Lihat Detail
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                                  {(row.tahap === "diterima" || row.tahap === "ditolak") && (
+                                    <button
+                                      className="mb-btn-review"
+                                      style={{
+                                        width: "120px",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "6px",
+                                        backgroundColor: row.tahap === "diterima" ? "#ecfdf5" : "#fef2f2",
+                                        color: row.tahap === "diterima" ? "#10b981" : "#ef4444",
+                                        borderColor: row.tahap === "diterima" ? "#a7f3d0" : "#fecaca",
+                                      }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/detail-hasil/${row.id_keluarga}`, {
+                                          state: row,
+                                        });
+                                      }}
+                                    >
+                                      {row.tahap === "diterima" ? <CheckCircle size={14} /> : <FileBarChart size={14} />} Review
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          default: {
+                            const val = row[col.key as keyof DataRow];
+                            let displayVal = "—";
+                            if (typeof val === "boolean") {
+                              displayVal = val ? "Ya" : "Tidak";
+                            } else if (typeof val === "number") {
+                              displayVal = val.toLocaleString();
+                            } else if (val) {
+                              displayVal = String(val);
+                            }
+                            return (
+                              <td key={col.key} style={{ padding: "14px 16px", color: "#475569", fontSize: "13px" }}>
+                                {displayVal}
+                              </td>
+                            );
+                          }
+                        }
+                      })}
                     </tr>
                   ))
                 )}
@@ -1079,15 +1391,16 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
           {/* Batch Action Bar */}
           {selectedRows.size > 0 && (
-            <div className="mb-batch-bar">
-              <div className="mb-batch-info">
+            <div className="mb-batch-bar" style={{ display: "flex", justifyContent: "space-between", padding: "16px 20px", backgroundColor: "#f8fafc", borderTop: "1px solid #e2e8f0" }}>
+              <div className="mb-batch-info" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <CheckSquare size={18} style={{ color: "#2563eb" }} />
                 <span>
-                  <strong>{selectedRows.size}</strong> data terpilih
+                  <strong>{selectedRows.size}</strong> data keluarga terpilih
                 </span>
                 <button
                   className="mb-batch-clear"
                   onClick={() => setSelectedRows(new Set())}
+                  style={{ display: "flex", alignItems: "center", gap: "4px", color: "#64748b", background: "none", border: "none", cursor: "pointer", fontSize: "13px" }}
                 >
                   <XCircle size={14} /> Batal Pilih
                 </button>
@@ -1099,13 +1412,11 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
               >
                 {isBatchAnalyzing ? (
                   <>
-                    <Loader2 size={16} className="mb-spin" /> Menganalisis...{" "}
-                    {batchProgress}%
+                    <Loader2 size={16} className="mb-spin" /> Menganalisis... {batchProgress}%
                   </>
                 ) : (
                   <>
-                    <BrainCircuit size={16} /> Analisis Batch (
-                    {selectedRows.size})
+                    <BrainCircuit size={16} /> Analisis Batch ({selectedRows.size})
                   </>
                 )}
               </button>
@@ -1114,20 +1425,21 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
           {/* Pagination */}
           {!isLoading && filteredData.length > 0 && (
-            <div className="mb-pagination">
-              <div className="mb-pagination-info">
+            <div className="mb-pagination" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderTop: "1px solid #e2e8f0" }}>
+              <div className="mb-pagination-info" style={{ fontSize: "14px", color: "#64748b" }}>
                 Menampilkan{" "}
                 <strong>
                   {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
-                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, serverTotalItems)}
                 </strong>{" "}
-                dari <strong>{filteredData.length}</strong> data
+                dari <strong>{serverTotalItems}</strong> data keluarga
               </div>
-              <div className="mb-pagination-controls">
+              <div className="mb-pagination-controls" style={{ display: "flex", gap: "6px" }}>
                 <button
                   className="mb-page-btn"
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -1139,6 +1451,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                         padding: "0 6px",
                         color: "#94a3b8",
                         fontSize: "13px",
+                        alignSelf: "center",
                         userSelect: "none",
                       }}
                     >
@@ -1152,7 +1465,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                     >
                       {page}
                     </button>
-                  ),
+                  )
                 )}
                 <button
                   className="mb-page-btn"
@@ -1160,6 +1473,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
                   onClick={() =>
                     setCurrentPage((p) => Math.min(totalPages, p + 1))
                   }
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
                 >
                   <ChevronRight size={16} />
                 </button>

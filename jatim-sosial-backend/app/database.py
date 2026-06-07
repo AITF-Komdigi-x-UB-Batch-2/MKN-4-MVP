@@ -1,3 +1,10 @@
+"""
+ * FILE: app/database.py
+ * DESKRIPSI:
+ * Modul konfigurasi koneksi database PostgreSQL using SQLAlchemy.
+ * Menangani koneksi, session factory, migrasi skema otomatis (ensure_column),
+ * dan memastikan kolom nik ditambahkan ke tabel keluarga.
+"""
 import os
 # Tambahkan inspect dan text di baris ini
 from sqlalchemy import create_engine, inspect, text
