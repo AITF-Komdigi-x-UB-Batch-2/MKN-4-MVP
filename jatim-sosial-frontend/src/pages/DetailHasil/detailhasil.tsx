@@ -45,7 +45,6 @@ interface DetailKeluargaResponse {
   visual_reasoning?: string | null;
   aiReasoning: string;
   catatan?: string | null;
-  catatan_supervisor?: string | null;
 }
 
 const mapAtap = (val: number) => {
@@ -128,10 +127,8 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   const [selectedPrograms, setSelectedPrograms] = useState<string[]>(
     location.state?.bantuan || [],
   );
-  const [isConfirming, setIsConfirming] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [isAssistanceConfirmed, setIsAssistanceConfirmed] = useState(true);
-  const [catatanInput, setCatatanInput] = useState("");
   const [catatanSupInput, setCatatanSupInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const latestRequestRef = React.useRef(0);
@@ -241,9 +238,9 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
         setStageState(data.tahap);
         setSelectedPrograms(data.bantuan && data.bantuan.length > 0 ? data.bantuan : (data.rekomendasiBantuan || []));
         setIsAssistanceConfirmed(true);
-        if (data.catatan) setCatatanInput(data.catatan);
-        if (data.catatan_supervisor)
-          setCatatanSupInput(data.catatan_supervisor);
+        if (data.catatan) {
+          setCatatanSupInput(data.catatan);
+        }
       }
     } catch (err) {
       if (requestId === latestRequestRef.current) {
@@ -359,9 +356,8 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     status: string,
     bantuanList?: string[],
     catatan?: string,
-    catatan_supervisor?: string,
   ) => {
-    console.log(`[handleUpdateStatus] Mengirim update status ke server. ID: ${id}, Status Baru: "${status}", Bantuan:`, bantuanList, `, Catatan Petugas: "${catatan}", Catatan Supervisor: "${catatan_supervisor}"`);
+    console.log(`[handleUpdateStatus] Mengirim update status ke server. ID: ${id}, Status Baru: "${status}", Bantuan:`, bantuanList, `, Catatan: "${catatan}"`);
     try {
       const response = await apiFetch(
         `/api/v1/manajemen-bantuan/${id}/status`,
@@ -372,7 +368,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
             status_validasi: status,
             bantuan: bantuanList,
             catatan: catatan,
-            catatan_supervisor: catatan_supervisor,
           }),
         },
       );
@@ -389,29 +384,11 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     }
   };
 
-  const handleConfirmAssistance = async () => {
-    if (selectedPrograms.length === 0) return;
-    console.log(`[handleConfirmAssistance] Menyubmit bantuan sosial terpilih:`, selectedPrograms);
-    setIsConfirming(true);
-    const success = await handleUpdateStatus(
-      "validasi",
-      selectedPrograms,
-      catatanInput,
-    );
-    setIsConfirming(false);
-    if (success) {
-      console.log(`[handleConfirmAssistance] Sukses memindahkan ke tahap validasi.`);
-      setSuccessMsg("Rekomendasi bantuan berhasil diajukan ke tahap Validasi!");
-      setTimeout(() => setSuccessMsg(""), 2000);
-    }
-  };
-
   const handleSupervisorApprove = async () => {
     console.log(`[handleSupervisorApprove] Supervisor menyetujui bantuan sosial dengan program:`, selectedPrograms);
     const success = await handleUpdateStatus(
       "diterima",
       selectedPrograms,
-      undefined,
       catatanSupInput,
     );
     if (success) {
@@ -425,7 +402,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     console.log(`[handleSupervisorReject] Supervisor menolak bantuan sosial.`);
     const success = await handleUpdateStatus(
       "ditolak",
-      undefined,
       undefined,
       catatanSupInput,
     );
@@ -466,6 +442,17 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
       setTimeout(() => setSuccessMsg(""), 2000);
     }
   };
+
+  const renderCatatanView = (label: string, text: string, colorClass: string = "#f3f4f6", textColor: string = "#374151") => (
+    <div style={{ marginBottom: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div>
+        <label style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280" }}>{label}</label>
+        <p style={{ fontSize: "14px", background: colorClass, padding: "10px", borderRadius: "6px", whiteSpace: "pre-wrap", marginTop: "4px", color: textColor }}>
+          {text}
+        </p>
+      </div>
+    </div>
+  );
 
   if (isLoading) {
     return (
@@ -959,7 +946,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                 </div>
                 <div className="panel-body">
                   <div className="form-group">
-                    <label>Catatan Supervisor</label>
+                    <label>Catatan</label>
                     <textarea
                       placeholder="Masukkan catatan keputusan validasi supervisor..."
                       rows={4}
@@ -1008,38 +995,8 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   />
                   <h4 style={{ color: "#0d9488" }}>Pengajuan Disetujui</h4>
                 </div>
-                <div className="panel-body">                  <div
-                    style={{
-                      marginBottom: "24px",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                    }}
-                  >
-                    <div>
-                      <label
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: "#6b7280",
-                        }}
-                      >
-                        CATATAN SUPERVISOR
-                      </label>
-                      <p
-                        style={{
-                          fontSize: "14px",
-                          background: "#f3f4f6",
-                          padding: "10px",
-                          borderRadius: "6px",
-                          whiteSpace: "pre-wrap",
-                          marginTop: "4px",
-                        }}
-                      >
-                        {detailData?.catatan_supervisor || "Tidak ada catatan."}
-                      </p>
-                    </div>
-                  </div>
+                <div className="panel-body">
+                  {renderCatatanView("CATATAN", detailData?.catatan || "Tidak ada catatan.")}
                   <div
                     style={{
                       display: "flex",
@@ -1137,39 +1094,8 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     Pengajuan Bantuan Ditolak
                   </h4>
                 </div>
-                <div className="panel-body">                  <div
-                    style={{
-                      marginBottom: "24px",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                    }}
-                  >
-                    <div>
-                      <label
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: "#6b7280",
-                        }}
-                      >
-                        CATATAN SUPERVISOR
-                      </label>
-                      <p
-                        style={{
-                          fontSize: "14px",
-                          background: "#fef2f2",
-                          padding: "10px",
-                          borderRadius: "6px",
-                          whiteSpace: "pre-wrap",
-                          marginTop: "4px",
-                          color: "#b91c1c",
-                        }}
-                      >
-                        {detailData?.catatan_supervisor || "Tidak ada catatan."}
-                      </p>
-                    </div>
-                  </div>
+                <div className="panel-body">
+                  {renderCatatanView("CATATAN PEMBERI BANTUAN", detailData?.catatan || "Tidak ada catatan.", "#fef2f2", "#b91c1c")}
                   <div
                     className="panel-actions"
                     style={{ flexDirection: "column", gap: "10px" }}

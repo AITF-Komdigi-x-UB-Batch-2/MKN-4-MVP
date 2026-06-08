@@ -604,7 +604,6 @@ async def get_detail_manajemen_bantuan(
         visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian_visual is not None else None,
         visual_reasoning=p.reasoning_tim2 if p else None,
         catatan=p.catatan_petugas if p else None,
-        catatan_supervisor=p.catatan_supervisor if p else None,
         aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI."
     )
 
@@ -629,7 +628,7 @@ async def update_status_validasi(
     logger.info(
         f"[UPDATE STATUS VALIDASI] ID Keluarga: {id_keluarga}. "
         f"Old Status: {old_status}, Requested New Status: {request.status_validasi}, "
-        f"Bantuan: {request.bantuan}, Catatan Petugas: {request.catatan}, Catatan Supervisor: {request.catatan_supervisor}"
+        f"Bantuan: {request.bantuan}, Catatan Petugas: {request.catatan}"
     )
     
     if request.status_validasi:
@@ -640,9 +639,6 @@ async def update_status_validasi(
         
     if request.catatan is not None:
         p.catatan_petugas = request.catatan
-        
-    if request.catatan_supervisor is not None:
-        p.catatan_supervisor = request.catatan_supervisor
         
     db.commit()
     logger.info(f"[UPDATE STATUS VALIDASI] Data berhasil disimpan ke database. Status akhir: {p.status_validasi}")
