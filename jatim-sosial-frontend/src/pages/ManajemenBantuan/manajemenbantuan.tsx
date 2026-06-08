@@ -94,16 +94,12 @@ interface PaginatedManajemenBantuanResponse {
 
 const COLUMNS: ColumnConfig[] = [
   { key: "id_keluarga", label: "ID / Tanggal", defaultVisible: true },
-  { key: "tahap", label: "Status Tahap", defaultVisible: true },
-  { key: "skor_aspd", label: "Skor ASPD", defaultVisible: true },
-  { key: "skor_pkh_plus", label: "Skor PKH+", defaultVisible: true },
   { key: "nama", label: "Nama Penerima", locked: true, defaultVisible: true },
   { key: "nik", label: "NIK", defaultVisible: true },
   { key: "wilayah", label: "Wilayah / Kota", defaultVisible: true },
   { key: "kecamatan", label: "Kecamatan", defaultVisible: true },
   { key: "kelurahan_desa", label: "Kelurahan / Desa", defaultVisible: false },
   { key: "desil", label: "Desil Ekonomi", defaultVisible: true },
-  { key: "bantuan", label: "Bantuan Eligible", locked: true, defaultVisible: true },
 
   // DTKS Extra fields
   { key: "jumlah_anggota_keluarga", label: "Jml Anggota Keluarga", defaultVisible: false },
@@ -144,6 +140,11 @@ const COLUMNS: ColumnConfig[] = [
   { key: "aset_bergerak_kapal_perahu_motor", label: "Aset: Kapal Motor", defaultVisible: false },
   { key: "aset_bergerak_smartphone", label: "Aset: Smartphone", defaultVisible: false },
 
+  // Indikator Kemiskinan Ekstrem
+  { key: "skor_aspd", label: "Skor ASPD", defaultVisible: true },
+  { key: "skor_pkh_plus", label: "Skor PKH+", defaultVisible: true },
+  { key: "tahap", label: "Status Tahap", defaultVisible: true },
+  { key: "bantuan", label: "Bantuan Eligible", locked: true, defaultVisible: true },
   { key: "aksi", label: "Aksi", locked: true, defaultVisible: true }
 ];
 
@@ -265,7 +266,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
   const [textColumnFilters, setTextColumnFilters] = useState<Record<string, string>>({});
   const [pendingFilter, setPendingFilter] = useState<Set<string>>(new Set());
-  const [pendingTextFilter, setPendingTextFilter] = useState('');  
+  const [pendingTextFilter, setPendingTextFilter] = useState('');
   const [filterDropdownSearch, setFilterDropdownSearch] = useState('');
 
   // Column visibility state loaded from localStorage
@@ -305,6 +306,12 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     return () => document.removeEventListener("click", handleOutsideClick);
   }, []);
 
+  useEffect(() => {
+    if (!showColumnDropdown) {
+      setSearchColumn("");
+    }
+  }, [showColumnDropdown]);
+
   const [sortConfig, setSortConfig] = useState<{
     key: SortKey;
     direction: "asc" | "desc";
@@ -325,14 +332,23 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     ditolak: 0,
   });
 
-  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
   const [batchProgress, setBatchProgress] = useState(0);
   const latestRequestRef = React.useRef(0);
 
+  const displayData = useMemo(() => {
+    return data.map((row) =>
+      processingIds.has(row.id_keluarga)
+        ? { ...row, tahap: "proses" as Tahap }
+        : row,
+    );
+  }, [data, processingIds]);
+
   const fetchData = useCallback(async (showLoading = false) => {
     const requestId = ++latestRequestRef.current;
+    console.log(`[fetchData] Memulai pengambilan data. Request ID: ${requestId}, Tab: "${activeTab}", Halaman: ${currentPage}, Pencarian: "${searchTerm}"`);
     try {
       if (showLoading) setIsLoading(true);
       const params = new URLSearchParams({
@@ -349,6 +365,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
       const res = await apiFetch(`/api/v1/manajemen-bantuan?${params.toString()}`);
       if (res.ok && requestId === latestRequestRef.current) {
         const json = (await res.json()) as PaginatedManajemenBantuanResponse | DataRow[];
+        console.log(`[fetchData] Berhasil mengambil data. Request ID: ${requestId}.`, json);
         if (Array.isArray(json)) {
           setData(json);
           setServerTotalItems(json.length);
@@ -369,7 +386,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
       }
     } catch (e) {
       if (requestId === latestRequestRef.current) {
-        console.error("Gagal mengambil data dari server:", e);
+        console.error(`[fetchData] Gagal mengambil data. Request ID: ${requestId}. Error:`, e);
       }
     } finally {
       if (showLoading && requestId === latestRequestRef.current) {
@@ -397,31 +414,46 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
   }, [fetchData]);
 
   useEffect(() => {
-    const hasProcessingData = data.some((row) => row.tahap === "proses");
+    const hasProcessingData = displayData.some((row) => row.tahap === "proses");
     setIsMonitoring(hasProcessingData);
 
     if (!hasProcessingData) return;
 
     const pollInterval = setInterval(() => {
       fetchData();
-    }, 2000);
+    }, 4000);
 
     return () => clearInterval(pollInterval);
-  }, [data, fetchData]);
+  }, [displayData, fetchData]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, searchTerm, filterKecamatan, filterKelurahan, filterOverlap, selectedDesils]);
 
   // Counts per tab (before search/filter)
-  const tabCounts = useMemo(
-    () => serverTabCounts,
-    [serverTabCounts],
-  );
+  const tabCounts = useMemo(() => {
+    const counts = { ...serverTabCounts };
+    let prosesTambahan = 0;
+    let analisisBerkurang = 0;
+
+    processingIds.forEach((id) => {
+      const row = data.find((item) => item.id_keluarga === id);
+      if (!row) return;
+      if (row.tahap === "analisis") {
+        analisisBerkurang += 1;
+        prosesTambahan += 1;
+      }
+    });
+
+    counts.analisis = Math.max(0, (counts.analisis || 0) - analisisBerkurang);
+    counts.proses = (counts.proses || 0) + prosesTambahan;
+    counts.semua = Math.max(0, (counts.semua || 0) - analisisBerkurang + prosesTambahan);
+    return counts;
+  }, [data, processingIds, serverTabCounts]);
 
   // Filtered data
   const filteredData = useMemo(() => {
-    let result = data;
+    let result = displayData;
 
     // Tab filter
     if (activeTab !== "semua") {
@@ -524,7 +556,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
     return result;
   }, [
-    data, activeTab, searchTerm, filterKecamatan, filterKelurahan,
+    displayData, activeTab, searchTerm, filterKecamatan, filterKelurahan,
     filterOverlap, selectedDesils, sortConfig, columnFilters, textColumnFilters,
   ]);
 
@@ -553,43 +585,63 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
   // Actions
   const runAnalisisAndAdvance = async (id: string) => {
+    console.log(`[runAnalisisAndAdvance] Memulai asesmen komprehensif untuk ID: ${id}`);
     const res = await apiFetch(`/api/v1/asesmen/komprehensif/${id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      console.error(`[runAnalisisAndAdvance] Asesmen komprehensif gagal untuk ID: ${id}.`, err);
       throw new Error(err.detail || "Gagal menjalankan analisis.");
     }
 
     const hasil = await res.json().catch(() => ({}));
+    console.log(`[runAnalisisAndAdvance] Hasil asesmen komprehensif diterima untuk ID: ${id}.`, hasil);
     const bantuan = Array.isArray(hasil?.hasil_analisis_sosial_tim3?.hasil_rekomendasi_final)
       ? hasil.hasil_analisis_sosial_tim3.hasil_rekomendasi_final
       : [];
+    const bantuanEligible = bantuan.filter(
+      (item: string | null | undefined) => item && item !== "Tidak Eligible",
+    );
+    const nextStatus = bantuanEligible.length > 0 ? "validasi" : "ditolak";
 
+    console.log(`[runAnalisisAndAdvance] Memperbarui status ID: ${id} menjadi "${nextStatus}" dengan bantuan:`, bantuanEligible);
     const resUpdate = await apiFetch(`/api/v1/manajemen-bantuan/${id}/status`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        status_validasi: "validasi",
-        bantuan,
+        status_validasi: nextStatus,
+        bantuan: bantuanEligible,
       }),
     });
     if (!resUpdate.ok) {
       const err = await resUpdate.json().catch(() => ({}));
-      throw new Error(err.detail || "Gagal memindahkan ke tahap validasi.");
+      console.error(`[runAnalisisAndAdvance] Gagal memperbarui status ke database untuk ID: ${id}.`, err);
+      throw new Error(err.detail || "Gagal memperbarui tahap hasil analisis.");
     }
+    console.log(`[runAnalisisAndAdvance] Sukses memproses dan memperbarui status ID: ${id}`);
   };
 
   const handleAnalisis = async (id: string) => {
-    setAnalyzingId(id);
+    console.log(`[handleAnalisis] Trigger analisis manual untuk ID: ${id}`);
+    setProcessingIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
     try {
       await runAnalisisAndAdvance(id);
       await fetchData(); // refresh data setelah AI selesai
+      console.log(`[handleAnalisis] Sukses menyelesaikan analisis manual untuk ID: ${id}`);
     } catch (e) {
-      console.error(e);
+      console.error(`[handleAnalisis] Terjadi kesalahan saat analisis ID: ${id}.`, e);
     } finally {
-      setAnalyzingId(null);
+      setProcessingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -626,6 +678,7 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
   const handleBatchAnalisis = async () => {
     if (selectedRows.size === 0 || isBatchAnalyzing) return;
+    console.log(`[handleBatchAnalisis] Memulai batch analisis untuk ${selectedRows.size} record:`, Array.from(selectedRows));
     setIsBatchAnalyzing(true);
     setBatchProgress(0);
     const ids = Array.from(selectedRows);
@@ -634,9 +687,10 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
 
     for (const id of ids) {
       try {
+        console.log(`[handleBatchAnalisis] [${processed + 1}/${total}] Menganalisis ID: ${id}`);
         await runAnalisisAndAdvance(id);
       } catch (e) {
-        console.error(e);
+        console.error(`[handleBatchAnalisis] Gagal menganalisis ID: ${id}. Error:`, e);
       }
       processed++;
       setBatchProgress(Math.round((processed / total) * 100));
@@ -646,33 +700,26 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     setIsBatchAnalyzing(false);
     setSelectedRows(new Set());
     setBatchProgress(0);
+    console.log(`[handleBatchAnalisis] Batch analisis selesai.`);
   };
 
   const handleAnalisisAll = async () => {
-    const allAnalisis = data.filter((d) => d.tahap === "analisis");
-    if (allAnalisis.length === 0 || isBatchAnalyzing) return;
-    const allIds = new Set(allAnalisis.map((d) => d.id_keluarga));
-    setSelectedRows(allIds);
+    if (isBatchAnalyzing) return;
+    console.log(`[handleAnalisisAll] Memulai Analisis Semua data di background server`);
     setIsBatchAnalyzing(true);
-    setBatchProgress(0);
-    const ids = Array.from(allIds);
-    const total = ids.length;
-    let processed = 0;
-
-    for (const id of ids) {
-      try {
-        await runAnalisisAndAdvance(id);
-      } catch (e) {
-        console.error(e);
-      }
-      processed++;
-      setBatchProgress(Math.round((processed / total) * 100));
+    try {
+      const res = await apiFetch(`/api/v1/asesmen/batch-all`, { method: "POST" });
+      if (!res.ok) throw new Error("Gagal memulai batch-all");
+      const data = await res.json();
+      console.log(`[handleAnalisisAll] Respons server:`, data);
+      alert("Proses analisis massal telah dimulai di background server. Silakan refresh halaman secara berkala untuk melihat perubahan.");
+    } catch (e) {
+      console.error(`[handleAnalisisAll] Gagal:`, e);
+      alert("Gagal memulai analisis massal.");
+    } finally {
+      setIsBatchAnalyzing(false);
+      await fetchData();
     }
-
-    await fetchData();
-    setIsBatchAnalyzing(false);
-    setSelectedRows(new Set());
-    setBatchProgress(0);
   };
 
   const resetFilters = () => {
@@ -862,11 +909,11 @@ const ManajemenBantuan: React.FC<ManajemenBantuanProps> = ({ onLogout }) => {
     1 + // checkbox
     COLUMNS.filter((c) => visibleColumns.has(c.key) || c.locked).length;
 
-const filteredColumns = COLUMNS.filter((col) =>
-  col.label.toLowerCase().includes(searchColumn.toLowerCase())
-);
+  const filteredColumns = COLUMNS.filter((col) =>
+    col.label.toLowerCase().includes(searchColumn.toLowerCase())
+  );
 
-return (
+  return (
     <AdminLayout title="Manajemen Bantuan" onLogout={onLogout}>
       <div className="mb-page-wrapper">
         {/* ── Header ────────────────────────── */}
@@ -890,45 +937,19 @@ return (
               onClick={handleAnalisisAll}
               disabled={
                 isBatchAnalyzing ||
-                data.filter((d) => d.tahap === "analisis").length === 0 
-             }
-             style={{
-               opacity:
-                 data.filter((d) => d.tahap === "analisis").length === 0
-                   ? 0.5
-                   : 1,
-             }}
-           > 
-             {isBatchAnalyzing ? (
-               <>
-                 <Loader2 size={16} className="mb-spin" />
-                Mengirim... {batchProgress}%
-              </>
-            ) : (
-              <>
-                <BrainCircuit size={16} />
-                Analisis Semua ({data.filter((d) => d.tahap === "analisis").length})
-              </>
-            )}
-          </button>
+                tabCounts.analisis === 0
+              }
+              style={{
+                opacity:
+                  tabCounts.analisis === 0
+                    ? 0.5
+                    : 1,
+              }}
+            >
+              <BrainCircuit size={16} /> Analisis Semua ({tabCounts.analisis})
+            </button>
           </div>
         </div>
-
-        {isBatchAnalyzing && (
-          <div className="mb-upload-progress-wrapper">
-            <div className="mb-upload-progress-info">
-              <span>Mengirim data ke backend...</span>
-              <strong>{batchProgress}%</strong>
-            </div>
-
-            <div className="mb-upload-progress-track">
-              <div
-                className="mb-upload-progress-fill"
-                style={{ width: `${batchProgress}%` }}
-              />
-            </div>
-           </div>
-         )}
 
         {/* ── Tab Navigation ────────────────── */}
         <div className="mb-tabs">
@@ -959,7 +980,6 @@ return (
                 placeholder="Cari Nama / NIK / ID Analisis..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                disabled={isLoading}
               />
             </div>
 
@@ -1113,296 +1133,302 @@ return (
                     </td>
                   </tr>
                 ) : (
-                  paginatedData.map((row) => (
-                    <tr
-                      key={row.id_keluarga}
-                      onClick={() =>
-                        navigate(`/detail-hasil/${row.id_keluarga}`, {
-                          state: row,
-                        })
-                      }
-                      className={`mb-clickable-row ${selectedRows.has(row.id_keluarga) ? "mb-row-selected" : ""}`}
-                    >
-                      {/* Checkbox */}
-                      <td
-                        style={{
-                          width: "44px",
-                          textAlign: "center",
-                          padding: "14px 8px",
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {row.tahap === "analisis" ? (
-                          <button
-                            onClick={() => toggleRowSelection(row.id_keluarga)}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              padding: 0,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              margin: "0 auto",
-                            }}
-                          >
-                            {selectedRows.has(row.id_keluarga) ? (
-                              <CheckSquare
-                                size={16}
-                                style={{ color: "#2563eb" }}
-                              />
-                            ) : (
-                              <Square size={16} style={{ color: "#cbd5e1" }} />
-                            )}
-                          </button>
-                        ) : (
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 16,
-                              height: 16,
-                            }}
-                          />
-                        )}
-                      </td>
+                  paginatedData.map((row) => {
+                    const displayRow = processingIds.has(row.id_keluarga)
+                      ? { ...row, tahap: "proses" as Tahap }
+                      : row;
 
-                      {/* Dynamic Columns Cell Mapping */}
-                      {COLUMNS.map((col) => {
-                        if (!visibleColumns.has(col.key) && !col.locked) return null;
-
-                        switch (col.key) {
-                          case "id_keluarga":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                <div className="mb-id-col" style={{ display: "flex", flexDirection: "column" }}>
-                                  <span className="mb-cell-link" style={{ fontWeight: 600 }}>{row.idLabel}</span>
-                                  <span style={{ fontSize: "11px", color: "#64748b" }}>{row.tanggal || "-"}</span>
-                                </div>
-                              </td>
-                            );
-                          case "nama": {
-                            const isNikColumnVisible = visibleColumns.has("nik");
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                <div style={{ display: "flex", flexDirection: "column" }}>
-                                  <span style={{ fontWeight: 600, color: "#1e293b" }}>{row.nama}</span>
-                                  {!isNikColumnVisible && (
-                                    <>
-                                      <span style={{ fontSize: "12px", color: "#64748b" }}>
-                                        NIK: {row.nik.length > 20 ? row.nik.substring(0, 20) + "..." : row.nik}
-                                      </span>
-                                      {row.nik && (row.nik.includes("0000") || row.nik.length < 16) && (
-                                        <span style={{ fontSize: "10px", color: "#ef4444", background: "#fef2f2", padding: "2px 6px", borderRadius: "4px", width: "fit-content", marginTop: "4px", fontWeight: 600 }}>
-                                          Anomali NIK
-                                        </span>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          }
-                          case "wilayah": {
-                            const isKecamatanVisible = visibleColumns.has("kecamatan");
-                            const isKelurahanVisible = visibleColumns.has("kelurahan_desa");
-                            const showWilayahSubtext = !isKecamatanVisible && !isKelurahanVisible;
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                <div style={{ display: "flex", flexDirection: "column" }}>
-                                  <span style={{ fontWeight: 500, color: "#334155" }}>{row.wilayah}</span>
-                                  {showWilayahSubtext && (
-                                    <span style={{ fontSize: "12px", color: "#64748b" }}>
-                                      {row.kecamatan || "-"}, {row.kelurahan_desa || "-"}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          }
-                          case "desil":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                <span
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    color: getDesilColor(row.desil),
-                                    fontWeight: "600",
-                                    backgroundColor:
-                                      getDesilColor(row.desil) === "red"
-                                        ? "#fee2e2"
-                                        : getDesilColor(row.desil) === "orange"
-                                          ? "#ffedd5"
-                                          : "#dcfce7",
-                                    padding: "4px 12px",
-                                    borderRadius: "9999px",
-                                    fontSize: "13px",
-                                    minWidth: "70px",
-                                  }}
-                                >
-                                  Desil {row.desil}
-                                </span>
-                              </td>
-                            );
-                          case "skor_aspd":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#2563eb" }}>
-                                {row.tahap === "proses" || row.tahap === "analisis"
-                                  ? "—"
-                                  : (row.skorASPD ?? 0).toFixed(1)}
-                              </td>
-                            );
-                          case "skor_pkh_plus":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#7c3aed" }}>
-                                {row.tahap === "proses" || row.tahap === "analisis"
-                                  ? "—"
-                                  : (row.skorPKHPlus ?? row.skorPKHT ?? 0).toFixed(1)}
-                              </td>
-                            );
-                          case "tahap":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                <span className={`mb-stage-badge ${getStageBadgeClass(row.tahap)}`} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                                  <span className="mb-badge-dot" />
-                                  {getStageBadgeLabel(row.tahap)}
-                                </span>
-                              </td>
-                            );
-                          case "bantuan":
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px" }}>
-                                {row.bantuan && row.bantuan.length > 0 ? (
-                                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                                    {row.bantuan.map((b) => (
-                                      <span key={b} className={`mb-pill-bantuan ${b.toLowerCase()}`} style={{ fontSize: "11px", fontWeight: "600", padding: "2px 8px", borderRadius: "4px", backgroundColor: b === "ASPD" ? "#eff6ff" : "#f5f3ff", color: b === "ASPD" ? "#1d4ed8" : "#6d28d9", border: `1px solid ${b === "ASPD" ? "#bfdbfe" : "#ddd6fe"}` }}>
-                                        {b}
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span style={{ color: "#94a3b8", fontSize: "13px" }}>—</span>
-                                )}
-                              </td>
-                            );
-                          case "aksi":
-                            return (
-                              <td key={col.key} onClick={(e) => e.stopPropagation()} style={{ padding: "14px 16px", textAlign: "center" }}>
-                                <div style={{ display: "flex", justifyContent: "center", gap: "8px", alignItems: "center" }}>
-                                  {row.tahap === "proses" && (
-                                    <button
-                                      className="mb-btn-analisis"
-                                      style={{
-                                        width: "120px",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: "6px",
-                                        cursor: "not-allowed",
-                                        opacity: 0.8,
-                                      }}
-                                      disabled
-                                    >
-                                      <Loader2 size={14} className="mb-spin" /> Diproses...
-                                    </button>
-                                  )}
-
-                                  {row.tahap === "analisis" && (
-                                    <button
-                                      className="mb-btn-analisis"
-                                      style={{
-                                        width: "120px",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: "6px",
-                                      }}
-                                      disabled={analyzingId === row.id_keluarga}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleAnalisis(row.id_keluarga);
-                                      }}
-                                    >
-                                      {analyzingId === row.id_keluarga ? (
-                                        <>
-                                          <Loader2 size={14} className="mb-spin" /> Menganalisis
-                                        </>
-                                      ) : (
-                                        <>
-                                          <BrainCircuit size={14} /> Analisis
-                                        </>
-                                      )}
-                                    </button>
-                                  )}
-
-                                  {row.tahap === "validasi" && (
-                                    <button
-                                      className="mb-btn-validasi"
-                                      style={{
-                                        width: "120px",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: "6px",
-                                      }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate(`/detail-hasil/${row.id_keluarga}`, {
-                                          state: row,
-                                        });
-                                      }}
-                                    >
-                                      <ShieldCheck size={14} /> Validasi
-                                    </button>
-                                  )}
-
-                                  {(row.tahap === "diterima" || row.tahap === "ditolak") && (
-                                    <button
-                                      className="mb-btn-review"
-                                      style={{
-                                        width: "120px",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: "6px",
-                                        backgroundColor: row.tahap === "diterima" ? "#ecfdf5" : "#fef2f2",
-                                        color: row.tahap === "diterima" ? "#10b981" : "#ef4444",
-                                        borderColor: row.tahap === "diterima" ? "#a7f3d0" : "#fecaca",
-                                      }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate(`/detail-hasil/${row.id_keluarga}`, {
-                                          state: row,
-                                        });
-                                      }}
-                                    >
-                                      {row.tahap === "diterima" ? <CheckCircle size={14} /> : <FileBarChart size={14} />} Review
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          default: {
-                            const val = row[col.key as keyof DataRow];
-                            let displayVal = "—";
-                            if (typeof val === "boolean") {
-                              displayVal = val ? "Ya" : "Tidak";
-                            } else if (typeof val === "number") {
-                              displayVal = val.toLocaleString();
-                            } else if (val) {
-                              displayVal = String(val);
-                            }
-                            return (
-                              <td key={col.key} style={{ padding: "14px 16px", color: "#475569", fontSize: "13px" }}>
-                                {displayVal}
-                              </td>
-                            );
-                          }
+                    return (
+                      <tr
+                        key={row.id_keluarga}
+                        onClick={() =>
+                          navigate(`/detail-hasil/${row.id_keluarga}`, {
+                            state: row,
+                          })
                         }
-                      })}
-                    </tr>
-                  ))
+                        className={`mb-clickable-row ${selectedRows.has(row.id_keluarga) ? "mb-row-selected" : ""}`}
+                      >
+                        {/* Checkbox */}
+                        <td
+                          style={{
+                            width: "44px",
+                            textAlign: "center",
+                            padding: "14px 8px",
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {displayRow.tahap === "analisis" ? (
+                            <button
+                              onClick={() => toggleRowSelection(row.id_keluarga)}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: 0,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                margin: "0 auto",
+                              }}
+                            >
+                              {selectedRows.has(row.id_keluarga) ? (
+                                <CheckSquare
+                                  size={16}
+                                  style={{ color: "#2563eb" }}
+                                />
+                              ) : (
+                                <Square size={16} style={{ color: "#cbd5e1" }} />
+                              )}
+                            </button>
+                          ) : (
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 16,
+                                height: 16,
+                              }}
+                            />
+                          )}
+                        </td>
+
+                        {/* Dynamic Columns Cell Mapping */}
+                        {COLUMNS.map((col) => {
+                          if (!visibleColumns.has(col.key) && !col.locked) return null;
+
+                          switch (col.key) {
+                            case "id_keluarga":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  <div className="mb-id-col" style={{ display: "flex", flexDirection: "column" }}>
+                                    <span className="mb-cell-link" style={{ fontWeight: 600 }}>{row.idLabel}</span>
+                                    <span style={{ fontSize: "11px", color: "#64748b" }}>{row.tanggal || "-"}</span>
+                                  </div>
+                                </td>
+                              );
+                            case "nama": {
+                              const isNikColumnVisible = visibleColumns.has("nik");
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  <div style={{ display: "flex", flexDirection: "column" }}>
+                                    <span style={{ fontWeight: 600, color: "#1e293b" }}>{row.nama}</span>
+                                    {!isNikColumnVisible && (
+                                      <>
+                                        <span style={{ fontSize: "12px", color: "#64748b" }}>
+                                          NIK: {row.nik.length > 20 ? row.nik.substring(0, 20) + "..." : row.nik}
+                                        </span>
+                                        {row.nik && (row.nik.includes("0000") || row.nik.length < 16) && (
+                                          <span style={{ fontSize: "10px", color: "#ef4444", background: "#fef2f2", padding: "2px 6px", borderRadius: "4px", width: "fit-content", marginTop: "4px", fontWeight: 600 }}>
+                                            Anomali NIK
+                                          </span>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            }
+                            case "wilayah": {
+                              const isKecamatanVisible = visibleColumns.has("kecamatan");
+                              const isKelurahanVisible = visibleColumns.has("kelurahan_desa");
+                              const showWilayahSubtext = !isKecamatanVisible && !isKelurahanVisible;
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  <div style={{ display: "flex", flexDirection: "column" }}>
+                                    <span style={{ fontWeight: 500, color: "#334155" }}>{row.wilayah}</span>
+                                    {showWilayahSubtext && (
+                                      <span style={{ fontSize: "12px", color: "#64748b" }}>
+                                        {row.kecamatan || "-"}, {row.kelurahan_desa || "-"}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            }
+                            case "desil":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      color: getDesilColor(row.desil),
+                                      fontWeight: "600",
+                                      backgroundColor:
+                                        getDesilColor(row.desil) === "red"
+                                          ? "#fee2e2"
+                                          : getDesilColor(row.desil) === "orange"
+                                            ? "#ffedd5"
+                                            : "#dcfce7",
+                                      padding: "4px 12px",
+                                      borderRadius: "9999px",
+                                      fontSize: "13px",
+                                      minWidth: "70px",
+                                    }}
+                                  >
+                                    Desil {row.desil}
+                                  </span>
+                                </td>
+                              );
+                            case "skor_aspd":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#2563eb" }}>
+                                  {displayRow.tahap === "proses" || displayRow.tahap === "analisis"
+                                    ? "—"
+                                    : (row.skorASPD ?? 0).toFixed(1)}
+                                </td>
+                              );
+                            case "skor_pkh_plus":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px", fontWeight: 600, color: "#7c3aed" }}>
+                                  {displayRow.tahap === "proses" || displayRow.tahap === "analisis"
+                                    ? "—"
+                                    : (row.skorPKHPlus ?? row.skorPKHT ?? 0).toFixed(1)}
+                                </td>
+                              );
+                            case "tahap":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  <span className={`mb-stage-badge ${getStageBadgeClass(displayRow.tahap)}`} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                                    <span className="mb-badge-dot" />
+                                    {getStageBadgeLabel(displayRow.tahap)}
+                                  </span>
+                                </td>
+                              );
+                            case "bantuan":
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px" }}>
+                                  {row.bantuan && row.bantuan.length > 0 ? (
+                                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                                      {row.bantuan.map((b) => (
+                                        <span key={b} className={`mb-pill-bantuan ${b.toLowerCase()}`} style={{ fontSize: "11px", fontWeight: "600", padding: "2px 8px", borderRadius: "4px", backgroundColor: b === "ASPD" ? "#eff6ff" : "#f5f3ff", color: b === "ASPD" ? "#1d4ed8" : "#6d28d9", border: `1px solid ${b === "ASPD" ? "#bfdbfe" : "#ddd6fe"}` }}>
+                                          {b}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span style={{ color: "#94a3b8", fontSize: "13px" }}>—</span>
+                                  )}
+                                </td>
+                              );
+                            case "aksi":
+                              return (
+                                <td key={col.key} onClick={(e) => e.stopPropagation()} style={{ padding: "14px 16px", textAlign: "center" }}>
+                                  <div style={{ display: "flex", justifyContent: "center", gap: "8px", alignItems: "center" }}>
+                                    {displayRow.tahap === "proses" && (
+                                      <button
+                                        className="mb-btn-analisis"
+                                        style={{
+                                          width: "120px",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          gap: "6px",
+                                          cursor: "not-allowed",
+                                          opacity: 0.8,
+                                        }}
+                                        disabled
+                                      >
+                                        <Loader2 size={14} className="mb-spin" /> Diproses...
+                                      </button>
+                                    )}
+
+                                    {displayRow.tahap === "analisis" && (
+                                      <button
+                                        className="mb-btn-analisis"
+                                        style={{
+                                          width: "120px",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          gap: "6px",
+                                        }}
+                                        disabled={processingIds.has(row.id_keluarga)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleAnalisis(row.id_keluarga);
+                                        }}
+                                      >
+                                        {processingIds.has(row.id_keluarga) ? (
+                                          <>
+                                            <Loader2 size={14} className="mb-spin" /> Menganalisis
+                                          </>
+                                        ) : (
+                                          <>
+                                            <BrainCircuit size={14} /> Analisis
+                                          </>
+                                        )}
+                                      </button>
+                                    )}
+
+                                    {displayRow.tahap === "validasi" && (
+                                      <button
+                                        className="mb-btn-validasi"
+                                        style={{
+                                          width: "120px",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          gap: "6px",
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate(`/detail-hasil/${row.id_keluarga}`, {
+                                            state: row,
+                                          });
+                                        }}
+                                      >
+                                        <ShieldCheck size={14} /> Validasi
+                                      </button>
+                                    )}
+
+                                    {(displayRow.tahap === "diterima" || displayRow.tahap === "ditolak") && (
+                                      <button
+                                        className="mb-btn-review"
+                                        style={{
+                                          width: "120px",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          gap: "6px",
+                                          backgroundColor: displayRow.tahap === "diterima" ? "#ecfdf5" : "#fef2f2",
+                                          color: displayRow.tahap === "diterima" ? "#10b981" : "#ef4444",
+                                          borderColor: displayRow.tahap === "diterima" ? "#a7f3d0" : "#fecaca",
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate(`/detail-hasil/${row.id_keluarga}`, {
+                                            state: row,
+                                          });
+                                        }}
+                                      >
+                                        {displayRow.tahap === "diterima" ? <CheckCircle size={14} /> : <FileBarChart size={14} />} Review
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            default: {
+                              const val = displayRow[col.key as keyof DataRow];
+                              let displayVal = "—";
+                              if (typeof val === "boolean") {
+                                displayVal = val ? "Ya" : "Tidak";
+                              } else if (typeof val === "number") {
+                                displayVal = val.toLocaleString();
+                              } else if (val) {
+                                displayVal = String(val);
+                              }
+                              return (
+                                <td key={col.key} style={{ padding: "14px 16px", color: "#475569", fontSize: "13px" }}>
+                                  {displayVal}
+                                </td>
+                              );
+                            }
+                          }
+                        })}
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1431,7 +1457,7 @@ return (
               >
                 {isBatchAnalyzing ? (
                   <>
-                    <Loader2 size={16} className="mb-spin" /> Mengirim... {batchProgress}%
+                    <Loader2 size={16} className="mb-spin" /> Menganalisis... {batchProgress}%
                   </>
                 ) : (
                   <>

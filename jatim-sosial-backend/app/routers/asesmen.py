@@ -9,18 +9,20 @@ import httpx
 import logging
 import json
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
+import asyncio
 
 from app import models
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.security import get_current_user
-from app.config import AI_BASE_URL, AI_RUNPOD_URL, AI_RUNPOD_TOKEN
+from app.config import AI_BASE_URL, AI_RUNPOD_URL, API_TIM_3_URL
 from app.schemas import item as item_schema
 
 # Import Services & Utils
 from app.services.task_queue import asesmen_queue
-from app.services.ai_client import mock_qdrant_retriever, get_role_and_user_content, extract_rekomendasi
+from app.services.ai_client import build_profil_warga, extract_rekomendasi, determine_eligibility
 
 logger = logging.getLogger(__name__)
 
@@ -45,63 +47,68 @@ async def asesmen_sosial(
     if not keluarga:
         raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
 
+    logger.info(f"[ASESMEN SOSIAL] Memulai analisis sosial untuk NIK: {keluarga.nik}, KK: {keluarga.no_kk}")
     hitung = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == keluarga.id).first()
-    skor_pkh = hitung.skor_pkh_plus if hitung and hitung.skor_pkh_plus else 0.0
-    skor_aspd = hitung.skor_aspd if hitung and hitung.skor_aspd else 0.0
 
     try:
-        konteks_aturan = await mock_qdrant_retriever("syarat penerima bansos")
-        role_content, user_content = get_role_and_user_content(keluarga, skor_pkh, skor_aspd, konteks_aturan)
-
         payload_llm = {
-            "model": "aitf-ub-2026/cpt-qwen3-8b-sft_v1",
-            "messages": [
-                {"role": "system", "content": role_content},
-                {"role": "user", "content": user_content}
-            ],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.7,
-            "max_tokens": 2048
+            "profil_warga": build_profil_warga(keluarga),
+            "top_k": 5
+        }
+        logger.info(f"[ASESMEN SOSIAL] Profil warga berhasil dibentuk untuk LLM: {payload_llm['profil_warga'][:200]}...")
+
+        headers_api = {
+            "accept": "application/json",
+            "Content-Type": "application/json"
         }
         
-        headers_runpod = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {AI_RUNPOD_TOKEN}"
-        }
-
-        # 1. Panggilan HTTP ke RunPod
+        # 1. Panggilan HTTP ke API Tim 3
         try:
+            url_target = f"{API_TIM_3_URL}/recommend"
+            logger.info(f"[ASESMEN SOSIAL] Mengirim request ke API Tim 3: {url_target}")
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    AI_RUNPOD_URL,
-                    headers=headers_runpod,
-                    json=payload_llm,
+                    url_target,
+                    headers=headers_api,
+                    json=payload_llm, 
                     timeout=60.0
                 )
                 response.raise_for_status()
                 hasil_mentah = response.json()
-        except httpx.HTTPError as he:
-            logger.error(f"[Manual Runpod HTTP Error] Gagal melakukan request ke Runpod: {he}", exc_info=True)
-            raise HTTPException(status_code=502, detail=f"Gagal memanggil Runpod (HTTP Error): {he}")
-
-        # 2. Ekstraksi string dari respon
-        try:
-            string_json_ai = hasil_mentah["choices"][0]["message"]["content"]
-            if string_json_ai.strip().startswith("```"):
-                string_json_ai = string_json_ai.strip().strip("```json").strip("```").strip()
-        except (KeyError, IndexError) as ke:
-            logger.error(f"[Manual Runpod Format Error] Struktur respon Runpod tidak sesuai: {ke}\nResponse: {hasil_mentah}", exc_info=True)
-            raise HTTPException(status_code=502, detail=f"Format respon dari Runpod tidak sesuai (KeyError/IndexError): {ke}")
-
-        # 3. Parsing string content ke JSON
-        try:
-            hasil_final = json.loads(string_json_ai)
-        except json.JSONDecodeError as jde:
-            logger.error(f"[Manual Runpod JSON Error] Gagal parsing JSON dari Runpod (kemungkinan terpotong karena max_tokens): {jde}\nRaw Content: {string_json_ai}", exc_info=True)
-            raise HTTPException(status_code=502, detail=f"Gagal parsing JSON dari Runpod (kemungkinan terpotong karena max_tokens): {jde}")
+                logger.info("[ASESMEN SOSIAL] Respon mentah diterima dari API Tim 3")
+                
+                # Fleksibilitas Ekstrak Balasan:
+                if isinstance(hasil_mentah, str):
+                    string_json_ai = hasil_mentah.strip().strip("```json").strip("```").strip()
+                    hasil_final = json.loads(string_json_ai)
+                elif isinstance(hasil_mentah, dict) and "choices" in hasil_mentah:
+                    string_json_ai = hasil_mentah["choices"][0]["message"]["content"]
+                    string_json_ai = string_json_ai.strip().strip("```json").strip("```").strip()
+                    hasil_final = json.loads(string_json_ai)
+                else:
+                    hasil_final = hasil_mentah.get("justifikasi_dokumen", hasil_mentah)
+                
+                logger.info(f"[ASESMEN SOSIAL] Berhasil memparsing respon AI: {hasil_final}")
+                    
+        except Exception as e:
+            logger.error(f"[ASESMEN SOSIAL] Gagal memanggil API Tim 3 (Sosial): {e}. Mengaktifkan Fallback Deterministik.")
+            hasil_final = {
+                "rekomendasi": determine_eligibility(keluarga),
+                "ringkasan_profil": "Sistem menggunakan analisis cadangan (Fallback Deterministik) karena koneksi ke API AI Tim 3 terputus atau URL belum dikonfigurasi.",
+                "rekomendasi_teknis_bansos": "Warga ini dievaluasi secara otomatis menggunakan sistem desil, usia lansia, dan filter disabilitas sesuai standar Juknis Jatim dasar tanpa analisis LLM."
+            }
 
         rekomendasi_baru = extract_rekomendasi(hasil_final, keluarga)
-        analisis_rag = json.dumps(hasil_final) 
+        logger.info(f"[ASESMEN SOSIAL] Hasil ekstraksi rekomendasi baru: {rekomendasi_baru}")
+
+        # Reasoning: simpan ringkasan + rekomendasi teknis dari Tim 3
+        ringkasan = hasil_final.get("ringkasan_profil", "")
+        teknis    = hasil_final.get("rekomendasi_teknis_bansos", "")
+        analisis_rag = json.dumps(
+            {"ringkasan_profil": ringkasan, "rekomendasi_teknis": teknis,
+             "rekomendasi": hasil_final.get("rekomendasi", [])},
+            ensure_ascii=False
+        )
 
         bantuan_lama = None
 
@@ -111,12 +118,18 @@ async def asesmen_sosial(
         else:
             bantuan_lama = hitung.rekomendasi_bantuan
 
+        is_eligible = len(rekomendasi_baru) > 0
+        hitung.status_validasi = "validasi" if is_eligible else "ditolak"
+        logger.info(f"[ASESMEN SOSIAL] Status validasi disetel menjadi: {hitung.status_validasi} (is_eligible: {is_eligible})")
+
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
-        skor_obj = hasil_final.get("skor", {})
-        hitung.skor_aspd = skor_obj.get("skor_aspd", 0.0)
-        hitung.skor_pkh_plus = skor_obj.get("skor_pkh_plus", 0.0)
-
+        
+        # MENGHITUNG SKOR PADA SAAT ANALISIS BUKAN SAAT IMPOR
+        from app.utils.scoring import hitung_skor_bantuan
+        skor = hitung_skor_bantuan(keluarga)
+        hitung.skor_pkh_plus = skor.get("skor_pkh_plus")
+        hitung.skor_aspd = skor.get("skor_aspd")
         log = models.LogHistori(
             keluarga_id=keluarga.id, user_id=current_user.id,
             desil_lama=None, desil_baru=None,
@@ -129,7 +142,7 @@ async def asesmen_sosial(
             "status": "Sukses",
             "nomor_kk": keluarga.no_kk,
             "hasil_rekomendasi_final": rekomendasi_baru,
-            "justifikasi_dokumen": json.loads(analisis_rag) # Diubah kembali ke JSON dict untuk respon API
+            "justifikasi_dokumen": hasil_final
         }
 
     except HTTPException:
@@ -175,6 +188,7 @@ async def asesmen_visual(
         "id_dinding_terluas": keluarga.id_dinding_terluas,
         "id_lantai_terluas": keluarga.id_lantai_terluas
     }
+    logger.info(f"[ASESMEN VISUAL] Mengirim data ke validator visual Tim 2: {payload_ke_tim2}")
 
     try:
         async with httpx.AsyncClient() as client:
@@ -187,8 +201,9 @@ async def asesmen_visual(
             hasil_validator = res_ai.json() 
             is_match = hasil_validator.get("is_match", True)
             reasoning = hasil_validator.get("reasoning", str(hasil_validator))
+            logger.info(f"[ASESMEN VISUAL] Respon diterima dari Tim 2. IsMatch={is_match}, Reasoning={reasoning}")
     except Exception as e:
-        logger.error(f"Gagal terhubung ke server Tim 2: {e}. Mengaktifkan fallback visual.")
+        logger.error(f"[ASESMEN VISUAL] Gagal terhubung ke server Tim 2: {e}. Mengaktifkan fallback visual.")
         is_match = True
         reasoning = f"Foto diasumsikan sesuai secara otomatis karena kendala sistem: {str(e)}"
         hasil_validator = {"is_match": True, "reasoning": reasoning}
@@ -206,6 +221,7 @@ async def asesmen_visual(
         hitung.reasoning_tim2 = reasoning
         hitung.foto_id_digunakan = foto_utama.id
 
+        logger.info(f"[ASESMEN VISUAL] Menyimpan hasil validasi visual ke DB untuk keluarga {keluarga.no_kk}. Match={is_match}")
         db.commit()
 
         return {
@@ -235,6 +251,15 @@ async def asesmen_komprehensif_semua_tim(
     Endpoint ini digunakan oleh Frontend jika hanya ada 1 tombol 'Analisis'.
     Akan mengeksekusi Tim 1, Tim 2, dan Tim 3 secara berurutan/paralel dan merangkum hasilnya.
     """
+    # Set status ke proses agar frontend tahu data sedang diolah
+    p = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == id_keluarga).first()
+    if not p:
+        p = models.Perhitungan(keluarga_id=id_keluarga, status_validasi="proses")
+        db.add(p)
+    else:
+        p.status_validasi = "proses"
+    db.commit()
+
     # Karena asesmen_sosial butuh payload khusus, kita buat mock payload-nya
     payload_sosial = item_schema.TriggerAsesmenRequest(keluarga_id=id_keluarga)
 
@@ -264,3 +289,46 @@ async def asesmen_komprehensif_semua_tim(
         "hasil_analisis_sosial_tim3": hasil_sosial,
         "hasil_validasi_visual_tim2": hasil_visual
     }
+
+async def background_batch_process(ids: list, user_id: str):
+    logger.info(f"[BATCH ALL] Mulai memproses {len(ids)} data di background.")
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        for i, kid in enumerate(ids):
+            try:
+                logger.info(f"[BATCH ALL] [{i+1}/{len(ids)}] Memproses ID: {kid}")
+                await asesmen_komprehensif_semua_tim(kid, user, db)
+            except Exception as e:
+                logger.error(f"[BATCH ALL] Gagal pada ID {kid}: {e}")
+            await asyncio.sleep(0.5)
+    except Exception as e:
+        logger.error(f"[BATCH ALL] Error fatal pada proses background: {e}")
+    finally:
+        db.close()
+        logger.info(f"[BATCH ALL] Selesai memproses batch.")
+
+@router.post("/batch-all", summary="Analisis seluruh antrean data secara background")
+async def batch_all_analisis(
+    background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        query = db.query(models.Keluarga.id).outerjoin(
+            models.Perhitungan, models.Perhitungan.keluarga_id == models.Keluarga.id
+        ).filter(or_(
+            models.Perhitungan.id.is_(None),
+            models.Perhitungan.status_validasi == "analisis",
+            models.Perhitungan.status_validasi.is_(None)
+        )).all()
+        
+        ids = [row[0] for row in query]
+        if not ids:
+            return {"message": "Tidak ada data untuk dianalisis di tahap saat ini."}
+            
+        background_tasks.add_task(background_batch_process, ids, current_user.id)
+        return {"message": f"Memulai analisis batch untuk {len(ids)} data di background."}
+    except Exception as e:
+        logger.error(f"[BATCH ALL] Gagal memulai endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -13,10 +13,12 @@ from uuid import UUID
 from datetime import datetime
 import csv
 import io
+import os
+import tempfile
 from app.database import get_db
 from app import models
 from app.security import get_current_user
-from app.config import MINIO_BUCKET, MINIO_ENDPOINT, s3_client, to_public_foto_url
+from app.config import MINIO_BUCKET, MINIO_ENDPOINT, MINIO_PUBLIC_ENDPOINT, s3_client, to_public_foto_url
 from app.schemas import item as item_schema
 from app.services.task_queue import run_async_visual_validation, run_async_assessment
 from app.services.ai_client import determine_eligibility
@@ -24,6 +26,9 @@ from app.utils.normalizer import fix_nik, safe_int, is_not_null, to_int
 from app.utils.scoring import hitung_skor_bantuan
 import httpx
 import logging
+import uuid
+import re
+import pandas as pd
 
 
 logger = logging.getLogger(__name__)
@@ -44,36 +49,35 @@ async def import_csv(
     db: Session = Depends(get_db)
 ):
     contents = await file.read()
-    filename_lower = file.filename.lower()
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+    temp_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}{ext}")
+    with open(temp_path, "wb") as f:
+        f.write(contents)
 
-    reader = []
-    if filename_lower.endswith(('.xlsx', '.xls')):
-        from openpyxl import load_workbook
-        wb = load_workbook(filename=io.BytesIO(contents), data_only=True)
-        sheet = wb.active
-
-        # Ambil header kolom (baris pertama)
-        headers = [cell.value for cell in sheet[1]]
-        # Ambil data dari baris kedua hingga akhir
-        for r in range(2, sheet.max_row + 1):
-            row_dict = {}
-            row_has_data = False
-            for col_idx, header in enumerate(headers):
-                if header:
-                    val = sheet.cell(row=r, column=col_idx + 1).value
-                    if val is not None:
-                        # Jika berupa float bernilai bulat (misal KK ending .0), bersihkan ke int
-                        if isinstance(val, float) and val.is_integer():
-                            val = int(val)
-                        row_dict[str(header)] = str(val).strip()
-                        row_has_data = True
-                    else:
-                        row_dict[str(header)] = ""
-            if row_has_data:
-                reader.append(row_dict)
-    else:
-        csv_reader = csv.DictReader(io.StringIO(contents.decode("utf-8")))
-        reader = list(csv_reader)
+    try:
+        if ext in (".xlsx", ".xls"):
+            df = pd.read_excel(temp_path)
+        else:
+            try:
+                df = pd.read_csv(temp_path, encoding="utf-8-sig")
+                if len(df.columns) <= 1:
+                    df = pd.read_csv(temp_path, encoding="utf-8-sig", sep=";")
+            except UnicodeDecodeError:
+                df = pd.read_csv(temp_path, encoding="latin1")
+                if len(df.columns) <= 1:
+                    df = pd.read_csv(temp_path, encoding="latin1", sep=";")
+        
+        df = df.fillna("")
+        reader = df.to_dict(orient="records")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal membaca berkas: {str(e)}")
+    finally:
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except Exception:
+            pass
 
     kolom_sah = [c.name for c in models.Keluarga.__table__.columns]
     sukses = 0
@@ -91,9 +95,14 @@ async def import_csv(
         "aset_bergerak_perahu", "aset_bergerak_kapal_perahu_motor", "aset_bergerak_smartphone",
     }
 
-    # Kolom yang harus jadi INTEGER (Ditambahkan ID material rumah dan PBI)
+    # Kolom yang harus jadi INTEGER (sesuai kolom DB terbaru)
     KOLOM_INT = {
-        "desil_nasional", "jumlah_anggota_keluarga", "jumlah_jenis_usaha",
+        "umur_2026", "pkh_plus", "desil_nasional_anggota", "desil_nasional_keluarga",
+        "kemiskinan_ekstrem", "id_jenis_kelamin", "id_hub_kepala_keluarga",
+        "id_disabilitas", "pbi", "id_status_perkawinan", "id_partisipasi_sekolah",
+        "id_jenjang_pendidikan_dukcapil", "membantu_bekerja",
+        "id_lapangan_usaha_dari_usaha_utama", "id_status_kedudukan_pekerjaan_utama",
+        "id_kepemilikan_izin_usaha", "jumlah_jenis_usaha", "id_pekerjaan_utama",
         "jumlah_pekerja_dibayar", "jumlah_pekerja_tidak_dibayar",
         "luas_lantai_bangunan", "id_dayapenerangan",
         "lahan_tempat_lain", "rumah_tempat_lain",
@@ -119,8 +128,13 @@ async def import_csv(
         "NIK": "nik",
         "Nik": "nik",
         "no_kk": "no_kk",
-        "nama": "nama_kepala_keluarga",
+        "nomor_kartu_keluarga": "no_kk",
+        "nama": "nama",
+        "nama_kepala_keluarga": "nama",
         "pbi": "pbi",
+        "desil_nasional": "desil_nasional_keluarga",
+        "desil_nasional_anggota": "desil_nasional_anggota",
+        "desil_nasional_keluarga": "desil_nasional_keluarga",
         "id_status_penguasaan_bangunan": "id_status_penguasaan_bangunan",
         "id_lantai_terluas": "id_lantai_terluas",
         "luas_lantai_bangunan": "luas_lantai_bangunan",
@@ -154,6 +168,7 @@ async def import_csv(
         "cut_off_keluarga": "cut_off_keluarga"
     }
 
+
     async with httpx.AsyncClient() as client:
         for idx_row, raw_row in enumerate(reader):
             try:
@@ -165,7 +180,7 @@ async def import_csv(
                         row[db_key] = v
 
                 if idx_row < 3:
-                    log_foto.append(f"[DEBUG] Row {idx_row+1} keys: {list(row.keys())[:10]}")
+                    log_foto.append(f"[DEBUG] Row {idx_row+1} keys: {list(row.keys())[10:]}")
 
                 no_kk_row = (row.get("no_kk") or row.get("nomor_kartu_keluarga") or "").strip()
                 if not no_kk_row or no_kk_row.lower() == "nan":
@@ -217,10 +232,13 @@ async def import_csv(
                 #             data_bersih[col_name] = default_val
 
                 # 2. Cek Idempotensi & History
-                keluarga_lama = db.query(models.Keluarga).filter(
-                    models.Keluarga.no_kk == data_bersih.get("no_kk")
-                ).first()
-
+                try:
+                    keluarga_lama = db.query(models.Keluarga).filter(
+                        models.Keluarga.no_kk == data_bersih.get("no_kk")
+                    ).first()
+                    print(f"DEBUG cek idempotensi untuk KK {no_kk_row}: {'Ditemukan' if keluarga_lama else 'Tidak ditemukan'}")
+                except Exception as e:
+                    print(f"ERROR saat cek idempotensi KK {no_kk_row}: {str(e)}")
                 if keluarga_lama:
                     # Cek apakah ada perubahan variabel
                     any_changes = False
@@ -254,27 +272,24 @@ async def import_csv(
                     keluarga_diproses = keluarga_baru
                     db.flush()
 
-                # 3. Hitung skor SETELAH data bersih dan terisi
-                skor = hitung_skor_bantuan(data_bersih)
-
-                # Tandai status awal sebagai "proses" agar data tidak terlihat sebelum selesai
+                # Tandai status awal sebagai "analisis" HANYA untuk data BARU
                 hitung = db.query(models.Perhitungan).filter(
                     models.Perhitungan.keluarga_id == keluarga_diproses.id
                 ).first()
+                is_new_record = False
                 if not hitung:
+                    is_new_record = True
                     hitung = models.Perhitungan(
                         keluarga_id=keluarga_diproses.id,
-                        user_id=current_user.id
+                        user_id=current_user.id,
+                        status_validasi="analisis"
                     )
                     db.add(hitung)
-
-                hitung.skor_aspd = skor.get("skor_aspd")
-                hitung.skor_pkh_plus = skor.get("skor_pkh_plus")
-                hitung.rekomendasi_bantuan = determine_eligibility(keluarga_diproses)
-
-                is_processing = hitung.status_validasi not in ("diterima", "ditolak")
-                if is_processing:
-                    hitung.status_validasi = "proses"
+                else:
+                    # JANGAN RESET STATUS UNTUK DATA EXISTING
+                    # Hanya reset jika status masih "proses" (dari unfinished analysis)
+                    if hitung.status_validasi == "proses":
+                        hitung.status_validasi = "analisis"
 
                 # 3. PROSES URL FOTO (Download ke MinIO)
                 for tipe, raw_photo_urls in [("tampak_luar", raw_urls), ("tampak_dalam", raw_urls_dalam)]:
@@ -307,7 +322,7 @@ async def import_csv(
                                     Body=foto_res.content,
                                     ContentType="image/jpeg"
                                 )
-                                url_minio_final = f"http://{MINIO_ENDPOINT}/{MINIO_BUCKET}/{nama_file_minio}"
+                                url_minio_final = f"http://{MINIO_PUBLIC_ENDPOINT}/{MINIO_BUCKET}/{nama_file_minio}"
                                 db.add(models.Foto(
                                     keluarga_id=keluarga_diproses.id,
                                     url_foto=url_minio_final,
@@ -322,7 +337,7 @@ async def import_csv(
                             log_foto.append(f"KK {no_kk_row}: ERROR foto {tipe} → {str(e)}")
 
                 sukses += 1
-                if is_processing:
+                if is_new_record:
                     keluarga_ids_for_tasks.add(keluarga_diproses.id)
 
             except Exception as e:
@@ -336,13 +351,14 @@ async def import_csv(
 
     for keluarga_id in keluarga_ids_for_tasks:
         background_tasks.add_task(run_async_visual_validation, keluarga_id, current_user.id)
-        background_tasks.add_task(run_async_assessment, keluarga_id, current_user.id)
+        # Menghapus auto run_async_assessment agar tidak lompat ke tahap validasi otomatis
 
     return {
         "status": "Sukses",
         "pesan": f"{sukses} data keluarga berhasil disinkronisasi, {di_skip} baris dilewati.",
         "log_proses_foto": log_foto
     }
+
 
 # ENDPOINT MANAJEMEN BANTUAN (FRONTEND)
 @router.get(
@@ -361,9 +377,18 @@ async def get_manajemen_bantuan(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    logger.info(
+        f"[GET MANAJEMEN BANTUAN] Request parameters: page={page}, limit={limit}, "
+        f"tahap={tahap}, search='{search}', kecamatan={kecamatan}, "
+        f"kelurahan_desa={kelurahan_desa}, desils={desils}, overlap={overlap}"
+    )
     query = db.query(models.Keluarga, models.Perhitungan).outerjoin(
         models.Perhitungan, models.Perhitungan.keluarga_id == models.Keluarga.id
-    )
+    ).filter(or_(
+        models.Perhitungan.id.is_(None),
+        models.Perhitungan.rekomendasi_bantuan.is_(None),
+        func.jsonb_array_length(models.Perhitungan.rekomendasi_bantuan) > 0
+    ))
 
     if tahap and tahap != "semua":
         if tahap == "analisis":
@@ -377,6 +402,7 @@ async def get_manajemen_bantuan(
     if search:
         search_term = f"%{search.strip()}%"
         query = query.filter(or_(
+            models.Keluarga.nama.ilike(search_term),
             models.Keluarga.nama_kepala_keluarga.ilike(search_term),
             models.Keluarga.nik.ilike(search_term),
             models.Keluarga.no_kk.ilike(search_term)
@@ -416,6 +442,10 @@ async def get_manajemen_bantuan(
                 models.Perhitungan.rekomendasi_bantuan == []
             ))
 
+    # Pastikan hasil selalu diurutkan secara konsisten berdasarkan ID atau atribut lain 
+    # agar urutan data di frontend tidak berubah saat ada data yang diupdate.
+    query = query.order_by(models.Keluarga.id.asc())
+
     total = query.count()
     paginated = page is not None or limit is not None
     page_value = page or 1
@@ -432,16 +462,16 @@ async def get_manajemen_bantuan(
         tahap_ui = p.status_validasi if p and p.status_validasi else "analisis"
         rekomendasi_list = p.rekomendasi_bantuan if p and p.rekomendasi_bantuan else []
         bantuan_list = rekomendasi_list if tahap_ui in ("analisis", "validasi", "diterima", "ditolak") else []
-        
+        desil_val = k.desil_nasional or k.desil_nasional_keluarga or k.desil_nasional_anggota or 0
         row = item_schema.ManajemenBantuanResponse(
             id_keluarga=str(k.id),
             idLabel=f"ANL-{str(k.id)[:5].upper()}",
             tanggal=datetime.now().strftime("%d %b %Y"),
-            nama=k.nama_kepala_keluarga or "-",
+            nama=k.nama or "-",
             nik=k.nik or k.no_kk or "-",
-            wilayah=k.kabupaten_kota or "-",
-            kecamatan=k.kecamatan or "-",
-            desil=k.desil_nasional or 0,
+            wilayah="-",
+            kecamatan="-",
+            desil=desil_val,
             skorASPD=p.skor_aspd if p and p.skor_aspd is not None else 0.0,
             skorPKHPlus=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
             tahap=tahap_ui,
@@ -498,7 +528,11 @@ async def get_manajemen_bantuan(
         func.count(models.Keluarga.id)
     ).outerjoin(
         models.Perhitungan, models.Perhitungan.keluarga_id == models.Keluarga.id
-    ).group_by(func.coalesce(models.Perhitungan.status_validasi, "analisis")).all()
+    ).filter(or_(
+        models.Perhitungan.id.is_(None),
+        models.Perhitungan.rekomendasi_bantuan.is_(None),
+        func.jsonb_array_length(models.Perhitungan.rekomendasi_bantuan) > 0
+    )).group_by(func.coalesce(models.Perhitungan.status_validasi, "analisis")).all()
     counts = {
         "semua": sum(count for _, count in raw_counts),
         "proses": 0,
@@ -545,17 +579,17 @@ async def get_detail_manajemen_bantuan(
     
     tahap_ui = p.status_validasi if p and p.status_validasi else "analisis"
     rekomendasi_list = p.rekomendasi_bantuan if p and p.rekomendasi_bantuan else []
-    bantuan_list = rekomendasi_list if tahap_ui in ("validasi", "diterima", "ditolak") else []
+    bantuan_list = rekomendasi_list
     
     return item_schema.DetailKeluargaResponse(
         id_keluarga=str(k.id),
         idLabel=f"ANL-{str(k.id)[:5].upper()}",
         tanggal=datetime.now().strftime("%d %b %Y"),
-        nama=k.nama_kepala_keluarga or "-",
+        nama=k.nama or "-",
         nik=k.nik or k.no_kk or "-",
-        wilayah=k.kabupaten_kota or "-",
-        kecamatan=k.kecamatan or "-",
-        desil=k.desil_nasional or 0,
+        wilayah="-",
+        kecamatan="-",
+        desil=(k.desil_nasional or k.desil_nasional_keluarga or k.desil_nasional_anggota or 0),
         skorASPD=p.skor_aspd if p and p.skor_aspd is not None else 0.0,
         skorPKHPlus=p.skor_pkh_plus if p and p.skor_pkh_plus else 0.0,
         tahap=tahap_ui,
@@ -570,7 +604,6 @@ async def get_detail_manajemen_bantuan(
         visual_match=not p.ada_ketidaksesuaian_visual if p and p.ada_ketidaksesuaian_visual is not None else None,
         visual_reasoning=p.reasoning_tim2 if p else None,
         catatan=p.catatan_petugas if p else None,
-        catatan_supervisor=p.catatan_supervisor if p else None,
         aiReasoning=p.reasoning_tim3 if p and p.reasoning_tim3 else "Data reasoning belum tersedia dari AI."
     )
 
@@ -582,6 +615,7 @@ async def get_detail_manajemen_bantuan(
 async def update_status_validasi(
     id_keluarga: UUID,
     request: item_schema.UpdateStatusValidasiRequest,
+    background_tasks: BackgroundTasks,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -589,6 +623,13 @@ async def update_status_validasi(
     if not p:
         p = models.Perhitungan(keluarga_id=id_keluarga)
         db.add(p)
+    
+    old_status = p.status_validasi if p else None
+    logger.info(
+        f"[UPDATE STATUS VALIDASI] ID Keluarga: {id_keluarga}. "
+        f"Old Status: {old_status}, Requested New Status: {request.status_validasi}, "
+        f"Bantuan: {request.bantuan}, Catatan Petugas: {request.catatan}"
+    )
     
     if request.status_validasi:
         p.status_validasi = request.status_validasi
@@ -599,10 +640,14 @@ async def update_status_validasi(
     if request.catatan is not None:
         p.catatan_petugas = request.catatan
         
-    if request.catatan_supervisor is not None:
-        p.catatan_supervisor = request.catatan_supervisor
-        
     db.commit()
+    logger.info(f"[UPDATE STATUS VALIDASI] Data berhasil disimpan ke database. Status akhir: {p.status_validasi}")
+    
+    # Trigger re-analysis tasks if transitioning to "analisis" from diterima/ditolak/validasi
+    if request.status_validasi == "analisis" and old_status in ("diterima", "ditolak", "validasi"):
+        logger.info(f"[UPDATE STATUS VALIDASI] Memicu re-analysis visual async untuk ID Keluarga: {id_keluarga}")
+        background_tasks.add_task(run_async_visual_validation, id_keluarga, current_user.id)
+    
     return await get_detail_manajemen_bantuan(id_keluarga, current_user, db)
 
 # ENDPOINT READ DATA (GET)
@@ -675,3 +720,4 @@ async def get_histori(
             for log in logs
         ]
     }
+

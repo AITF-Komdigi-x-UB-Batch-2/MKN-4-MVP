@@ -9,6 +9,7 @@ import os
 import boto3
 import json
 from botocore.exceptions import ClientError
+from botocore.client import Config
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,6 +22,7 @@ MOCK_APP_PORT = int(os.getenv("MOCK_APP_PORT", 8001))
 AI_BASE_URL = os.getenv("AI_BASE_URL")
 AI_RUNPOD_URL = os.getenv("AI_RUNPOD_URL")
 AI_RUNPOD_TOKEN = os.getenv("AI_RUNPOD_TOKEN")
+API_TIM_3_URL = os.getenv("API_TIM_3_URL")
 
 # --- KONFIGURASI MINIO (STORAGE) ---
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
@@ -41,6 +43,7 @@ s3_client = boto3.client(
     endpoint_url=f"http://{MINIO_ENDPOINT}",
     aws_access_key_id=MINIO_ACCESS_KEY,
     aws_secret_access_key=MINIO_SECRET_KEY,
+    config=Config(signature_version="s3v4", s3={'addressing_style': 'path'})
 )
 
 def ensure_bucket_exists():
@@ -68,9 +71,27 @@ def ensure_bucket_exists():
         Policy=json.dumps(policy)
     )
     print(f"[MinIO] Policy PUBLIC Read-Only berhasil diterapkan pada bucket '{MINIO_BUCKET}'.")
+    
+    # Set CORS configuration untuk memungkinkan akses dari browser
+    cors_config = {
+        "CORSRules": [
+            {
+                "AllowedOrigins": ["*"],
+                "AllowedMethods": ["GET", "HEAD"],
+                "AllowedHeaders": ["*"],
+                "MaxAgeSeconds": 3000,
+                "ExposeHeaders": ["ETag"]
+            }
+        ]
+    }
+    try:
+        s3_client.put_bucket_cors(Bucket=MINIO_BUCKET, CORSConfiguration=cors_config)
+        print(f"[MinIO] CORS configuration berhasil diterapkan pada bucket '{MINIO_BUCKET}'.")
+    except Exception as e:
+        print(f"[MinIO] Warning: Tidak bisa set CORS -> {e}")
 
 # Eksekusi pengecekan bucket saat file config ini dipanggil
 try:
     ensure_bucket_exists()
 except Exception as e:
-    print(f"[MinIO] Peringatan: Tidak bisa terhubung ke MinIO → {e}")
+    print(f"[MinIO] Peringatan: Tidak bisa terhubung ke MinIO -> {e}")

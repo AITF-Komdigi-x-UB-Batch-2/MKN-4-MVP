@@ -6,11 +6,17 @@ from datetime import datetime
 # Schema untuk response
 class KeluargaResponse(BaseModel):
     id: UUID
-    nik: Optional[str] = None
-    no_kk: str
     nama: Optional[str] = None
-    tempat_lahir: Optional[str] = None
+    no_kk: str
+    nik: Optional[str] = None
     tanggal_lahir: Optional[str] = None
+    umur_2026: Optional[int] = None
+    pkh_plus: Optional[int] = None
+    desil_nasional_anggota: Optional[int] = None
+    desil_nasional_keluarga: Optional[int] = None
+    bansos: Optional[str] = None
+    kemiskinan_ekstrem: Optional[int] = None
+    tempat_lahir: Optional[str] = None
     id_jenis_kelamin: Optional[int] = None
     id_hub_kepala_keluarga: Optional[int] = None
     id_disabilitas: Optional[int] = None
@@ -25,7 +31,6 @@ class KeluargaResponse(BaseModel):
     id_kepemilikan_izin_usaha: Optional[int] = None
     jumlah_jenis_usaha: Optional[int] = None
     id_pekerjaan_utama: Optional[int] = None
-    id_pendapatan: Optional[int] = None
     jumlah_pekerja_dibayar: Optional[int] = None
     jumlah_pekerja_tidak_dibayar: Optional[int] = None
     id_omset_usaha_utama: Optional[int] = None
@@ -42,25 +47,12 @@ class KeluargaResponse(BaseModel):
     id_kesedihan_depresi: Optional[int] = None
     id_penyakit_menahun: Optional[int] = None
     status_dtsen: Optional[str] = None
-    cut_off: Optional[str] = None
-    desil_nasional: Optional[int] = None
     kpm_jawara: Optional[int] = None
     putri_jawara: Optional[int] = None
     aspd: Optional[int] = None
     eks_ppks_jawara: Optional[int] = None
     ppks_jawara: Optional[int] = None
-    kemiskinan_ekstrem: Optional[int] = None
-    pkh_plus: Optional[int] = None
     kode_provinsi: Optional[str] = None
-    provinsi: Optional[str] = None
-    kode_kabupaten_kota: Optional[str] = None
-    kabupaten_kota: Optional[str] = None
-    kode_kecamatan: Optional[str] = None
-    kecamatan: Optional[str] = None
-    kode_kelurahan_desa: Optional[str] = None
-    kelurahan_desa: Optional[str] = None
-    alamat: Optional[str] = None
-    nama_kepala_keluarga: Optional[str] = None
     id_status_keberadaan_keluarga: Optional[int] = None
     id_dayapenerangan: Optional[int] = None
     jumlah_anggota_keluarga: Optional[int] = None
@@ -97,7 +89,7 @@ class KeluargaResponse(BaseModel):
     jml_kuda: Optional[int] = None
     jml_babi: Optional[int] = None
     jml_kambing_domba: Optional[int] = None
-    bansos: Optional[str] = None
+    cut_off_keluarga: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -138,7 +130,6 @@ class UpdateStatusValidasiRequest(BaseModel):
     status_validasi: str
     bantuan: Optional[List[str]] = None
     catatan: Optional[str] = None
-    catatan_supervisor: Optional[str] = None
 
 class ManajemenBantuanResponse(BaseModel):
     id_keluarga: str
@@ -236,7 +227,6 @@ class DetailKeluargaResponse(BaseModel):
     visual_match: Optional[bool] = None
     visual_reasoning: Optional[str] = None
     catatan: Optional[str] = None
-    catatan_supervisor: Optional[str] = None
 
     # AI Tim 3
     aiReasoning: str

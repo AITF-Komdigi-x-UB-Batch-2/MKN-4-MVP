@@ -378,9 +378,9 @@ async def mock_visual_validator(payload: dict = Body(...)):
     image_url = payload.get("image_url", "")
     konteks = payload.get("konteks_rumah", {})
     
-    jenis_lantai = konteks.get("jenis_lantai_terluas", "unknown")
-    jenis_dinding = konteks.get("jenis_dinding_terluas", "unknown")
-    jenis_atap = konteks.get("jenis_atap_terluas", "unknown")
+    jenis_lantai = konteks.get("lantai") or konteks.get("jenis_lantai_terluas") or "unknown"
+    jenis_dinding = konteks.get("dinding") or konteks.get("jenis_dinding_terluas") or "unknown"
+    jenis_atap = konteks.get("atap") or konteks.get("jenis_atap_terluas") or "unknown"
 
     # Ambil random kecocokan (75% True, 25% False) untuk simulasi
     is_match = random.choice([True, True, True, False])
