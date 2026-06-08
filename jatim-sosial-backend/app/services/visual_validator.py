@@ -5,32 +5,11 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app import models
-<<<<<<< HEAD
 from app.config import AI_BASE_URL
 from app.utils.enum import AtapEnum, DindingEnum, LantaiEnum
 
 logger = logging.getLogger(__name__)
 
-=======
-from app.config import AI_BASE_URL, MINIO_ENDPOINT, MINIO_PUBLIC_ENDPOINT
-
-logger = logging.getLogger(__name__)
-
-async def fetch_image_as_base64(url: str) -> str:
-    if not url:
-        return None
-    internal_url = url.replace(f"http://{MINIO_PUBLIC_ENDPOINT}", f"http://{MINIO_ENDPOINT}")
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(internal_url, timeout=10.0)
-            response.raise_for_status()
-            base64_encoded = base64.b64encode(response.content).decode('utf-8')
-            return f"data:image/jpeg;base64,{base64_encoded}"
-    except Exception as e:
-        logger.error(f"Gagal mengunduh gambar {url}: {e}")
-        return None
-
->>>>>>> db349eed84338baf3fd3989d1e6105a7a0e88b34
 async def perform_visual_validation(keluarga_id: UUID, user_id: UUID, db: Session):
     """
     Mesin utama untuk Asesmen Visual (Tim 2) dengan support 3 schema input foto:

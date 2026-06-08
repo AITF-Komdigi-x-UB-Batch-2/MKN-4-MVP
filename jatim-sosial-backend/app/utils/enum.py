@@ -324,7 +324,6 @@ class BBUtamaEnum(BaseMapEnum):
 # ==============================================================
 
 class StatusKeberadaanEnum(BaseMapEnum):
-<<<<<<< HEAD
     DITEMUKAN_AKTIF = (1, "Ditemukan / Aktif")
     PINDAH = (2, "Pindah")
     MENINGGAL_DUNIA = (3, "Meninggal Dunia")
@@ -376,12 +375,6 @@ class DindingEnum(BaseMapEnum):
     def label(cls, val):
         return cls.get_label(val, default="Tidak terdeteksi")
 
-=======
-    DITEMUKAN_AKTIF  = (1, "Ditemukan / Aktif")
-    PINDAH           = (2, "Pindah")
-    MENINGGAL_DUNIA  = (3, "Meninggal Dunia")
-    TIDAK_DITEMUKAN  = (4, "Tidak Ditemukan")
->>>>>>> db349eed84338baf3fd3989d1e6105a7a0e88b34
 
 
 # ==============================================================

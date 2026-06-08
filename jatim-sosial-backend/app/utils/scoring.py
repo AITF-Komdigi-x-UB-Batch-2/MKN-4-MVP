@@ -39,7 +39,6 @@ def cek_penyakit_menahun(val) -> float:
     v = to_int(val, 1)
     return 1.0 if v > 1 else 0.0
 
-
 # ==========================================
 # FUNGSI SKORING UTAMA UNTUK OBJECT SQLALCHEMY
 # ==========================================
