@@ -414,17 +414,15 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   };
 
   const handleReanalyze = async () => {
-    console.log(`[handleReanalyze] Memicu re-analyze kembali ke status analisis untuk ID: ${id}`);
-    const success = await handleUpdateStatus("analisis");
-    if (success) {
-      console.log(`[handleReanalyze] Sukses mengembalikan status ke analisis.`);
-      setSuccessMsg("Status dikembalikan ke tahap Analisis!");
-      setTimeout(() => setSuccessMsg(""), 2000);
-    }
+    console.log(`[handleReanalyze] Memicu analisis AI ulang untuk ID: ${id}`);
+    await runAnalisisAI();
   };
 
   const runAnalisisAI = async () => {
     if (!id) return;
+    // Kosongkan data lama agar UI terlihat fresh saat proses ulang
+    setDetailData(prev => prev ? { ...prev, aiReasoning: "", rekomendasiBantuan: [], bantuan: [] } : null);
+    setSelectedPrograms([]);
     setIsProcessing(true);
     try {
       const res = await apiFetch(`/api/v1/asesmen/komprehensif/${id}`, { method: "POST" });
