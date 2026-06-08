@@ -96,12 +96,13 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
   const familyId = id || location.state?.id_keluarga;
 
-  // Parse AI Reasoning JSON
-  let ringkasanProfil = location.state?.aiReasoning || "Data reasoning belum tersedia dari AI.";
+  // Parse AI Reasoning JSON - prioritaskan data dari server, bukan location.state
+  const rawReasoning = detailData?.aiReasoning || location.state?.aiReasoning || "Data reasoning belum tersedia dari AI.";
+  let ringkasanProfil = rawReasoning;
   let rekomendasiTeknis = "";
   let rekomendasiArray: any[] = [];
   try {
-    const parsed = JSON.parse(ringkasanProfil);
+    const parsed = JSON.parse(rawReasoning);
     if (parsed.ringkasan_profil) {
       ringkasanProfil = parsed.ringkasan_profil;
     }
@@ -433,12 +434,12 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
         ? hasil.hasil_analisis_sosial_tim3.hasil_rekomendasi_final.filter((i: any) => i && i !== "Tidak Eligible") : [];
       await handleUpdateStatus(b.length ? "validasi" : "ditolak", b);
       setSuccessMsg("Analisis AI Selesai!");
-      fetchDetail();
+      // Biarkan polling yang mengupdate UI - jangan setIsProcessing(false) secara manual
+      // agar halaman tetap di state "proses" sampai server benar-benar selesai
     } catch (e) {
       console.error(e);
       setSuccessMsg("Gagal menjalankan Analisis AI");
-    } finally {
-      setIsProcessing(false);
+      setIsProcessing(false); // hanya reset jika error
       setTimeout(() => setSuccessMsg(""), 2000);
     }
   };

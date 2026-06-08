@@ -251,6 +251,15 @@ async def asesmen_komprehensif_semua_tim(
     Endpoint ini digunakan oleh Frontend jika hanya ada 1 tombol 'Analisis'.
     Akan mengeksekusi Tim 1, Tim 2, dan Tim 3 secara berurutan/paralel dan merangkum hasilnya.
     """
+    # Set status ke proses agar frontend tahu data sedang diolah
+    p = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == id_keluarga).first()
+    if not p:
+        p = models.Perhitungan(keluarga_id=id_keluarga, status_validasi="proses")
+        db.add(p)
+    else:
+        p.status_validasi = "proses"
+    db.commit()
+
     # Karena asesmen_sosial butuh payload khusus, kita buat mock payload-nya
     payload_sosial = item_schema.TriggerAsesmenRequest(keluarga_id=id_keluarga)
 
