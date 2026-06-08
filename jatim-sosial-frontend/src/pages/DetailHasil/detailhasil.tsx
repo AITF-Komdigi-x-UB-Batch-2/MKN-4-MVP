@@ -96,6 +96,22 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
   const familyId = id || location.state?.id_keluarga;
 
+  // Parse format: "Hasil[3]{Komponen,Prediksi,Status,Alasan}:\nAtap,..."
+  const parseVisualReasoning = (raw: string | null | undefined): Record<string, {prediksi: string; status: string; alasan: string}> => {
+    const result: Record<string, {prediksi: string; status: string; alasan: string}> = {};
+    if (!raw) return result;
+    const lines = raw.split('\n').filter(l => l.trim() && !l.startsWith('Hasil['));
+    for (const line of lines) {
+      // Parse CSV dengan quoted strings
+      const match = line.match(/^(Atap|Dinding|Lantai),([^,]+),([^,]+),"(.*)"$/i);
+      if (match) {
+        result[match[1].toLowerCase()] = { prediksi: match[2].trim(), status: match[3].trim(), alasan: match[4].trim() };
+      }
+    }
+    return result;
+  };
+  const visualData = parseVisualReasoning(detailData?.visual_reasoning);
+
   // Parse AI Reasoning JSON - prioritaskan data dari server, bukan location.state
   const rawReasoning = detailData?.aiReasoning || location.state?.aiReasoning || "Data reasoning belum tersedia dari AI.";
   let ringkasanProfil = rawReasoning;
@@ -610,161 +626,43 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     }}
                   >
                     <thead>
-                      <tr
-                        style={{
-                          backgroundColor: "#f8fafc",
-                          borderBottom: "1px solid #e2e8f0",
-                        }}
-                      >
-                        <th
-                          style={{
-                            padding: "12px 16px",
-                            textAlign: "left",
-                            fontWeight: 600,
-                            color: "#475569",
-                          }}
-                        >
-                          VARIABEL
-                        </th>
-                        <th
-                          style={{
-                            padding: "12px 16px",
-                            textAlign: "left",
-                            fontWeight: 600,
-                            color: "#475569",
-                          }}
-                        >
-                          DATA REGISTER
-                        </th>
-                        <th
-                          style={{
-                            padding: "12px 16px",
-                            textAlign: "left",
-                            fontWeight: 600,
-                            color: "#475569",
-                          }}
-                        >
-                          PREDIKSI AI
-                        </th>
-                        <th
-                          style={{
-                            padding: "12px 16px",
-                            textAlign: "left",
-                            fontWeight: 600,
-                            color: "#475569",
-                          }}
-                        >
-                          STATUS
-                        </th>
-                        <th
-                          style={{
-                            padding: "12px 16px",
-                            textAlign: "left",
-                            fontWeight: 600,
-                            color: "#475569",
-                          }}
-                        >
-                          ALASAN DETEKSI
-                        </th>
+                      <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                        <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>VARIABEL</th>
+                        <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>DATA DTSEN</th>
+                        <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>PREDIKSI AI</th>
+                        <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>STATUS</th>
+                        <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>ALASAN DETEKSI</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                        <td
-                          style={{
-                            padding: "14px 16px",
-                            fontWeight: 600,
-                            color: "#1e293b",
-                          }}
-                        >
-                          Atap
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          {mapAtap(detailData?.atap || 0)}
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          <span style={{
-                            fontWeight: 600,
-                            color: detailData?.visual_match === undefined || detailData?.visual_match === null
-                              ? "#64748b"
-                              : detailData.visual_match
-                                ? "#10b981"
-                                : "#ef4444"
-                          }}>
-                            {getAtapVisual()}
-                          </span>
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          {renderVisualMatchBadge(detailData?.visual_match)}
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          {detailData?.visual_reasoning || "-"}
-                        </td>
-                      </tr>
-                      <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                        <td
-                          style={{
-                            padding: "14px 16px",
-                            fontWeight: 600,
-                            color: "#1e293b",
-                          }}
-                        >
-                          Dinding
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          {mapDinding(detailData?.dinding || 0)}
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          <span style={{
-                            fontWeight: 600,
-                            color: detailData?.visual_match === undefined || detailData?.visual_match === null
-                              ? "#64748b"
-                              : detailData.visual_match
-                                ? "#10b981"
-                                : "#ef4444"
-                          }}>
-                            {getDindingVisual()}
-                          </span>
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          {renderVisualMatchBadge(detailData?.visual_match)}
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          -
-                        </td>
-                      </tr>
-                      <tr>
-                        <td
-                          style={{
-                            padding: "14px 16px",
-                            fontWeight: 600,
-                            color: "#1e293b",
-                          }}
-                        >
-                          Lantai
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          {mapLantai(detailData?.lantai || 0)}
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          <span style={{
-                            fontWeight: 600,
-                            color: detailData?.visual_match === undefined || detailData?.visual_match === null
-                              ? "#64748b"
-                              : detailData.visual_match
-                                ? "#10b981"
-                                : "#ef4444"
-                          }}>
-                            {getLantaiVisual()}
-                          </span>
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          {renderVisualMatchBadge(detailData?.visual_match)}
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          -
-                        </td>
-                      </tr>
+                      {(["atap", "dinding", "lantai"] as const).map((key, i) => {
+                        const labelMap = { atap: mapAtap(detailData?.atap || 0), dinding: mapDinding(detailData?.dinding || 0), lantai: mapLantai(detailData?.lantai || 0) };
+                        const namaMap = { atap: "Atap", dinding: "Dinding", lantai: "Lantai" };
+                        const vis = visualData[key];
+                        const isSesuai = vis?.status?.toLowerCase() === "sesuai";
+                        return (
+                          <tr key={key} style={{ borderBottom: i < 2 ? "1px solid #e2e8f0" : undefined }}>
+                            <td style={{ padding: "14px 16px", fontWeight: 600, color: "#1e293b" }}>{namaMap[key]}</td>
+                            <td style={{ padding: "14px 16px", color: "#475569" }}>{labelMap[key]}</td>
+                            <td style={{ padding: "14px 16px", fontWeight: 600, color: vis ? (isSesuai ? "#10b981" : "#ef4444") : "#94a3b8" }}>
+                              {vis ? vis.prediksi : "-"}
+                            </td>
+                            <td style={{ padding: "14px 16px" }}>
+                              {vis ? (
+                                <span style={{ padding: "3px 10px", borderRadius: 9999, fontSize: 11, fontWeight: 700,
+                                  backgroundColor: isSesuai ? "#f0fdf4" : "#fef2f2",
+                                  color: isSesuai ? "#16a34a" : "#dc2626",
+                                  border: `1px solid ${isSesuai ? "#bbf7d0" : "#fca5a5"}` }}>
+                                  {vis.status}
+                                </span>
+                              ) : renderVisualMatchBadge(null)}
+                            </td>
+                            <td style={{ padding: "14px 16px", color: "#475569", fontSize: 12, lineHeight: 1.5 }}>
+                              {vis ? vis.alasan : "-"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
