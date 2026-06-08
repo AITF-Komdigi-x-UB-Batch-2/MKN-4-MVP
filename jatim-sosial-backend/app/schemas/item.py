@@ -130,7 +130,6 @@ class UpdateStatusValidasiRequest(BaseModel):
     status_validasi: str
     bantuan: Optional[List[str]] = None
     catatan: Optional[str] = None
-    catatan_supervisor: Optional[str] = None
 
 class ManajemenBantuanResponse(BaseModel):
     id_keluarga: str
@@ -228,7 +227,6 @@ class DetailKeluargaResponse(BaseModel):
     visual_match: Optional[bool] = None
     visual_reasoning: Optional[str] = None
     catatan: Optional[str] = None
-    catatan_supervisor: Optional[str] = None
 
     # AI Tim 3
     aiReasoning: str

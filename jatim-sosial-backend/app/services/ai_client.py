@@ -228,11 +228,15 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
                     hasil_final = hasil_mentah.get("justifikasi_dokumen", hasil_mentah)
                     
         except Exception as e:
-            logger.error(f"[Asinkron] Gagal memanggil API Tim 3 (Sosial): {e}", exc_info=True)
-            if hitung:
-                hitung.status_validasi = "analisis"
-                db.commit()
-            return
+            import logging
+            logging.error(f"[Asinkron] Gagal memanggil API Tim 3 (Sosial): {e}", exc_info=True)
+            
+            # --- FALLBACK DETERMINISTIK ---
+            hasil_final = {
+                "rekomendasi": determine_eligibility(keluarga),
+                "ringkasan_profil": "Sistem menggunakan analisis cadangan (Fallback Deterministik) karena koneksi ke API AI Tim 3 terputus atau URL belum dikonfigurasi.",
+                "rekomendasi_teknis_bansos": "Warga ini dievaluasi secara otomatis menggunakan sistem desil, usia lansia, dan filter disabilitas sesuai standar Juknis Jatim dasar tanpa analisis LLM."
+            }
 
         # 3. Simpan Rekomendasi Program & Detail Analisis
         rekomendasi_baru = extract_rekomendasi(hasil_final, keluarga)
@@ -254,12 +258,15 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
         else:
             bantuan_lama = hitung.rekomendasi_bantuan
 
+        hitung.status_validasi = "validasi" if len(rekomendasi_baru) > 0 else "ditolak"
+
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
-        # CATATAN: Tim 3 tidak mengembalikan field "skor",
-        # skor sudah dihitung oleh scoring.py saat import — tidak ditimpa.
-
-        hitung.status_validasi = "analisis"
+        # MENGHITUNG SKOR PADA SAAT ANALISIS BUKAN SAAT IMPOR
+        from app.utils.scoring import hitung_skor_bantuan
+        skor = hitung_skor_bantuan(keluarga)
+        hitung.skor_pkh_plus = skor.get("skor_pkh_plus")
+        hitung.skor_aspd = skor.get("skor_aspd")
 
         log = models.LogHistori(
             keluarga_id=keluarga.id,
@@ -276,11 +283,11 @@ async def execute_asesmen_sosial_logic_async(keluarga_id: UUID, user_id: UUID, d
     except Exception as e:
         db.rollback()
         print(f"[Asinkron DB Error] {e}")
-        # Try to reset status to 'analisis' to avoid getting stuck
+        # Try to reset status to 'validasi' to avoid getting stuck
         try:
             hitung_reset = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == keluarga_id).first()
             if hitung_reset:
-                hitung_reset.status_validasi = "analisis"
+                hitung_reset.status_validasi = "validasi"
                 db.commit()
         except Exception as db_ex:
             print(f"[Asinkron Failure Reset Error] {db_ex}")

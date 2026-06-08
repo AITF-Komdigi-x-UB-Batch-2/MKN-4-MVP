@@ -9,18 +9,20 @@ import httpx
 import logging
 import json
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
+import asyncio
 
 from app import models
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.security import get_current_user
 from app.config import AI_BASE_URL, AI_RUNPOD_URL, API_TIM_3_URL
 from app.schemas import item as item_schema
 
 # Import Services & Utils
 from app.services.task_queue import asesmen_queue
-from app.services.ai_client import build_profil_warga, extract_rekomendasi
+from app.services.ai_client import build_profil_warga, extract_rekomendasi, determine_eligibility
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,7 @@ async def asesmen_sosial(
     if not keluarga:
         raise HTTPException(status_code=404, detail="Data keluarga tidak ditemukan.")
 
+    logger.info(f"[ASESMEN SOSIAL] Memulai analisis sosial untuk NIK: {keluarga.nik}, KK: {keluarga.no_kk}")
     hitung = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == keluarga.id).first()
 
     try:
@@ -52,6 +55,7 @@ async def asesmen_sosial(
             "profil_warga": build_profil_warga(keluarga),
             "top_k": 5
         }
+        logger.info(f"[ASESMEN SOSIAL] Profil warga berhasil dibentuk untuk LLM: {payload_llm['profil_warga'][:200]}...")
 
         headers_api = {
             "accept": "application/json",
@@ -60,10 +64,9 @@ async def asesmen_sosial(
         
         # 1. Panggilan HTTP ke API Tim 3
         try:
+            url_target = f"{API_TIM_3_URL}/recommend"
+            logger.info(f"[ASESMEN SOSIAL] Mengirim request ke API Tim 3: {url_target}")
             async with httpx.AsyncClient() as client:
-                # Langsung tembak ke endpoint Tim 3 secara pasti
-                url_target = f"{API_TIM_3_URL}/recommend"
-                
                 response = await client.post(
                     url_target,
                     headers=headers_api,
@@ -72,10 +75,9 @@ async def asesmen_sosial(
                 )
                 response.raise_for_status()
                 hasil_mentah = response.json()
+                logger.info("[ASESMEN SOSIAL] Respon mentah diterima dari API Tim 3")
                 
                 # Fleksibilitas Ekstrak Balasan:
-                # Tetap dipertahankan untuk berjaga-jaga apakah Tim 3 mengembalikan 
-                # format raw OpenAI (choices) atau JSON yang sudah mereka rapikan.
                 if isinstance(hasil_mentah, str):
                     string_json_ai = hasil_mentah.strip().strip("```json").strip("```").strip()
                     hasil_final = json.loads(string_json_ai)
@@ -85,12 +87,19 @@ async def asesmen_sosial(
                     hasil_final = json.loads(string_json_ai)
                 else:
                     hasil_final = hasil_mentah.get("justifikasi_dokumen", hasil_mentah)
+                
+                logger.info(f"[ASESMEN SOSIAL] Berhasil memparsing respon AI: {hasil_final}")
                     
         except Exception as e:
-            logger.error(f"Gagal memanggil API Tim 3 (Sosial): {e}")
-            raise HTTPException(status_code=502, detail=f"Gagal mendapatkan analisis dari Tim 3: {e}")
+            logger.error(f"[ASESMEN SOSIAL] Gagal memanggil API Tim 3 (Sosial): {e}. Mengaktifkan Fallback Deterministik.")
+            hasil_final = {
+                "rekomendasi": determine_eligibility(keluarga),
+                "ringkasan_profil": "Sistem menggunakan analisis cadangan (Fallback Deterministik) karena koneksi ke API AI Tim 3 terputus atau URL belum dikonfigurasi.",
+                "rekomendasi_teknis_bansos": "Warga ini dievaluasi secara otomatis menggunakan sistem desil, usia lansia, dan filter disabilitas sesuai standar Juknis Jatim dasar tanpa analisis LLM."
+            }
 
         rekomendasi_baru = extract_rekomendasi(hasil_final, keluarga)
+        logger.info(f"[ASESMEN SOSIAL] Hasil ekstraksi rekomendasi baru: {rekomendasi_baru}")
 
         # Reasoning: simpan ringkasan + rekomendasi teknis dari Tim 3
         ringkasan = hasil_final.get("ringkasan_profil", "")
@@ -109,10 +118,26 @@ async def asesmen_sosial(
         else:
             bantuan_lama = hitung.rekomendasi_bantuan
 
+        # MENGHITUNG SKOR PADA SAAT ANALISIS BUKAN SAAT IMPOR
+        from app.utils.scoring import hitung_skor_bantuan
+        skor = hitung_skor_bantuan(keluarga)
+        skor_pkh_val = skor.get("skor_pkh_plus") or 0.0
+        skor_aspd_val = skor.get("skor_aspd") or 0.0
+        
+        # Override jika skor deterministik 0 di kedua program
+        if skor_pkh_val <= 0.0 and skor_aspd_val <= 0.0:
+            logger.info("[ASESMEN SOSIAL] Skor deterministik 0. Menganulir hasil AI dan menetapkan Tidak Eligible.")
+            rekomendasi_baru = []
+
+        is_eligible = len(rekomendasi_baru) > 0
+        hitung.status_validasi = "validasi" if is_eligible else "ditolak"
+        logger.info(f"[ASESMEN SOSIAL] Status validasi disetel menjadi: {hitung.status_validasi} (is_eligible: {is_eligible})")
+
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
-        # CATATAN: Tim 3 tidak mengembalikan field "skor" — skor dari scoring.py tidak ditimpa.
-
+        
+        hitung.skor_pkh_plus = skor_pkh_val
+        hitung.skor_aspd = skor_aspd_val
         log = models.LogHistori(
             keluarga_id=keluarga.id, user_id=current_user.id,
             desil_lama=None, desil_baru=None,
@@ -171,6 +196,7 @@ async def asesmen_visual(
         "id_dinding_terluas": keluarga.id_dinding_terluas,
         "id_lantai_terluas": keluarga.id_lantai_terluas
     }
+    logger.info(f"[ASESMEN VISUAL] Mengirim data ke validator visual Tim 2: {payload_ke_tim2}")
 
     try:
         async with httpx.AsyncClient() as client:
@@ -183,8 +209,9 @@ async def asesmen_visual(
             hasil_validator = res_ai.json() 
             is_match = hasil_validator.get("is_match", True)
             reasoning = hasil_validator.get("reasoning", str(hasil_validator))
+            logger.info(f"[ASESMEN VISUAL] Respon diterima dari Tim 2. IsMatch={is_match}, Reasoning={reasoning}")
     except Exception as e:
-        logger.error(f"Gagal terhubung ke server Tim 2: {e}. Mengaktifkan fallback visual.")
+        logger.error(f"[ASESMEN VISUAL] Gagal terhubung ke server Tim 2: {e}. Mengaktifkan fallback visual.")
         is_match = True
         reasoning = f"Foto diasumsikan sesuai secara otomatis karena kendala sistem: {str(e)}"
         hasil_validator = {"is_match": True, "reasoning": reasoning}
@@ -202,6 +229,7 @@ async def asesmen_visual(
         hitung.reasoning_tim2 = reasoning
         hitung.foto_id_digunakan = foto_utama.id
 
+        logger.info(f"[ASESMEN VISUAL] Menyimpan hasil validasi visual ke DB untuk keluarga {keluarga.no_kk}. Match={is_match}")
         db.commit()
 
         return {
@@ -231,6 +259,15 @@ async def asesmen_komprehensif_semua_tim(
     Endpoint ini digunakan oleh Frontend jika hanya ada 1 tombol 'Analisis'.
     Akan mengeksekusi Tim 1, Tim 2, dan Tim 3 secara berurutan/paralel dan merangkum hasilnya.
     """
+    # Set status ke proses agar frontend tahu data sedang diolah
+    p = db.query(models.Perhitungan).filter(models.Perhitungan.keluarga_id == id_keluarga).first()
+    if not p:
+        p = models.Perhitungan(keluarga_id=id_keluarga, status_validasi="proses")
+        db.add(p)
+    else:
+        p.status_validasi = "proses"
+    db.commit()
+
     # Karena asesmen_sosial butuh payload khusus, kita buat mock payload-nya
     payload_sosial = item_schema.TriggerAsesmenRequest(keluarga_id=id_keluarga)
 
@@ -260,3 +297,46 @@ async def asesmen_komprehensif_semua_tim(
         "hasil_analisis_sosial_tim3": hasil_sosial,
         "hasil_validasi_visual_tim2": hasil_visual
     }
+
+async def background_batch_process(ids: list, user_id: str):
+    logger.info(f"[BATCH ALL] Mulai memproses {len(ids)} data di background.")
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        for i, kid in enumerate(ids):
+            try:
+                logger.info(f"[BATCH ALL] [{i+1}/{len(ids)}] Memproses ID: {kid}")
+                await asesmen_komprehensif_semua_tim(kid, user, db)
+            except Exception as e:
+                logger.error(f"[BATCH ALL] Gagal pada ID {kid}: {e}")
+            await asyncio.sleep(0.5)
+    except Exception as e:
+        logger.error(f"[BATCH ALL] Error fatal pada proses background: {e}")
+    finally:
+        db.close()
+        logger.info(f"[BATCH ALL] Selesai memproses batch.")
+
+@router.post("/batch-all", summary="Analisis seluruh antrean data secara background")
+async def batch_all_analisis(
+    background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        query = db.query(models.Keluarga.id).outerjoin(
+            models.Perhitungan, models.Perhitungan.keluarga_id == models.Keluarga.id
+        ).filter(or_(
+            models.Perhitungan.id.is_(None),
+            models.Perhitungan.status_validasi == "analisis",
+            models.Perhitungan.status_validasi.is_(None)
+        )).all()
+        
+        ids = [row[0] for row in query]
+        if not ids:
+            return {"message": "Tidak ada data untuk dianalisis di tahap saat ini."}
+            
+        background_tasks.add_task(background_batch_process, ids, current_user.id)
+        return {"message": f"Memulai analisis batch untuk {len(ids)} data di background."}
+    except Exception as e:
+        logger.error(f"[BATCH ALL] Gagal memulai endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

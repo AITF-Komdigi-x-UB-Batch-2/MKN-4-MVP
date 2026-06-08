@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   ThumbsUp,
   RefreshCw,
+  BrainCircuit,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import "./DetailHasil.css";
@@ -44,7 +45,6 @@ interface DetailKeluargaResponse {
   visual_reasoning?: string | null;
   aiReasoning: string;
   catatan?: string | null;
-  catatan_supervisor?: string | null;
 }
 
 const mapAtap = (val: number) => {
@@ -96,12 +96,29 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
   const familyId = id || location.state?.id_keluarga;
 
-  // Parse AI Reasoning JSON
-  let ringkasanProfil = location.state?.aiReasoning || "Data reasoning belum tersedia dari AI.";
+  // Parse format: "Hasil[3]{Komponen,Prediksi,Status,Alasan}:\nAtap,..."
+  const parseVisualReasoning = (raw: string | null | undefined): Record<string, {prediksi: string; status: string; alasan: string}> => {
+    const result: Record<string, {prediksi: string; status: string; alasan: string}> = {};
+    if (!raw) return result;
+    const lines = raw.split('\n').filter(l => l.trim() && !l.startsWith('Hasil['));
+    for (const line of lines) {
+      // Parse CSV dengan quoted strings
+      const match = line.match(/^(Atap|Dinding|Lantai),([^,]+),([^,]+),"(.*)"$/i);
+      if (match) {
+        result[match[1].toLowerCase()] = { prediksi: match[2].trim(), status: match[3].trim(), alasan: match[4].trim() };
+      }
+    }
+    return result;
+  };
+  const visualData = parseVisualReasoning(detailData?.visual_reasoning);
+
+  // Parse AI Reasoning JSON - prioritaskan data dari server, bukan location.state
+  const rawReasoning = detailData?.aiReasoning || location.state?.aiReasoning || "Data reasoning belum tersedia dari AI.";
+  let ringkasanProfil = rawReasoning;
   let rekomendasiTeknis = "";
   let rekomendasiArray: any[] = [];
   try {
-    const parsed = JSON.parse(ringkasanProfil);
+    const parsed = JSON.parse(rawReasoning);
     if (parsed.ringkasan_profil) {
       ringkasanProfil = parsed.ringkasan_profil;
     }
@@ -127,10 +144,8 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   const [selectedPrograms, setSelectedPrograms] = useState<string[]>(
     location.state?.bantuan || [],
   );
-  const [isConfirming, setIsConfirming] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [isAssistanceConfirmed, setIsAssistanceConfirmed] = useState(true);
-  const [catatanInput, setCatatanInput] = useState("");
   const [catatanSupInput, setCatatanSupInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const latestRequestRef = React.useRef(0);
@@ -240,9 +255,9 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
         setStageState(data.tahap);
         setSelectedPrograms(data.bantuan && data.bantuan.length > 0 ? data.bantuan : (data.rekomendasiBantuan || []));
         setIsAssistanceConfirmed(true);
-        if (data.catatan) setCatatanInput(data.catatan);
-        if (data.catatan_supervisor)
-          setCatatanSupInput(data.catatan_supervisor);
+        if (data.catatan) {
+          setCatatanSupInput(data.catatan);
+        }
       }
     } catch (err) {
       if (requestId === latestRequestRef.current) {
@@ -358,8 +373,8 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     status: string,
     bantuanList?: string[],
     catatan?: string,
-    catatan_supervisor?: string,
   ) => {
+    console.log(`[handleUpdateStatus] Mengirim update status ke server. ID: ${id}, Status Baru: "${status}", Bantuan:`, bantuanList, `, Catatan: "${catatan}"`);
     try {
       const response = await apiFetch(
         `/api/v1/manajemen-bantuan/${id}/status`,
@@ -370,70 +385,89 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
             status_validasi: status,
             bantuan: bantuanList,
             catatan: catatan,
-            catatan_supervisor: catatan_supervisor,
           }),
         },
       );
       if (!response.ok) throw new Error("Gagal update status");
 
       const data = await response.json();
+      console.log(`[handleUpdateStatus] Sukses memperbarui status. Data terupdate:`, data);
       setDetailData(data);
       setStageState(status as Tahap);
       return true;
     } catch (e) {
-      console.error(e);
+      console.error(`[handleUpdateStatus] Terjadi kesalahan saat update status ID: ${id}. Error:`, e);
       return false;
     }
   };
 
-  const handleConfirmAssistance = async () => {
-    if (selectedPrograms.length === 0) return;
-    setIsConfirming(true);
-    const success = await handleUpdateStatus(
-      "validasi",
-      selectedPrograms,
-      catatanInput,
-    );
-    setIsConfirming(false);
-    if (success) {
-      setSuccessMsg("Rekomendasi bantuan berhasil diajukan ke tahap Validasi!");
-      setTimeout(() => setSuccessMsg(""), 2000);
-    }
-  };
-
   const handleSupervisorApprove = async () => {
+    console.log(`[handleSupervisorApprove] Supervisor menyetujui bantuan sosial dengan program:`, selectedPrograms);
     const success = await handleUpdateStatus(
       "diterima",
       selectedPrograms,
-      undefined,
       catatanSupInput,
     );
     if (success) {
+      console.log(`[handleSupervisorApprove] Sukses memperbarui status menjadi diterima.`);
       setSuccessMsg("Bantuan Sosial Berhasil Disetujui!");
       setTimeout(() => setSuccessMsg(""), 2000);
     }
   };
 
   const handleSupervisorReject = async () => {
+    console.log(`[handleSupervisorReject] Supervisor menolak bantuan sosial.`);
     const success = await handleUpdateStatus(
       "ditolak",
-      undefined,
       undefined,
       catatanSupInput,
     );
     if (success) {
+      console.log(`[handleSupervisorReject] Sukses memperbarui status menjadi ditolak.`);
       setSuccessMsg("Pengajuan Bantuan Sosial Ditolak!");
       setTimeout(() => setSuccessMsg(""), 2000);
     }
   };
 
   const handleReanalyze = async () => {
-    const success = await handleUpdateStatus("analisis");
-    if (success) {
-      setSuccessMsg("Status dikembalikan ke tahap Analisis!");
+    console.log(`[handleReanalyze] Memicu analisis AI ulang untuk ID: ${id}`);
+    await runAnalisisAI();
+  };
+
+  const runAnalisisAI = async () => {
+    if (!id) return;
+    // Kosongkan data lama agar UI terlihat fresh saat proses ulang
+    setDetailData(prev => prev ? { ...prev, aiReasoning: "", rekomendasiBantuan: [], bantuan: [] } : null);
+    setSelectedPrograms([]);
+    setIsProcessing(true);
+    try {
+      const res = await apiFetch(`/api/v1/asesmen/komprehensif/${id}`, { method: "POST" });
+      if (!res.ok) throw new Error("Gagal AI");
+      const hasil = await res.json();
+      const b = Array.isArray(hasil?.hasil_analisis_sosial_tim3?.hasil_rekomendasi_final)
+        ? hasil.hasil_analisis_sosial_tim3.hasil_rekomendasi_final.filter((i: any) => i && i !== "Tidak Eligible") : [];
+      await handleUpdateStatus(b.length ? "validasi" : "ditolak", b);
+      setSuccessMsg("Analisis AI Selesai!");
+      // Biarkan polling yang mengupdate UI - jangan setIsProcessing(false) secara manual
+      // agar halaman tetap di state "proses" sampai server benar-benar selesai
+    } catch (e) {
+      console.error(e);
+      setSuccessMsg("Gagal menjalankan Analisis AI");
+      setIsProcessing(false); // hanya reset jika error
       setTimeout(() => setSuccessMsg(""), 2000);
     }
   };
+
+  const renderCatatanView = (label: string, text: string, colorClass: string = "#f3f4f6", textColor: string = "#374151") => (
+    <div style={{ marginBottom: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div>
+        <label style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280" }}>{label}</label>
+        <p style={{ fontSize: "14px", background: colorClass, padding: "10px", borderRadius: "6px", whiteSpace: "pre-wrap", marginTop: "4px", color: textColor }}>
+          {text}
+        </p>
+      </div>
+    </div>
+  );
 
   if (isLoading) {
     return (
@@ -592,161 +626,44 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                     }}
                   >
                     <thead>
-                      <tr
-                        style={{
-                          backgroundColor: "#f8fafc",
-                          borderBottom: "1px solid #e2e8f0",
-                        }}
-                      >
-                        <th
-                          style={{
-                            padding: "12px 16px",
-                            textAlign: "left",
-                            fontWeight: 600,
-                            color: "#475569",
-                          }}
-                        >
-                          VARIABEL
-                        </th>
-                        <th
-                          style={{
-                            padding: "12px 16px",
-                            textAlign: "left",
-                            fontWeight: 600,
-                            color: "#475569",
-                          }}
-                        >
-                          DATA REGISTER
-                        </th>
-                        <th
-                          style={{
-                            padding: "12px 16px",
-                            textAlign: "left",
-                            fontWeight: 600,
-                            color: "#475569",
-                          }}
-                        >
-                          PREDIKSI AI
-                        </th>
-                        <th
-                          style={{
-                            padding: "12px 16px",
-                            textAlign: "left",
-                            fontWeight: 600,
-                            color: "#475569",
-                          }}
-                        >
-                          STATUS
-                        </th>
-                        <th
-                          style={{
-                            padding: "12px 16px",
-                            textAlign: "left",
-                            fontWeight: 600,
-                            color: "#475569",
-                          }}
-                        >
-                          ALASAN DETEKSI
-                        </th>
+                      <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                        <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>VARIABEL</th>
+                        <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>DATA DTSEN</th>
+                        <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>PREDIKSI AI</th>
+                        <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>STATUS</th>
+                        <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>ALASAN DETEKSI</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                        <td
-                          style={{
-                            padding: "14px 16px",
-                            fontWeight: 600,
-                            color: "#1e293b",
-                          }}
-                        >
-                          Atap
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          {mapAtap(detailData?.atap || 0)}
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          <span style={{
-                            fontWeight: 600,
-                            color: detailData?.visual_match === undefined || detailData?.visual_match === null
-                              ? "#64748b"
-                              : detailData.visual_match
-                                ? "#10b981"
-                                : "#ef4444"
-                          }}>
-                            {getAtapVisual()}
-                          </span>
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          {renderVisualMatchBadge(detailData?.visual_match)}
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          {detailData?.visual_reasoning || "-"}
-                        </td>
-                      </tr>
-                      <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                        <td
-                          style={{
-                            padding: "14px 16px",
-                            fontWeight: 600,
-                            color: "#1e293b",
-                          }}
-                        >
-                          Dinding
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          {mapDinding(detailData?.dinding || 0)}
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          <span style={{
-                            fontWeight: 600,
-                            color: detailData?.visual_match === undefined || detailData?.visual_match === null
-                              ? "#64748b"
-                              : detailData.visual_match
-                                ? "#10b981"
-                                : "#ef4444"
-                          }}>
-                            {getDindingVisual()}
-                          </span>
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          {renderVisualMatchBadge(detailData?.visual_match)}
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          -
-                        </td>
-                      </tr>
-                      <tr>
-                        <td
-                          style={{
-                            padding: "14px 16px",
-                            fontWeight: 600,
-                            color: "#1e293b",
-                          }}
-                        >
-                          Lantai
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          {mapLantai(detailData?.lantai || 0)}
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          <span style={{
-                            fontWeight: 600,
-                            color: detailData?.visual_match === undefined || detailData?.visual_match === null
-                              ? "#64748b"
-                              : detailData.visual_match
-                                ? "#10b981"
-                                : "#ef4444"
-                          }}>
-                            {getLantaiVisual()}
-                          </span>
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          {renderVisualMatchBadge(detailData?.visual_match)}
-                        </td>
-                        <td style={{ padding: "14px 16px", color: "#475569" }}>
-                          -
-                        </td>
-                      </tr>
+                      {(["atap", "dinding", "lantai"] as const).map((key, i) => {
+                        const labelMap = { atap: mapAtap(detailData?.atap || 0), dinding: mapDinding(detailData?.dinding || 0), lantai: mapLantai(detailData?.lantai || 0) };
+                        const namaMap = { atap: "Atap", dinding: "Dinding", lantai: "Lantai" };
+                        const prediksiMap = { atap: getAtapVisual(), dinding: getDindingVisual(), lantai: getLantaiVisual() };
+                        const vis = visualData[key];
+                        const isSesuai = vis?.status?.toLowerCase() === "sesuai";
+                        return (
+                          <tr key={key} style={{ borderBottom: i < 2 ? "1px solid #e2e8f0" : undefined }}>
+                            <td style={{ padding: "14px 16px", fontWeight: 600, color: "#1e293b" }}>{namaMap[key]}</td>
+                            <td style={{ padding: "14px 16px", color: "#475569" }}>{labelMap[key]}</td>
+                            <td style={{ padding: "14px 16px", fontWeight: 600, color: vis ? (isSesuai ? "#10b981" : "#ef4444") : "#94a3b8" }}>
+                              {vis ? vis.prediksi : prediksiMap[key]}
+                            </td>
+                            <td style={{ padding: "14px 16px" }}>
+                              {vis ? (
+                                <span style={{ padding: "3px 10px", borderRadius: 9999, fontSize: 11, fontWeight: 700,
+                                  backgroundColor: isSesuai ? "#f0fdf4" : "#fef2f2",
+                                  color: isSesuai ? "#16a34a" : "#dc2626",
+                                  border: `1px solid ${isSesuai ? "#bbf7d0" : "#fca5a5"}` }}>
+                                  {vis.status}
+                                </span>
+                              ) : renderVisualMatchBadge(null)}
+                            </td>
+                            <td style={{ padding: "14px 16px", color: "#475569", fontSize: 12, lineHeight: 1.5 }}>
+                              {vis ? vis.alasan : "-"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -767,13 +684,13 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   flexDirection: "column"
                 }}
               >
-                {filteredRecommendations.length > 0 && (
-                  <div >
+                {filteredRecommendations.length > 0 ? (
+                  <div>
                     {filteredRecommendations.map(rec => {
                       const reasonText = getAIReason(rec.id, "");
                       if (!reasonText) return null;
                       return (
-                        <div key={rec.id}>
+                        <div key={rec.id} style={{ marginBottom: "12px" }}>
                           <strong style={{ color: "#334155" }}>Alasan kelayakan {rec.id}:</strong>
                           <div style={{ marginTop: "4px" }}>
                             <ReactMarkdown>{reasonText}</ReactMarkdown>
@@ -782,82 +699,95 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                       );
                     })}
                   </div>
+                ) : (
+                  <div>
+                    <strong style={{ color: "#334155" }}>Analisis Keseluruhan:</strong>
+                    <div style={{ marginTop: "4px" }}>
+                      <ReactMarkdown>{ringkasanProfil}</ReactMarkdown>
+                    </div>
+                    {rekomendasiTeknis && (
+                      <div style={{ marginTop: "12px" }}>
+                        <strong style={{ color: "#334155" }}>Rekomendasi Teknis:</strong>
+                        <div style={{ marginTop: "4px" }}>
+                          <ReactMarkdown>{rekomendasiTeknis}</ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
 
             {/* Smart Recommendations Section */}
-            {currentTahap !== "diterima" && (
-              <div className="detail-card-section">
-                <div className="detail-card-header">
-                  <h4>Bantuan yang Eligible (Analisis AI)</h4>
-                </div>
-                <div className="detail-card-body">
-                  <div className="recommendation-cards-grid">
-                    {filteredRecommendations.length === 0 ? (
-                      <div
+            <div className="detail-card-section">
+              <div className="detail-card-header">
+                <h4>Bantuan yang Eligible (Analisis AI)</h4>
+              </div>
+              <div className="detail-card-body">
+                <div className="recommendation-cards-grid">
+                  {filteredRecommendations.length === 0 ? (
+                    <div
+                      style={{
+                        gridColumn: "1 / -1",
+                        padding: "32px 24px",
+                        backgroundColor: "#f8fafc",
+                        border: "1px dashed #cbd5e1",
+                        borderRadius: "12px",
+                        textAlign: "center",
+                        color: "#64748b",
+                      }}
+                    >
+                      <AlertCircle
+                        size={32}
+                        style={{ margin: "0 auto 8px", color: "#94a3b8" }}
+                      />
+                      <p
                         style={{
-                          gridColumn: "1 / -1",
-                          padding: "32px 24px",
-                          backgroundColor: "#f8fafc",
-                          border: "1px dashed #cbd5e1",
-                          borderRadius: "12px",
-                          textAlign: "center",
+                          fontWeight: 600,
+                          fontSize: "14px",
+                          color: "#334155",
+                        }}
+                      >
+                        Tidak Ada Rekomendasi Program Bantuan
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "12px",
+                          marginTop: "4px",
                           color: "#64748b",
                         }}
                       >
-                        <AlertCircle
-                          size={32}
-                          style={{ margin: "0 auto 8px", color: "#94a3b8" }}
-                        />
-                        <p
-                          style={{
-                            fontWeight: 600,
-                            fontSize: "14px",
-                            color: "#334155",
-                          }}
-                        >
-                          Tidak Ada Rekomendasi Program Bantuan
-                        </p>
-                        <p
-                          style={{
-                            fontSize: "12px",
-                            marginTop: "4px",
-                            color: "#64748b",
-                          }}
-                        >
-                          Keluarga ini tidak memenuhi indikasi kelayakan untuk
-                          program ASPD, PKH+, atau KE.
-                        </p>
-                      </div>
-                    ) : (
-                      filteredRecommendations.map((rec) => {
-                        const enhancedRec = {
-                          ...rec,
-                          reason: ""
-                        };
-                        return (
-                          <div key={rec.id} style={{ marginBottom: "24px" }}>
-                            <RecommendationCard
-                              data={enhancedRec}
-                              isSelected={selectedPrograms.includes(rec.id)}
-                              isLocked={isFinalized || isAssistanceConfirmed}
-                              onToggle={handleToggleProgram}
-                            />
-                            {rekomendasiTeknis && (
-                              <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#f0f9ff", borderRadius: "8px", border: "1px solid #bae6fd", color: "#0369a1", fontSize: "14px", lineHeight: "1.6" }}>
-                                <strong style={{ display: "block", marginBottom: "8px", color: "#0284c7" }}>Spesifikasi Teknis:</strong>
-                                <ReactMarkdown>{rekomendasiTeknis}</ReactMarkdown>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                        Keluarga ini tidak memenuhi indikasi kelayakan untuk
+                        program ASPD, PKH+, atau KE.
+                      </p>
+                    </div>
+                  ) : (
+                    filteredRecommendations.map((rec) => {
+                      const enhancedRec = {
+                        ...rec,
+                        reason: ""
+                      };
+                      return (
+                        <div key={rec.id} style={{ marginBottom: "24px" }}>
+                          <RecommendationCard
+                            data={enhancedRec}
+                            isSelected={selectedPrograms.includes(rec.id)}
+                            isLocked={isFinalized || isAssistanceConfirmed}
+                            onToggle={handleToggleProgram}
+                          />
+                          {rekomendasiTeknis && (
+                            <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#f0f9ff", borderRadius: "8px", border: "1px solid #bae6fd", color: "#0369a1", fontSize: "14px", lineHeight: "1.6" }}>
+                              <strong style={{ display: "block", marginBottom: "8px", color: "#0284c7" }}>Spesifikasi Teknis:</strong>
+                              <ReactMarkdown>{rekomendasiTeknis}</ReactMarkdown>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Right Column (Dynamic Panel based on Tahap) */}
@@ -870,30 +800,25 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   <h4>Analisis</h4>
                 </div>
                 <div className="panel-body">
-                  <div className="form-group">
-                    <label>Catatan Analisis</label>
-                    <textarea
-                      placeholder="Tambahkan observasi lapangan atau catatan analisis..."
-                      rows={5}
-                      value={catatanInput}
-                      onChange={(e) => setCatatanInput(e.target.value)}
-                    ></textarea>
-                  </div>
                   <div
                     className="panel-actions"
                     style={{ flexDirection: "column" }}
                   >
                     <button
-                      className="btn-action approve w-full"
-                      style={{ justifyContent: "center" }}
-                      onClick={handleConfirmAssistance}
-                      disabled={selectedPrograms.length === 0 || isConfirming}
+                      className="btn-action w-full"
+                      style={{
+                        justifyContent: "center",
+                        backgroundColor: "#f0fdf4",
+                        color: "#166534",
+                        border: "1px solid #bbf7d0",
+                      }}
+                      onClick={runAnalisisAI}
+                      disabled={isProcessing}
                     >
-                      <CheckCircle size={18} />{" "}
-                      {isConfirming
-                        ? "Memproses..."
-                        : "Kirim ke Tahap Validasi"}
+                      <BrainCircuit size={18} />{" "}
+                      {isProcessing ? "AI Memproses..." : "Jalankan Analisis AI"}
                     </button>
+
                     {selectedPrograms.length === 0 && (
                       <p
                         style={{
@@ -904,7 +829,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                           fontWeight: 500,
                         }}
                       >
-                        Tidak ada bantuan eligible untuk warga ini.
                       </p>
                     )}
                   </div>
@@ -919,31 +843,8 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   <h4>Validasi</h4>
                 </div>
                 <div className="panel-body">
-                  <div className="mb-4">
-                    <label
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "#6b7280",
-                      }}
-                    >
-                      DIBUAT OLEH (ANALIS)
-                    </label>
-                    <p
-                      style={{
-                        fontSize: "14px",
-                        background: "#f3f4f6",
-                        padding: "10px",
-                        borderRadius: "6px",
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {detailData?.catatan ||
-                        "Tidak ada catatan analisis yang ditambahkan."}
-                    </p>
-                  </div>
                   <div className="form-group">
-                    <label>Catatan Supervisor / Catatan Validasi</label>
+                    <label>Catatan</label>
                     <textarea
                       placeholder="Masukkan catatan keputusan validasi supervisor..."
                       rows={4}
@@ -993,74 +894,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   <h4 style={{ color: "#0d9488" }}>Pengajuan Disetujui</h4>
                 </div>
                 <div className="panel-body">
-                  <p
-                    style={{
-                      fontSize: "14px",
-                      lineHeight: 1.5,
-                      color: "#374151",
-                      marginBottom: "16px",
-                    }}
-                  >
-                    Keluarga ini telah disetujui untuk menerima program bantuan
-                    sosial berikut berdasarkan analisis kebutuhan dan kelayakan
-                    ekonomi desil {desil}.
-                  </p>
-
-                  <div
-                    style={{
-                      marginBottom: "24px",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                    }}
-                  >
-                    <div>
-                      <label
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: "#6b7280",
-                        }}
-                      >
-                        CATATAN ANALIS
-                      </label>
-                      <p
-                        style={{
-                          fontSize: "14px",
-                          background: "#f3f4f6",
-                          padding: "10px",
-                          borderRadius: "6px",
-                          whiteSpace: "pre-wrap",
-                          marginTop: "4px",
-                        }}
-                      >
-                        {detailData?.catatan || "Tidak ada catatan."}
-                      </p>
-                    </div>
-                    <div>
-                      <label
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: "#6b7280",
-                        }}
-                      >
-                        CATATAN SUPERVISOR
-                      </label>
-                      <p
-                        style={{
-                          fontSize: "14px",
-                          background: "#f3f4f6",
-                          padding: "10px",
-                          borderRadius: "6px",
-                          whiteSpace: "pre-wrap",
-                          marginTop: "4px",
-                        }}
-                      >
-                        {detailData?.catatan_supervisor || "Tidak ada catatan."}
-                      </p>
-                    </div>
-                  </div>
+                  {renderCatatanView("CATATAN", detailData?.catatan || "Tidak ada catatan.")}
                   <div
                     style={{
                       display: "flex",
@@ -1111,18 +945,34 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                       </div>
                     )}
                   </div>
-                  <button
-                    className="btn-action w-full"
-                    style={{
-                      justifyContent: "center",
-                      marginTop: "16px",
-                      backgroundColor: "#f8fafc",
-                      border: "1px solid #e2e8f0",
-                    }}
-                    onClick={() => navigate("/manajemen-bantuan")}
+                  <div
+                    className="panel-actions"
+                    style={{ flexDirection: "column", gap: "10px", marginTop: "16px" }}
                   >
-                    Kembali ke Daftar
-                  </button>
+                    <button
+                      className="btn-action w-full"
+                      style={{
+                        justifyContent: "center",
+                        backgroundColor: "#f3f4f6",
+                        color: "#374151",
+                        border: "1px solid #d1d5db",
+                      }}
+                      onClick={handleReanalyze}
+                    >
+                      <RefreshCw size={14} /> Analisis Ulang Data
+                    </button>
+                    <button
+                      className="btn-action w-full"
+                      style={{
+                        justifyContent: "center",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                      }}
+                      onClick={() => navigate("/manajemen-bantuan")}
+                    >
+                      Kembali ke Daftar
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1143,76 +993,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   </h4>
                 </div>
                 <div className="panel-body">
-                  <p
-                    style={{
-                      fontSize: "14px",
-                      lineHeight: 1.5,
-                      color: "#374151",
-                      marginBottom: "16px",
-                    }}
-                  >
-                    Berdasarkan kriteria kemiskinan dan proses verifikasi
-                    supervisor, keluarga ini dinilai tidak memenuhi kriteria
-                    kelayakan sebagai penerima manfaat.
-                  </p>
-
-                  <div
-                    style={{
-                      marginBottom: "24px",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                    }}
-                  >
-                    <div>
-                      <label
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: "#6b7280",
-                        }}
-                      >
-                        CATATAN ANALIS
-                      </label>
-                      <p
-                        style={{
-                          fontSize: "14px",
-                          background: "#fef2f2",
-                          padding: "10px",
-                          borderRadius: "6px",
-                          whiteSpace: "pre-wrap",
-                          marginTop: "4px",
-                          color: "#b91c1c",
-                        }}
-                      >
-                        {detailData?.catatan || "Tidak ada catatan."}
-                      </p>
-                    </div>
-                    <div>
-                      <label
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: "#6b7280",
-                        }}
-                      >
-                        CATATAN SUPERVISOR
-                      </label>
-                      <p
-                        style={{
-                          fontSize: "14px",
-                          background: "#fef2f2",
-                          padding: "10px",
-                          borderRadius: "6px",
-                          whiteSpace: "pre-wrap",
-                          marginTop: "4px",
-                          color: "#b91c1c",
-                        }}
-                      >
-                        {detailData?.catatan_supervisor || "Tidak ada catatan."}
-                      </p>
-                    </div>
-                  </div>
+                  {renderCatatanView("CATATAN PEMBERI BANTUAN", detailData?.catatan || "Tidak ada catatan.", "#fef2f2", "#b91c1c")}
                   <div
                     className="panel-actions"
                     style={{ flexDirection: "column", gap: "10px" }}
