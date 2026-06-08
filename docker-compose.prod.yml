@@ -67,10 +67,13 @@ services:
       - MINIO_PUBLIC_ENDPOINT=${MINIO_PUBLIC_ENDPOINT:-localhost:9000}
       - AI_RUNPOD_URL=${AI_RUNPOD_URL}
       - AI_RUNPOD_TOKEN=${AI_RUNPOD_TOKEN}
+      - API_TIM_3_URL=${API_TIM_3_URL}
     depends_on:
       - db
       - minio
       - mock_ai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - net_public
       - net_internal
