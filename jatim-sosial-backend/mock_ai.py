@@ -16,70 +16,43 @@ app = FastAPI(
 @app.post(
     "/api/ai/visual-validator",
     tags=["Tim 2 - Visual Validator"],
-    summary="Validasi kesesuaian foto rumah dengan data sosial ekonomi (Format TOON - DUMMY)"
+    summary="Validasi kesesuaian foto rumah dengan data sosial ekonomi (Format JSON Langsung)"
 )
 async def mock_visual_validator(payload: dict = Body(...)):
-    # 1. Ekstrak teks dari dalam array payload OpenAI Tim 2
-    messages = payload.get("messages", [])
-    user_text = ""
-    for msg in messages:
-        if msg.get("role") == "user":
-            content = msg.get("content")
-            if isinstance(content, list):
-                for item in content:
-                    if item.get("type") == "text" and "DATA REFERENSI DTSEN" in item.get("text", ""):
-                        user_text = item.get("text")
-                        break
-            elif isinstance(content, str):
-                user_text = content
+    # 1. Ekstrak data dari payload baru (sesuai schema di asesmen.py)
+    id_data = payload.get("id_data", "Unknown")
+    id_atap = payload.get("id_atap_terluas", 0)
+    id_dinding = payload.get("id_dinding_terluas", 0)
+    id_lantai = payload.get("id_lantai_terluas", 0)
+    
+    # 2. Pemetaan dummy ID ke nama bahan (hanya untuk log/reasoning dummy)
+    atap_map = {1: "Beton", 2: "Genteng", 3: "Seng", 4: "Asbes", 5: "Bambu", 6: "Jerami", 0: "Tidak terdeteksi"}
+    dinding_map = {1: "Tembok", 2: "Kayu", 3: "Bambu", 4: "Tanah", 0: "Tidak terdeteksi"}
+    lantai_map = {1: "Keramik", 2: "Semen", 3: "Kayu", 4: "Tanah", 0: "Tidak terdeteksi"}
 
-    # 2. Parsing label aktual dari prompt user agar dummy tidak kosong
-    jenis_atap = "Tidak terdeteksi"
-    jenis_dinding = "Tidak terdeteksi"
-    jenis_lantai = "Tidak terdeteksi"
-
-    if user_text:
-        m_atap = re.search(r"Atap\s*:\s*(.+)", user_text)
-        m_dinding = re.search(r"Dinding\s*:\s*(.+)", user_text)
-        m_lantai = re.search(r"Lantai\s*:\s*(.+)", user_text)
-        
-        if m_atap: jenis_atap = m_atap.group(1).strip()
-        if m_dinding: jenis_dinding = m_dinding.group(1).strip()
-        if m_lantai: jenis_lantai = m_lantai.group(1).strip()
+    jenis_atap = atap_map.get(int(id_atap) if id_atap else 0, "Tidak terdeteksi")
+    jenis_dinding = dinding_map.get(int(id_dinding) if id_dinding else 0, "Tidak terdeteksi")
+    jenis_lantai = lantai_map.get(int(id_lantai) if id_lantai else 0, "Tidak terdeteksi")
 
     # 3. Tentukan secara acak apakah simulasi ini Sesuai atau Tidak Sesuai (75% Sesuai)
     is_match = random.choice([True, True, True, False])
     status_simulasi = "Sesuai" if is_match else "Tidak sesuai"
 
-    # 4. Generate Alasan Toon (Pure Dummy / Hardcode)
-    alasan_toon = (
-        f"Hasil[3]{{Komponen,Prediksi,Status,Alasan}}:\n"
-        f"Atap,{jenis_atap},{status_simulasi},\"Mock AI: Evaluasi visual untuk atap menunjukkan kondisi {status_simulasi.lower()}.\"\n"
-        f"Dinding,{jenis_dinding},{status_simulasi},\"Mock AI: Evaluasi visual untuk dinding menunjukkan kondisi {status_simulasi.lower()}.\"\n"
-        f"Lantai,{jenis_lantai},{status_simulasi},\"Mock AI: Evaluasi visual untuk lantai menunjukkan kondisi {status_simulasi.lower()}.\""
+    # 4. Generate Alasan
+    alasan_teks = (
+        f"Mock AI: Evaluasi visual terhadap gambar menunjukkan:\n"
+        f"- Atap terdeteksi berbahan {jenis_atap} ({status_simulasi})\n"
+        f"- Dinding terdeteksi berbahan {jenis_dinding} ({status_simulasi})\n"
+        f"- Lantai terdeteksi berbahan {jenis_lantai} ({status_simulasi})\n"
+        f"Kesimpulan akhir: {'Sesuai' if is_match else 'Terdapat ketidaksesuaian'} dengan data administratif."
     )
 
-    # 5. Mengembalikan payload persis struktur JSON dari OpenAI/RunPod
+    # 5. Kembalikan sesuai format yang diharapkan oleh asesmen.py
     return {
-        "id": "chatcmpl-mock-vision-dummy",
-        "object": "chat.completion",
-        "created": 1717000000,
-        "model": "model-vision-tim-2-dummy",
-        "choices": [
-            {
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": alasan_toon
-                },
-                "finish_reason": "stop"
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 150,
-            "completion_tokens": 75,
-            "total_tokens": 225
-        }
+        "status": "success",
+        "id_data": id_data,
+        "is_match": is_match,
+        "reasoning": alasan_teks
     }
 
 
