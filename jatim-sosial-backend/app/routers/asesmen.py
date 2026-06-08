@@ -118,6 +118,17 @@ async def asesmen_sosial(
         else:
             bantuan_lama = hitung.rekomendasi_bantuan
 
+        # MENGHITUNG SKOR PADA SAAT ANALISIS BUKAN SAAT IMPOR
+        from app.utils.scoring import hitung_skor_bantuan
+        skor = hitung_skor_bantuan(keluarga)
+        skor_pkh_val = skor.get("skor_pkh_plus") or 0.0
+        skor_aspd_val = skor.get("skor_aspd") or 0.0
+        
+        # Override jika skor deterministik 0 di kedua program
+        if skor_pkh_val <= 0.0 and skor_aspd_val <= 0.0:
+            logger.info("[ASESMEN SOSIAL] Skor deterministik 0. Menganulir hasil AI dan menetapkan Tidak Eligible.")
+            rekomendasi_baru = []
+
         is_eligible = len(rekomendasi_baru) > 0
         hitung.status_validasi = "validasi" if is_eligible else "ditolak"
         logger.info(f"[ASESMEN SOSIAL] Status validasi disetel menjadi: {hitung.status_validasi} (is_eligible: {is_eligible})")
@@ -125,11 +136,8 @@ async def asesmen_sosial(
         hitung.rekomendasi_bantuan = rekomendasi_baru
         hitung.reasoning_tim3 = analisis_rag
         
-        # MENGHITUNG SKOR PADA SAAT ANALISIS BUKAN SAAT IMPOR
-        from app.utils.scoring import hitung_skor_bantuan
-        skor = hitung_skor_bantuan(keluarga)
-        hitung.skor_pkh_plus = skor.get("skor_pkh_plus")
-        hitung.skor_aspd = skor.get("skor_aspd")
+        hitung.skor_pkh_plus = skor_pkh_val
+        hitung.skor_aspd = skor_aspd_val
         log = models.LogHistori(
             keluarga_id=keluarga.id, user_id=current_user.id,
             desil_lama=None, desil_baru=None,

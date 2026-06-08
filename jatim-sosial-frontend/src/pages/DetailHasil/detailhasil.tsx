@@ -638,6 +638,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                       {(["atap", "dinding", "lantai"] as const).map((key, i) => {
                         const labelMap = { atap: mapAtap(detailData?.atap || 0), dinding: mapDinding(detailData?.dinding || 0), lantai: mapLantai(detailData?.lantai || 0) };
                         const namaMap = { atap: "Atap", dinding: "Dinding", lantai: "Lantai" };
+                        const prediksiMap = { atap: getAtapVisual(), dinding: getDindingVisual(), lantai: getLantaiVisual() };
                         const vis = visualData[key];
                         const isSesuai = vis?.status?.toLowerCase() === "sesuai";
                         return (
@@ -645,7 +646,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                             <td style={{ padding: "14px 16px", fontWeight: 600, color: "#1e293b" }}>{namaMap[key]}</td>
                             <td style={{ padding: "14px 16px", color: "#475569" }}>{labelMap[key]}</td>
                             <td style={{ padding: "14px 16px", fontWeight: 600, color: vis ? (isSesuai ? "#10b981" : "#ef4444") : "#94a3b8" }}>
-                              {vis ? vis.prediksi : "-"}
+                              {vis ? vis.prediksi : prediksiMap[key]}
                             </td>
                             <td style={{ padding: "14px 16px" }}>
                               {vis ? (
