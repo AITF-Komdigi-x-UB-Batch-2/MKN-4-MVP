@@ -201,7 +201,7 @@ async def asesmen_visual(
     try:
         async with httpx.AsyncClient() as client:
             res_ai = await client.post(
-                f"{AI_BASE_URL}/api/ai/visual-validator",
+                f"{AI_BASE_URL}/v1/chat/completions",
                 json=payload_ke_tim2,
                 timeout=30.0
             )
