@@ -24,6 +24,7 @@ interface PolicyDocument {
   unit: string;
   size: string;
   aiSummary: string;
+  fileUrl: string;
 }
 
 const mockDocuments: PolicyDocument[] = [
@@ -38,6 +39,7 @@ const mockDocuments: PolicyDocument[] = [
     unit: 'Dinas Sosial',
     size: '11.7 MB',
     aiSummary: 'Petunjuk pelaksanaan Asistensi Sosial Penyandang Disabilitas (ASPD) Provinsi Jawa Timur Tahun 2026 yang mengatur kriteria penerima, mekanisme penyaluran, dan tata cara monitoring bantuan bagi penyandang disabilitas.',
+    fileUrl: '/documents/juklak-aspd-2026.pdf',
   },
   {
     id: '2',
@@ -50,6 +52,7 @@ const mockDocuments: PolicyDocument[] = [
     unit: 'Dinas Sosial',
     size: '1.9 MB',
     aiSummary: 'Petunjuk teknis pelaksanaan PKH Plus Tahun 2026 di Jawa Timur, berfokus pada pemberian bantuan sosial tambahan bagi lanjut usia dalam keluarga sangat miskin.',
+    fileUrl: '/documents/juknis-pkh-plus-2026.pdf',
   }
 ];
 
@@ -145,9 +148,14 @@ const BasisPengetahuan: React.FC<BasisPengetahuanProps> = ({ onLogout }) => {
                 <p className="doc-id-desc">{selectedDoc.description}</p>
               </div>
 
-              <button className="btn-download-pdf">
-                <Download size={18} /> Unduh Dokumen (PDF)
-              </button>
+              <a
+                href={selectedDoc.fileUrl}
+                download
+                className="btn-download-pdf"
+              >
+                <Download size={18} />
+                Unduh Dokumen (PDF)
+              </a>
 
               {/* Information Grid */}
               <div className="info-main-label">INFORMASI UTAMA</div>
