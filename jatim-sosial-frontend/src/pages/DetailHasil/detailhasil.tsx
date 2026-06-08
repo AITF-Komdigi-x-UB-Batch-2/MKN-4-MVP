@@ -96,6 +96,31 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
 
   const familyId = id || location.state?.id_keluarga;
 
+  // Parse AI Reasoning JSON
+  let ringkasanProfil = location.state?.aiReasoning || "Data reasoning belum tersedia dari AI.";
+  let rekomendasiTeknis = "";
+  let rekomendasiArray: any[] = [];
+  try {
+    const parsed = JSON.parse(ringkasanProfil);
+    if (parsed.ringkasan_profil) {
+      ringkasanProfil = parsed.ringkasan_profil;
+    }
+    if (parsed.rekomendasi_teknis) {
+      rekomendasiTeknis = parsed.rekomendasi_teknis;
+    }
+    if (parsed.rekomendasi && Array.isArray(parsed.rekomendasi)) {
+      rekomendasiArray = parsed.rekomendasi;
+    }
+  } catch (e) {
+    // Jika bukan JSON (format lama), biarkan menggunakan string asli
+  }
+
+  const getAIReason = (prog: string, defaultReason: string) => {
+    const rec = rekomendasiArray.find((r: any) => r.nama_program && r.nama_program.toUpperCase().includes(prog.toUpperCase()));
+    if (rec && rec.alasan_kelayakan) return rec.alasan_kelayakan;
+    return rekomendasiTeknis || defaultReason;
+  };
+
   const [stageState, setStageState] = useState<Tahap>(
     location.state?.tahap || "analisis",
   );
@@ -304,8 +329,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
       title: "ASPD (Asistensi Sosial Penyandang Disabilitas)",
       match: familyScores.aspd,
       desc: "Bantuan sosial tunai dari Pemerintah Provinsi Jawa Timur untuk penyandang disabilitas berat guna memenuhi kebutuhan dasar dan meningkatkan kualitas hidup mereka.",
-      reason:
-        "Keluarga memenuhi kriteria prioritas dengan skor kelayakan tinggi.",
       isReceived: false,
     },
     {
@@ -313,8 +336,6 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
       title: "PKH Plus (Program Keluarga Harapan Plus)",
       match: familyScores.pkh_plus,
       desc: "Bantuan sosial bersyarat berupa dana tunai khusus bagi lanjut usia (lansia) berusia 70 tahun ke atas dari keluarga sangat miskin yang terdaftar dalam DTKS.",
-      reason:
-        "Analisis kriteria kesehatan dan pendidikan menunjukkan kelayakan tinggi.",
       isReceived: false,
     },
   ];
@@ -734,7 +755,7 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
             {/* AI Summary Section (mkn3 reasoning) */}
             <div className="detail-card-section">
               <div className="detail-card-header">
-                <h4>Ringkasan Singkat & Rekomendasi</h4>
+                <h4>Ringkasan Singkat</h4>
               </div>
               <div
                 className="detail-card-body"
@@ -742,12 +763,26 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                   lineHeight: "1.6",
                   color: "#4a5568",
                   fontSize: "14px",
+                  display: "flex",
+                  flexDirection: "column"
                 }}
               >
-                <ReactMarkdown>
-                  {location.state?.aiReasoning ||
-                    "Data reasoning belum tersedia dari AI."}
-                </ReactMarkdown>
+                {filteredRecommendations.length > 0 && (
+                  <div >
+                    {filteredRecommendations.map(rec => {
+                      const reasonText = getAIReason(rec.id, "");
+                      if (!reasonText) return null;
+                      return (
+                        <div key={rec.id}>
+                          <strong style={{ color: "#334155" }}>Alasan kelayakan {rec.id}:</strong>
+                          <div style={{ marginTop: "4px" }}>
+                            <ReactMarkdown>{reasonText}</ReactMarkdown>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -796,15 +831,28 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                         </p>
                       </div>
                     ) : (
-                      filteredRecommendations.map((rec) => (
-                        <RecommendationCard
-                          key={rec.id}
-                          data={rec}
-                          isSelected={selectedPrograms.includes(rec.id)}
-                          isLocked={isFinalized || isAssistanceConfirmed}
-                          onToggle={handleToggleProgram}
-                        />
-                      ))
+                      filteredRecommendations.map((rec) => {
+                        const enhancedRec = {
+                          ...rec,
+                          reason: ""
+                        };
+                        return (
+                          <div key={rec.id} style={{ marginBottom: "24px" }}>
+                            <RecommendationCard
+                              data={enhancedRec}
+                              isSelected={selectedPrograms.includes(rec.id)}
+                              isLocked={isFinalized || isAssistanceConfirmed}
+                              onToggle={handleToggleProgram}
+                            />
+                            {rekomendasiTeknis && (
+                              <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#f0f9ff", borderRadius: "8px", border: "1px solid #bae6fd", color: "#0369a1", fontSize: "14px", lineHeight: "1.6" }}>
+                                <strong style={{ display: "block", marginBottom: "8px", color: "#0284c7" }}>Spesifikasi Teknis:</strong>
+                                <ReactMarkdown>{rekomendasiTeknis}</ReactMarkdown>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
