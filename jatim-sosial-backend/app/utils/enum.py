@@ -324,10 +324,57 @@ class BBUtamaEnum(BaseMapEnum):
 # ==============================================================
 
 class StatusKeberadaanEnum(BaseMapEnum):
-    DITEMUKAN_AKTIF  = (1, "Ditemukan / Aktif")
-    PINDAH           = (2, "Pindah")
-    MENINGGAL_DUNIA  = (3, "Meninggal Dunia")
-    TIDAK_DITEMUKAN  = (4, "Tidak Ditemukan")
+    DITEMUKAN_AKTIF = (1, "Ditemukan / Aktif")
+    PINDAH = (2, "Pindah")
+    MENINGGAL_DUNIA = (3, "Meninggal Dunia")
+    TIDAK_DITEMUKAN = (4, "Tidak Ditemukan")
+    
+    @classmethod
+    def label(cls, val):
+        return cls.get_label(val, default="Tidak Diketahui")
+    
+class LantaiEnum(BaseMapEnum):
+    MARMER_GRANIT = (1, "Marmer/granit")
+    KERAMIK = (2, "Keramik")
+    PARKET_VINIL_KARPET = (3, "Parket/vinil/karpet")
+    UBIN_TEGEL_TERASO = (4, "Ubin/tegel/teraso")
+    KAYU_PAPAN = (5, "Kayu/papan")
+    SEMEN_BATA_MERAH = (6, "Semen/bata merah")
+    BAMBU = (7, "Bambu")
+    TANAH = (8, "Tanah")
+    LAINNYA = (9, "Lainnya")
+    
+    @classmethod
+    def label(cls, val):
+        return cls.get_label(val, default="Tidak terdeteksi")
+
+class AtapEnum(BaseMapEnum):
+    BETON = (1, "Beton")
+    GENTENG = (2, "Genteng")
+    SENG = (3, "Seng")
+    ASBES = (4, "Asbes")
+    BAMBU = (5, "Bambu")
+    KAYU_SIRAP = (6, "Kayu/sirap")
+    JERAMI_RUMBIA = (7, "Jerami/ijuk/daun-daunan/rumbia")
+    LAINNYA = (8, "Lainnya")
+    
+    @classmethod
+    def label(cls, val):
+        return cls.get_label(val, default="Tidak terdeteksi")
+
+class DindingEnum(BaseMapEnum):
+    TEMBOK = (1, "Tembok")
+    PLESTERAN_BAMBU = (2, "Plesteran anyaman bambu/kawat")
+    KAYU_PAPAN_GRC = (3, "Kayu/papan/gypsum/GRC/calciboard")
+    ANYAMAN_BAMBU = (4, "Anyaman bambu")
+    BATANG_KAYU = (5, "Batang kayu")
+    BAMBU = (6, "Bambu")
+    LAINNYA = (7, "Lainnya")
+    
+    @classmethod
+    def label(cls, val):
+        return cls.get_label(val, default="Tidak terdeteksi")
+
 
 
 # ==============================================================
