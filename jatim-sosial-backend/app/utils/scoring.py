@@ -12,8 +12,8 @@ PKH_PLUS_WEIGHTS = {
     "usia": 0.0847,
     "desil_nasional": 0.0847,
     "bansos": 0.0847,
-    "id_mengurus_diri": 0.0678,
     "jumlah_anggota_keluarga": 0.0678,
+    "id_mengurus_diri": 0.0678,
     "pbi": 0.0508,
     "id_penglihatan": 0.0508,
     "id_pendengaran": 0.0508,
@@ -42,7 +42,7 @@ ASPD_WEIGHTS = {
     "id_berbicara_komunikasi": 0.06,
     "id_mengingat_berkonsentrasi": 0.06,
     "id_penyakit_menahun": 0.06,
-    "jumlah_anggota_keluarga": 0.06,
+    "jumlah_anggota_keluarga": 0.04,
 }
 
 
@@ -94,73 +94,96 @@ def cek_penyakit_menahun(val) -> float:
 
 def normalisasi_status_bangunan(val) -> float:
     """
-    1 Milik sendiri -> 0.00
-    4 Dinas -> 0.33
-    3 Bebas sewa / 5 Lainnya -> 0.67
-    2 Kontrak/sewa -> 1.00
+    C13 - 1: Milik sendiri (0.00), 4: Dinas (0.33), 3: Bebas sewa / 5: Lainnya (0.67), 2: Kontrak/sewa (1.00)
     """
-    return {
-        1: 0.0,
-        4: 0.33,
-        3: 0.67,
-        5: 0.67,
-        2: 1.0,
-    }.get(to_int(val, 1), 0.0)
-
+    v = to_int(val, 1)
+    if v == 1:
+        return 0.00
+    if v == 4:
+        return 0.33
+    if v in [3, 5]:
+        return 0.67
+    if v == 2:
+        return 1.00
+    return 0.67
 
 def normalisasi_lantai(val) -> float:
+    """
+    C14 - 1,2,3: Marmer/Granit/Keramik/Parket/Vinyl/Karpet (0.00)
+          4: Ubin/Tegel/Teraso (0.33)
+          5,6,9: Kayu/Papan/Semen/Bata Merah/Lainnya (0.67)
+          7,8: Bambu/Tanah (1.00)
+    """
     v = to_int(val, 1)
     if v in [1, 2, 3]:
-        return 0.0
+        return 0.00
     if v == 4:
         return 0.33
     if v in [5, 6, 9]:
         return 0.67
     if v in [7, 8]:
-        return 1.0
-    return 0.0
-
+        return 1.00
+    return 0.67
 
 def normalisasi_dinding(val) -> float:
+    """
+    C16 - 1: Tembok (0.00)
+          2: Plesteran Anyaman Bambu/Kawat (0.33)
+          3,7: Kayu/Papan/Gypsum/GRC/Calciboard/Lainnya (0.67)
+          4,5,6: Anyaman Bambu/Batang Kayu/Bambu (1.00)
+    """
     v = to_int(val, 1)
     if v == 1:
-        return 0.0
+        return 0.00
     if v == 2:
         return 0.33
     if v in [3, 7]:
         return 0.67
     if v in [4, 5, 6]:
-        return 1.0
-    return 0.0
-
+        return 1.00
+    return 0.67
 
 def normalisasi_atap(val) -> float:
+    """
+    C17 - 1: Beton (0.00)
+          2: Genteng (0.33)
+          3,4,5,6: Seng/Asbes/Bambu/Kayu/Sirap (0.67)
+          7,8: Jerami/Ijuk/Daun-daunan/Rumbia/Lainnya (1.00)
+    """
     v = to_int(val, 1)
     if v == 1:
-        return 0.0
+        return 0.00
     if v == 2:
         return 0.33
     if v in [3, 4, 5, 6]:
         return 0.67
     if v in [7, 8]:
-        return 1.0
-    return 0.0
-
+        return 1.00
+    return 0.67
 
 def normalisasi_luas_per_kapita(luas_lantai, jumlah_anggota) -> float:
     luas = float(luas_lantai or 0.0)
     anggota = max(1, to_int(jumlah_anggota, 1))
     return 1.0 if (luas / anggota) < 7.2 else 0.0
 
-
 def normalisasi_gizi(val) -> float:
-    return {
-        1: 1.0,
-        2: 0.67,
-        3: 0.0,
-        8: 0.0,
-    }.get(to_int(val, 3), 0.0)
+    """
+    C1 (ASPD) - 1: Kurang gizi/Wasting (1.0), 2: Kerdil/Stunting (0.5), 3 atau 8: Tidak ada/Tidak tahu (0.0)
+    """
+    v = to_int(val, 3)
+    if v == 1:
+        return 1.0
+    if v == 2:
+        return 0.5
+    return 0.0
 
+def normalisasi_desil_aspd(val) -> float:
+    """
+    C4 (ASPD) - 1: Desil 1 (1.00), 2: Desil 2 (0.75), 3: Desil 3 (0.50), 4: Desil 4 (0.25), 5: Desil 5 (0.00)
+    """
+    v = to_int(val, 5)
+    mapping = {1: 1.00, 2: 0.75, 3: 0.50, 4: 0.25, 5: 0.00}
+    return mapping.get(v, 0.00)
 
 def parse_umur(keluarga) -> int:
     umur = getattr(keluarga, "umur_2026", None)
@@ -301,88 +324,151 @@ def eligible_aspd(keluarga, umur: int, desil: int) -> bool:
 
 
 # ==========================================
-# FUNGSI SKORING UTAMA UNTUK OBJECT SQLALCHEMY
+# VALIDASI BISNIS: PKH+ MAKS 1 PER KK
 # ==========================================
 
-def hitung_skor_bantuan(keluarga) -> dict:
+def cek_kuota_pkh_plus_per_kk(no_kk: str, current_nik: str, db) -> bool:
     """
-    Menghitung skor prioritas PKH Plus dan ASPD berdasarkan filter Juknis
-    dan metode SAW (Simple Additive Weighting).
-    Menerima parameter 'keluarga' (Object SQLAlchemy models.Keluarga).
+    Cek apakah KK ini sudah memiliki anggota lain yang eligible PKH+.
+    Jika sudah ada 1 orang (dengan NIK berbeda), maka return False (ditolak).
 
-    Skor internal SAW berada pada rentang 0.0-1.0. Fungsi ini tetap
-    mengembalikan 0-100 agar kompatibel dengan frontend dan data lama.
+    Parameter:
+        no_kk: Nomor KK yang sedang diproses
+        current_nik: NIK individu yang sedang dievaluasi
+        db: SQLAlchemy Session
+
+    Return: True jika masih boleh mendapat PKH+, False jika kuota sudah penuh.
+    """
+    from app import models
+
+    existing_pkh = db.query(models.Keluarga).filter(
+        models.Keluarga.no_kk == no_kk,
+        models.Keluarga.nik != current_nik,
+        models.Keluarga.status_bantuan.in_(["Eligible PKH+", "Eligible Keduanya"])
+    ).first()
+
+    if existing_pkh:
+        logger.info(
+            f"[KUOTA PKH+] KK {no_kk}: NIK {current_nik} DITOLAK. "
+            f"Sudah ada penerima PKH+ di KK ini: NIK {existing_pkh.nik}"
+        )
+        return False
+    return True
+
+
+# ==========================================
+# FUNGSI SKORING TERPISAH: PKH+ DAN ASPD
+# ==========================================
+
+def hitung_skor_pkh_plus(keluarga) -> dict:
+    """
+    Hitung skor PKH Plus secara mandiri.
+    Return: {"eligible": bool, "skor": float (0-100)}
     """
     try:
         umur = parse_umur(keluarga)
         desil = get_desil(keluarga)
+        is_eligible = eligible_pkh_plus(keluarga, umur, desil)
+
+        if not is_eligible:
+            return {"eligible": False, "skor": 0.0}
+
         pbi_val = 1.0 if to_int(getattr(keluarga, "pbi", 0), 0) == 1 else 0.0
         punya_pkh = 1.0 if is_pkh(keluarga) else 0.0
         jml_anggota = to_int(getattr(keluarga, "jumlah_anggota_keluarga", 1), 1)
 
-        is_pkh_eligible = eligible_pkh_plus(keluarga, umur, desil)
-        is_aspd_eligible = eligible_aspd(keluarga, umur, desil)
-
-        logger.info(
-            f"[SCORING] NIK: {keluarga.nik}, KK: {keluarga.no_kk}. "
-            f"Umur={umur}, Desil={desil}, PBI={pbi_val}, PKH={punya_pkh}, Jml Anggota={jml_anggota}. "
-            f"Eligibility -> PKH Plus: {is_pkh_eligible}, ASPD: {is_aspd_eligible}"
+        skor_raw = (
+            normalisasi_usia_pkh(umur) * PKH_PLUS_WEIGHTS["usia"]
+            + normalisasi_desil(desil, 4) * PKH_PLUS_WEIGHTS["desil_nasional"]
+            + punya_pkh * PKH_PLUS_WEIGHTS["bansos"]
+            + normalisasi_hambatan(getattr(keluarga, "id_mengurus_diri", 4)) * PKH_PLUS_WEIGHTS["id_mengurus_diri"]
+            + normalisasi_jumlah_anggota(jml_anggota) * PKH_PLUS_WEIGHTS["jumlah_anggota_keluarga"]
+            + pbi_val * PKH_PLUS_WEIGHTS["pbi"]
+            + normalisasi_hambatan(getattr(keluarga, "id_penglihatan", 4)) * PKH_PLUS_WEIGHTS["id_penglihatan"]
+            + normalisasi_hambatan(getattr(keluarga, "id_pendengaran", 4)) * PKH_PLUS_WEIGHTS["id_pendengaran"]
+            + normalisasi_hambatan(getattr(keluarga, "id_berjalan_atau_naik_tangga", 4)) * PKH_PLUS_WEIGHTS["id_berjalan_atau_naik_tangga"]
+            + normalisasi_hambatan(getattr(keluarga, "id_berbicara_komunikasi", 4)) * PKH_PLUS_WEIGHTS["id_berbicara_komunikasi"]
+            + normalisasi_hambatan(getattr(keluarga, "id_mengingat_berkonsentrasi", 4)) * PKH_PLUS_WEIGHTS["id_mengingat_berkonsentrasi"]
+            + cek_penyakit_menahun(getattr(keluarga, "id_penyakit_menahun", 1)) * PKH_PLUS_WEIGHTS["id_penyakit_menahun"]
+            + normalisasi_status_bangunan(getattr(keluarga, "id_status_penguasaan_bangunan", 1)) * PKH_PLUS_WEIGHTS["id_status_penguasaan_bangunan"]
+            + normalisasi_lantai(getattr(keluarga, "id_lantai_terluas", 1)) * PKH_PLUS_WEIGHTS["id_lantai_terluas"]
+            + normalisasi_luas_per_kapita(getattr(keluarga, "luas_lantai_bangunan", 0), jml_anggota) * PKH_PLUS_WEIGHTS["luas_lantai_bangunan"]
+            + normalisasi_dinding(getattr(keluarga, "id_dinding_terluas", 1)) * PKH_PLUS_WEIGHTS["id_dinding_terluas"]
+            + normalisasi_atap(getattr(keluarga, "id_atap_terluas", 1)) * PKH_PLUS_WEIGHTS["id_atap_terluas"]
         )
 
-        skor_pkh = 0.0
-        if is_pkh_eligible:
-            skor_pkh = (
-                normalisasi_usia_pkh(umur) * PKH_PLUS_WEIGHTS["usia"]
-                + normalisasi_desil(desil, 4) * PKH_PLUS_WEIGHTS["desil_nasional"]
-                + punya_pkh * PKH_PLUS_WEIGHTS["bansos"]
-                + normalisasi_hambatan(getattr(keluarga, "id_mengurus_diri", 4)) * PKH_PLUS_WEIGHTS["id_mengurus_diri"]
-                + normalisasi_jumlah_anggota(jml_anggota) * PKH_PLUS_WEIGHTS["jumlah_anggota_keluarga"]
-                + pbi_val * PKH_PLUS_WEIGHTS["pbi"]
-                + normalisasi_hambatan(getattr(keluarga, "id_penglihatan", 4)) * PKH_PLUS_WEIGHTS["id_penglihatan"]
-                + normalisasi_hambatan(getattr(keluarga, "id_pendengaran", 4)) * PKH_PLUS_WEIGHTS["id_pendengaran"]
-                + normalisasi_hambatan(getattr(keluarga, "id_berjalan_atau_naik_tangga", 4)) * PKH_PLUS_WEIGHTS["id_berjalan_atau_naik_tangga"]
-                + normalisasi_hambatan(getattr(keluarga, "id_berbicara_komunikasi", 4)) * PKH_PLUS_WEIGHTS["id_berbicara_komunikasi"]
-                + normalisasi_hambatan(getattr(keluarga, "id_mengingat_berkonsentrasi", 4)) * PKH_PLUS_WEIGHTS["id_mengingat_berkonsentrasi"]
-                + cek_penyakit_menahun(getattr(keluarga, "id_penyakit_menahun", 1)) * PKH_PLUS_WEIGHTS["id_penyakit_menahun"]
-                + normalisasi_status_bangunan(getattr(keluarga, "id_status_penguasaan_bangunan", 1)) * PKH_PLUS_WEIGHTS["id_status_penguasaan_bangunan"]
-                + normalisasi_lantai(getattr(keluarga, "id_lantai_terluas", 1)) * PKH_PLUS_WEIGHTS["id_lantai_terluas"]
-                + normalisasi_luas_per_kapita(getattr(keluarga, "luas_lantai_bangunan", 0), jml_anggota) * PKH_PLUS_WEIGHTS["luas_lantai_bangunan"]
-                + normalisasi_dinding(getattr(keluarga, "id_dinding_terluas", 1)) * PKH_PLUS_WEIGHTS["id_dinding_terluas"]
-                + normalisasi_atap(getattr(keluarga, "id_atap_terluas", 1)) * PKH_PLUS_WEIGHTS["id_atap_terluas"]
-            )
-
-        skor_aspd = 0.0
-        if is_aspd_eligible:
-            skor_aspd = (
-                normalisasi_gizi(getattr(keluarga, "id_kondisi_gizi", 3)) * ASPD_WEIGHTS["id_kondisi_gizi"]
-                + normalisasi_hambatan(getattr(keluarga, "id_berjalan_atau_naik_tangga", 4)) * ASPD_WEIGHTS["id_berjalan_atau_naik_tangga"]
-                + normalisasi_hambatan(getattr(keluarga, "id_mengurus_diri", 4)) * ASPD_WEIGHTS["id_mengurus_diri"]
-                + normalisasi_desil(desil, 5) * ASPD_WEIGHTS["desil_nasional"]
-                + pbi_val * ASPD_WEIGHTS["pbi"]
-                + normalisasi_hambatan(getattr(keluarga, "id_penglihatan", 4)) * ASPD_WEIGHTS["id_penglihatan"]
-                + normalisasi_hambatan(getattr(keluarga, "id_pendengaran", 4)) * ASPD_WEIGHTS["id_pendengaran"]
-                + normalisasi_hambatan(getattr(keluarga, "id_menggunakan_tangan_jari", 4)) * ASPD_WEIGHTS["id_menggunakan_tangan_jari"]
-                + normalisasi_hambatan(getattr(keluarga, "id_belajar_kemampuan_intelektual", 4)) * ASPD_WEIGHTS["id_belajar_kemampuan_intelektual"]
-                + normalisasi_hambatan(getattr(keluarga, "id_pengendalian_perilaku", 4)) * ASPD_WEIGHTS["id_pengendalian_perilaku"]
-                + normalisasi_hambatan(getattr(keluarga, "id_berbicara_komunikasi", 4)) * ASPD_WEIGHTS["id_berbicara_komunikasi"]
-                + normalisasi_hambatan(getattr(keluarga, "id_mengingat_berkonsentrasi", 4)) * ASPD_WEIGHTS["id_mengingat_berkonsentrasi"]
-                + cek_penyakit_menahun(getattr(keluarga, "id_penyakit_menahun", 1)) * ASPD_WEIGHTS["id_penyakit_menahun"]
-                + normalisasi_jumlah_anggota(jml_anggota) * ASPD_WEIGHTS["jumlah_anggota_keluarga"]
-            )
-
-        skor_pkh_final = saw_to_percent(skor_pkh)
-        skor_aspd_final = saw_to_percent(skor_aspd)
-
-        logger.info(
-            f"[SCORING] Selesai menghitung skor. NIK: {keluarga.nik}, KK: {keluarga.no_kk}. "
-            f"Skor Akhir -> PKH Plus: {skor_pkh_final}%, ASPD: {skor_aspd_final}%"
-        )
-
-        return {
-            "skor_pkh_plus": skor_pkh_final,
-            "skor_aspd": skor_aspd_final,
-        }
+        skor_final = saw_to_percent(skor_raw)
+        logger.info(f"[SCORING PKH+] NIK: {keluarga.nik}, Skor: {skor_final}%")
+        return {"eligible": True, "skor": skor_final}
 
     except Exception as e:
-        logger.error(f"Gagal menghitung skor bansos: {e}", exc_info=True)
-        return {"skor_pkh_plus": 0.0, "skor_aspd": 0.0}
+        logger.error(f"Gagal menghitung skor PKH+: {e}", exc_info=True)
+        return {"eligible": False, "skor": 0.0}
+
+
+def hitung_skor_aspd(keluarga) -> dict:
+    """
+    Hitung skor ASPD secara mandiri.
+    Return: {"eligible": bool, "skor": float (0-100)}
+    """
+    try:
+        umur = parse_umur(keluarga)
+        desil = get_desil(keluarga)
+        is_eligible = eligible_aspd(keluarga, umur, desil)
+
+        if not is_eligible:
+            return {"eligible": False, "skor": 0.0}
+
+        pbi_val = 1.0 if to_int(getattr(keluarga, "pbi", 0), 0) == 1 else 0.0
+        jml_anggota = to_int(getattr(keluarga, "jumlah_anggota_keluarga", 1), 1)
+
+        skor_raw = (
+            normalisasi_gizi(getattr(keluarga, "id_kondisi_gizi", 3)) * ASPD_WEIGHTS["id_kondisi_gizi"]
+            + normalisasi_hambatan(getattr(keluarga, "id_berjalan_atau_naik_tangga", 4)) * ASPD_WEIGHTS["id_berjalan_atau_naik_tangga"]
+            + normalisasi_hambatan(getattr(keluarga, "id_mengurus_diri", 4)) * ASPD_WEIGHTS["id_mengurus_diri"]
+            + normalisasi_desil_aspd(desil) * ASPD_WEIGHTS["desil_nasional"] # <--- UBAH BARIS INI
+            + pbi_val * ASPD_WEIGHTS["pbi"]
+            + normalisasi_hambatan(getattr(keluarga, "id_penglihatan", 4)) * ASPD_WEIGHTS["id_penglihatan"]
+            + normalisasi_hambatan(getattr(keluarga, "id_pendengaran", 4)) * ASPD_WEIGHTS["id_pendengaran"]
+            + normalisasi_hambatan(getattr(keluarga, "id_menggunakan_tangan_jari", 4)) * ASPD_WEIGHTS["id_menggunakan_tangan_jari"]
+            + normalisasi_hambatan(getattr(keluarga, "id_belajar_kemampuan_intelektual", 4)) * ASPD_WEIGHTS["id_belajar_kemampuan_intelektual"]
+            + normalisasi_hambatan(getattr(keluarga, "id_pengendalian_perilaku", 4)) * ASPD_WEIGHTS["id_pengendalian_perilaku"]
+            + normalisasi_hambatan(getattr(keluarga, "id_berbicara_komunikasi", 4)) * ASPD_WEIGHTS["id_berbicara_komunikasi"]
+            + normalisasi_hambatan(getattr(keluarga, "id_mengingat_berkonsentrasi", 4)) * ASPD_WEIGHTS["id_mengingat_berkonsentrasi"]
+            + cek_penyakit_menahun(getattr(keluarga, "id_penyakit_menahun", 1)) * ASPD_WEIGHTS["id_penyakit_menahun"]
+            + normalisasi_jumlah_anggota(jml_anggota) * ASPD_WEIGHTS["jumlah_anggota_keluarga"]
+        )
+
+        skor_final = saw_to_percent(skor_raw)
+        logger.info(f"[SCORING ASPD] NIK: {keluarga.nik}, Skor: {skor_final}%")
+        return {"eligible": True, "skor": skor_final}
+
+    except Exception as e:
+        logger.error(f"Gagal menghitung skor ASPD: {e}", exc_info=True)
+        return {"eligible": False, "skor": 0.0}
+
+
+def hitung_skor_bantuan(keluarga) -> dict: 
+    """
+    Wrapper backward-compatible. Memanggil fungsi terpisah PKH+ dan ASPD.
+    Menerima parameter 'keluarga' (Object SQLAlchemy models.Keluarga).
+
+    Return: {"skor_pkh_plus": float, "skor_aspd": float,
+             "eligible_pkh_plus": bool, "eligible_aspd": bool}
+    """
+    hasil_pkh = hitung_skor_pkh_plus(keluarga)
+    hasil_aspd = hitung_skor_aspd(keluarga)
+
+    logger.info(
+        f"[SCORING] NIK: {keluarga.nik}, KK: {keluarga.no_kk}. "
+        f"PKH+ eligible={hasil_pkh['eligible']} skor={hasil_pkh['skor']}%, "
+        f"ASPD eligible={hasil_aspd['eligible']} skor={hasil_aspd['skor']}%"
+    )
+
+    return {
+        "skor_pkh_plus": hasil_pkh["skor"],
+        "skor_aspd": hasil_aspd["skor"],
+        "eligible_pkh_plus": hasil_pkh["eligible"],
+        "eligible_aspd": hasil_aspd["eligible"],
+    }
+

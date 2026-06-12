@@ -16,31 +16,41 @@ load_dotenv()
 
 APP_HOST = os.getenv("APP_HOST", "127.0.0.1")
 APP_PORT = int(os.getenv("APP_PORT", 8000))
-AI_BASE_URL = os.getenv("AI_BASE_URL")
-MOCK_APP_HOST = os.getenv("MOCK_APP_HOST", "0.0.0.0")
-MOCK_APP_PORT = int(os.getenv("MOCK_APP_PORT", 8001))
+# MOCK_APP_HOST = os.getenv("MOCK_APP_HOST", "0.0.0.0")
+# MOCK_APP_PORT = int(os.getenv("MOCK_APP_PORT", 8001))
 AI_BASE_URL = os.getenv("AI_BASE_URL")
 AI_RUNPOD_URL = os.getenv("AI_RUNPOD_URL")
 AI_RUNPOD_TOKEN = os.getenv("AI_RUNPOD_TOKEN")
 API_TIM_3_URL = os.getenv("API_TIM_3_URL")
 
 # --- KONFIGURASI MINIO (STORAGE) ---
-MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")  # Source of truth utama (contoh: http://localhost:9002)
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 MINIO_BUCKET = "foto-rumah-warga"
-MINIO_PUBLIC_ENDPOINT = os.getenv("MINIO_PUBLIC_ENDPOINT", "localhost:9000")
+
+# Ambil base URL yang bersih dan pastikan memiliki skema http:// atau https://
+MINIO_BASE_URL = MINIO_ENDPOINT if MINIO_ENDPOINT and MINIO_ENDPOINT.startswith("http") else f"http://{MINIO_ENDPOINT}"
 
 def to_public_foto_url(url: str) -> str:
-    """Konversi URL internal Docker (minio:9000) ke URL yang bisa diakses browser."""
+    """
+    Konversi URL internal Docker (mkn_minio:9000 atau localhost:9000) 
+    ke URL publik/lokal yang bisa diakses langsung oleh browser luar (port 9002).
+    """
     if not url or not MINIO_ENDPOINT:
         return url
-    return url.replace(f"http://{MINIO_ENDPOINT}", f"http://{MINIO_PUBLIC_ENDPOINT}")
+    
+    # Mengganti variasi alamat lama/internal menjadi alamat MINIO_ENDPOINT terbaru
+    url_bersih = url.replace("http://mkn_minio:9000", MINIO_BASE_URL)
+    url_bersih = url_bersih.replace("http://localhost:9000", MINIO_BASE_URL)
+    
+    return url_bersih
+
 
 # Inisialisasi Klien S3/MinIO
 s3_client = boto3.client(
     "s3",
-    endpoint_url=f"http://{MINIO_ENDPOINT}",
+    endpoint_url=MINIO_BASE_URL,
     aws_access_key_id=MINIO_ACCESS_KEY,
     aws_secret_access_key=MINIO_SECRET_KEY,
     config=Config(signature_version="s3v4", s3={'addressing_style': 'path'})
