@@ -97,20 +97,20 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   const familyId = id || location.state?.id_keluarga;
 
   // Parse format: "Hasil[3]{Komponen,Prediksi,Status,Alasan}:\nAtap,..."
-  const parseVisualReasoning = (raw: string | null | undefined): Record<string, {prediksi: string; status: string; alasan: string}> => {
-    const result: Record<string, {prediksi: string; status: string; alasan: string}> = {};
-    if (!raw) return result;
-    const lines = raw.split('\n').filter(l => l.trim() && !l.startsWith('Hasil['));
-    for (const line of lines) {
-      // Parse CSV dengan quoted strings
-      const match = line.match(/^(Atap|Dinding|Lantai),([^,]+),([^,]+),"(.*)"$/i);
-      if (match) {
-        result[match[1].toLowerCase()] = { prediksi: match[2].trim(), status: match[3].trim(), alasan: match[4].trim() };
-      }
-    }
-    return result;
-  };
-  const visualData = parseVisualReasoning(detailData?.visual_reasoning);
+  // const parseVisualReasoning = (raw: string | null | undefined): Record<string, { prediksi: string; status: string; alasan: string }> => {
+  //   const result: Record<string, { prediksi: string; status: string; alasan: string }> = {};
+  //   if (!raw) return result;
+  //   const lines = raw.split('\n').filter(l => l.trim() && !l.startsWith('Hasil['));
+  //   for (const line of lines) {
+  //     // Parse CSV dengan quoted strings
+  //     const match = line.match(/^(Atap|Dinding|Lantai),([^,]+),([^,]+),"(.*)"$/i);
+  //     if (match) {
+  //       result[match[1].toLowerCase()] = { prediksi: match[2].trim(), status: match[3].trim(), alasan: match[4].trim() };
+  //     }
+  //   }
+  //   return result;
+  // };
+  // const visualData = parseVisualReasoning(detailData?.visual_reasoning);
 
   // Parse AI Reasoning JSON - prioritaskan data dari server, bukan location.state
   const rawReasoning = detailData?.aiReasoning || location.state?.aiReasoning || "Data reasoning belum tersedia dari AI.";
@@ -153,22 +153,23 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
   const displayImages = (() => {
     const urls = [...(detailData?.foto_urls || [])];
 
-    // Replace minio hostnames if needed
-    const processedUrls = urls.map((url) =>
-      url.replace(
-        "http://minio:9000",
-        `http://${window.location.hostname}:9000`,
-      ),
-    );
+    // Jalur pembersihan URL agar mengarah ke port luar MinIO API (9002)
+    const processedUrls = urls.map((url) => {
+      if (!url) return url;
+      return url
+        .replace("http://minio:9000", `http://${window.location.hostname}:9002`)
+        .replace("http://mkn_minio:9000", `http://${window.location.hostname}:9002`)
+        .replace("http://localhost:9000", `http://${window.location.hostname}:9002`);
+    });
 
-    // If there is only one photo or it's empty, and we have a url_foto
+    // Jika array foto kosong, gunakan fallback dari detailData.url_foto
     if (processedUrls.length === 0 && detailData?.url_foto) {
-      processedUrls.push(
-        detailData.url_foto.replace(
-          "http://minio:9000",
-          `http://${window.location.hostname}:9000`,
-        ),
-      );
+      const fallbackUrl = detailData.url_foto
+        .replace("http://minio:9000", `http://${window.location.hostname}:9002`)
+        .replace("http://mkn_minio:9000", `http://${window.location.hostname}:9002`)
+        .replace("http://localhost:9000", `http://${window.location.hostname}:9002`);
+
+      processedUrls.push(fallbackUrl);
     }
 
     return processedUrls;
@@ -337,6 +338,28 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
     }
     return "Tanah";
   };
+
+  const isMatchGlobal = detailData?.visual_match;
+  const globalReason = detailData?.visual_reasoning || "-";
+  const statusTeks = isMatchGlobal === true ? "Sesuai" : (isMatchGlobal === false ? "Tidak Sesuai" : "Belum Diases");
+
+  const visualData: Record<string, any> = detailData?.visual_reasoning ? {
+    atap: {
+      prediksi: getAtapVisual(),
+      status: statusTeks,
+      alasan: globalReason
+    },
+    dinding: {
+      prediksi: getDindingVisual(),
+      status: statusTeks,
+      alasan: globalReason
+    },
+    lantai: {
+      prediksi: getLantaiVisual(),
+      status: statusTeks,
+      alasan: globalReason
+    }
+  } : {};
 
   const recommendations: RecommendationData[] = [
     {
@@ -650,10 +673,12 @@ const DetailHasil: React.FC<DetailHasilProps> = ({ onLogout }) => {
                             </td>
                             <td style={{ padding: "14px 16px" }}>
                               {vis ? (
-                                <span style={{ padding: "3px 10px", borderRadius: 9999, fontSize: 11, fontWeight: 700,
+                                <span style={{
+                                  padding: "3px 10px", borderRadius: 9999, fontSize: 11, fontWeight: 700,
                                   backgroundColor: isSesuai ? "#f0fdf4" : "#fef2f2",
                                   color: isSesuai ? "#16a34a" : "#dc2626",
-                                  border: `1px solid ${isSesuai ? "#bbf7d0" : "#fca5a5"}` }}>
+                                  border: `1px solid ${isSesuai ? "#bbf7d0" : "#fca5a5"}`
+                                }}>
                                   {vis.status}
                                 </span>
                               ) : renderVisualMatchBadge(null)}
